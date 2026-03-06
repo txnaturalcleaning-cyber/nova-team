@@ -26,8 +26,8 @@ const BRANCHES = [
   { id:"nc",         name:"North Carolina" },
 ];
 
-// ops = cleaning staff for schedule
-const CLEANING_DEPTS = ["ops","supervision"];
+// All non-cleaning dept staff for schedule (office workers)
+const OFFICE_DEPTS = ["sales","mgmt","finance","hr","reps","smm","marketing"];
 
 const INIT_EMPLOYEES = [
   { id:1,  name:"Zalina Karimova",  dept:"mgmt",       branch:"austin",  role:"CEO / Основатель",  rate:0,  salary:0,   salaryType:"fixed", status:"active", email:"zalina@nova.team",  password:"zalina123",  type:"employee" },
@@ -92,6 +92,31 @@ const INIT_KB = [
   { id:6, type:"sop",     dept:"finance","title":"SOP: Выплаты 1099",        content:"• Выплаты каждую пятницу\n• Zelle (основной), Venmo (альт.)\n• 1099-NEC при $600+/год\n• Срок: 31 января", thumb:"💰", visibleTo:["finance","mgmt"] },
   { id:7, type:"youtube", dept:"ops",   title:"Стандарты уборки спален",      url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ", desc:"Как убирать спальни по стандарту", thumb:"🛏️", visibleTo:["ops","supervision","mgmt","clients"] },
   { id:8, type:"sop",     dept:"smm",   title:"SOP: Контент-план Instagram",  content:"Понедельник: до-после уборки\nСреда: отзывы клиентов\nПятница: видео процесса\nВоскресенье: образовательный пост", thumb:"📱", visibleTo:["smm","marketing","mgmt"] },
+];
+
+
+const ROLES = [
+  { id:"ceo",           label:"CEO / Основатель",        dept:"mgmt"        },
+  { id:"ops_manager",   label:"Операционный менеджер",    dept:"ops"         },
+  { id:"sales_manager", label:"Менеджер по продажам",     dept:"sales"       },
+  { id:"bookkeeper",    label:"Буккипер / Бухгалтер",     dept:"finance"     },
+  { id:"hr_specialist", label:"HR Специалист",            dept:"hr"          },
+  { id:"supervisor",    label:"Супервайзер",              dept:"supervision" },
+  { id:"cleaner",       label:"Клинер",                   dept:"ops"         },
+  { id:"representative",label:"Представитель компании",   dept:"reps"        },
+  { id:"smm_manager",   label:"SMM Менеджер",             dept:"smm"         },
+  { id:"marketer",      label:"Маркетолог",               dept:"marketing"   },
+  { id:"sales_admin",   label:"Администратор продаж",     dept:"sales"       },
+  { id:"custom",        label:"Своя роль...",             dept:""            },
+];
+
+const INIT_SALARY_PAYMENTS = [
+  { id:1, employeeId:5, amount:3500, date:"2025-05-31", status:"paid",    note:"Май 2025"  },
+  { id:2, employeeId:6, amount:3000, date:"2025-05-31", status:"paid",    note:"Май 2025"  },
+  { id:3, employeeId:7, amount:4000, date:"2025-05-31", status:"paid",    note:"Май 2025"  },
+  { id:4, employeeId:5, amount:3500, date:"2025-06-30", status:"pending", note:"Июнь 2025" },
+  { id:5, employeeId:6, amount:3000, date:"2025-06-30", status:"pending", note:"Июнь 2025" },
+  { id:6, employeeId:7, amount:4000, date:"2025-06-30", status:"pending", note:"Июнь 2025" },
 ];
 
 const PERF_DATA = {
@@ -312,11 +337,12 @@ function LoginScreen({ employees, clients, onLogin }) {
 
 /* ─────────────────────────── MAIN APP ─────────────────────────── */
 export default function NovaTeam() {
-  const [departments, setDepartments] = useState(INIT_DEPARTMENTS);
-  const [employees,   setEmployees]   = useState(INIT_EMPLOYEES);
-  const [clients,     setClients]     = useState(INIT_CLIENTS);
-  const [tasks,       setTasks]       = useState(INIT_TASKS);
-  const [schedule,    setSchedule]    = useState(INIT_SCHEDULE);
+  const [departments,     setDepartments]     = useState(INIT_DEPARTMENTS);
+  const [employees,       setEmployees]       = useState(INIT_EMPLOYEES);
+  const [clients,         setClients]         = useState(INIT_CLIENTS);
+  const [tasks,           setTasks]           = useState(INIT_TASKS);
+  const [schedule,        setSchedule]        = useState(INIT_SCHEDULE);
+  const [salaryPayments,  setSalaryPayments]  = useState(INIT_SALARY_PAYMENTS);
   const [chatMsgs,    setChatMsgs]    = useState(INIT_CHAT_MSGS);
   const [kb,          setKb]          = useState(INIT_KB);
   const [currentUser, setCurrentUser] = useState(null);
@@ -332,7 +358,8 @@ export default function NovaTeam() {
   const isClient = currentUser?.type === "client";
 
   // Default forms
-  const defEmp  = { name:"", dept:"ops", branch:"austin", role:"", rate:"18", salary:"0", salaryType:"hourly", status:"active", email:"", password:"" };
+  const defEmp  = { name:"", dept:"ops", branch:"austin", role:"", roleId:"cleaner", rate:"18", salary:"0", salaryType:"hourly", status:"active", email:"", password:"" };
+  const defPay  = { employeeId:"", amount:"", date:"", status:"pending", note:"" };
   const defCli  = { name:"", contact:"", email:"", password:"", city:"austin", plan:"Basic" };
   const defTask = { title:"", assignee:"", dept:"ops", priority:"medium", due:"", status:"todo" };
   const defKb   = { type:"sop", dept:"ops", title:"", url:"", content:"", desc:"", thumb:"📄", visibleTo:[] };
@@ -340,6 +367,7 @@ export default function NovaTeam() {
   const defSched= { employeeId:"", date:"", startTime:"09:00", endTime:"13:00", address:"", client:"", notes:"", status:"confirmed" };
 
   const [empForm,   setEmpForm]   = useState(defEmp);
+  const [payForm,   setPayForm]   = useState(defPay);
   const [cliForm,   setCliForm]   = useState(defCli);
   const [taskForm,  setTaskForm]  = useState(defTask);
   const [kbForm,    setKbForm]    = useState(defKb);
@@ -354,7 +382,8 @@ export default function NovaTeam() {
   const visibleTasks = isAdmin ? tasks : tasks.filter(t => t.dept === myDept || t.assignee === currentUser?.id);
   const canAccessChat = (ch) => ch === "general" || ch === "clients" || isAdmin || ch === myDept;
   const chatDepts = isAdmin ? departments : departments.filter(d => d.id === myDept);
-  const cleaningEmps = employees.filter(e => CLEANING_DEPTS.includes(e.dept));
+  const officeEmps   = employees.filter(e => OFFICE_DEPTS.includes(e.dept));
+  const cleaningEmps  = employees.filter(e => e.dept === "ops" || e.dept === "supervision");
 
   // KB visibility: admin sees all, client sees "clients" tagged, others see their dept
   const visibleKb = isAdmin ? kb
@@ -369,6 +398,18 @@ export default function NovaTeam() {
     setEmployees(p => [...p, { ...empForm, id:Date.now(), rate:Number(empForm.rate), salary:Number(empForm.salary), type:"employee" }]);
     setEmpForm(defEmp); setModal(null);
   }
+
+  function addSalaryPayment() {
+    if (!payForm.employeeId || !payForm.amount || !payForm.date) return;
+    setSalaryPayments(p => [...p, { ...payForm, id:Date.now(), amount:Number(payForm.amount), employeeId:Number(payForm.employeeId) }]);
+    setPayForm(defPay); setModal(null);
+  }
+
+  function togglePayment(id) {
+    setSalaryPayments(p => p.map(x => x.id===id ? {...x, status:x.status==="paid"?"pending":"paid"} : x));
+  }
+
+  function deletePayment(id) { setSalaryPayments(p => p.filter(x => x.id!==id)); }
 
   function addClient() {
     if (!cliForm.name.trim() || !cliForm.email.trim() || !cliForm.password.trim()) return;
@@ -642,18 +683,21 @@ export default function NovaTeam() {
 
   /* ──────────── SALARY ──────────── */
   const Salary = () => {
-    const hourlyEmps = employees.filter(e=>e.salaryType==="hourly");
-    const fixedEmps  = employees.filter(e=>e.salaryType==="fixed");
-    const totalFixed = fixedEmps.reduce((s,e)=>s+Number(e.salary),0);
-    const totalHourly = hourlyEmps.reduce((s,e)=>s+(Number(e.rate)*40*4),0); // est 40h/week
+    const [filterEmp, setFilterEmp] = useState("all");
+    const fixedEmps   = employees.filter(e=>e.salaryType==="fixed");
+    const hourlyEmps  = employees.filter(e=>e.salaryType==="hourly");
+    const totalPaid   = salaryPayments.filter(p=>p.status==="paid").reduce((s,p)=>s+p.amount,0);
+    const totalPending= salaryPayments.filter(p=>p.status==="pending").reduce((s,p)=>s+p.amount,0);
+    const filtered    = filterEmp==="all" ? salaryPayments : salaryPayments.filter(p=>p.employeeId===Number(filterEmp));
+
     return (
       <>
         <div className="stats-row">
           {[
-            { lbl:"Фикс. зарплат",  val:`$${totalFixed.toLocaleString()}`, sub:"В месяц",        color:"var(--gr)" },
-            { lbl:"Почасовых",      val:`~$${totalHourly.toLocaleString()}`,sub:"Оценка/месяц",   color:"var(--acc)" },
-            { lbl:"Сотрудников",    val:employees.length,                   sub:"Всего в системе", color:"var(--bl)" },
-            { lbl:"1099 подрядч.",  val:hourlyEmps.length,                  sub:"Почасовая ставка",color:"#a855f7" },
+            { lbl:"Выплачено",   val:`$${totalPaid.toLocaleString()}`,    sub:"Всего оплачено",   color:"var(--gr)"  },
+            { lbl:"Ожидает",     val:`$${totalPending.toLocaleString()}`,  sub:"К выплате",        color:"var(--acc)" },
+            { lbl:"Фикс. ставок",val:fixedEmps.length,                    sub:"Сотрудников",      color:"var(--bl)"  },
+            { lbl:"Почасовых",   val:hourlyEmps.length,                   sub:"1099 подрядчиков", color:"#a855f7"    },
           ].map((s,i)=>(
             <div className="stat" key={i}>
               <div className="stat-lbl">{s.lbl}</div>
@@ -662,40 +706,81 @@ export default function NovaTeam() {
             </div>
           ))}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          <div className="card">
-            <div className="card-hd"><div className="card-title">💰 Фиксированные зарплаты</div></div>
+
+        <div className="card" style={{marginBottom:16}}>
+          <div className="card-hd">
+            <div className="card-title">💵 История выплат</div>
+            <div style={{display:"flex",gap:8}}>
+              <select className="inp" style={{width:"auto",padding:"5px 10px",fontSize:12}} value={filterEmp} onChange={e=>setFilterEmp(e.target.value)}>
+                <option value="all">Все сотрудники</option>
+                {fixedEmps.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+              {isAdmin && <button className="btn btn-prim btn-sm" onClick={()=>setModal("pay")}>+ Добавить</button>}
+            </div>
+          </div>
+          <div className="tbl-wrap">
             <table>
-              <thead><tr><th>Сотрудник</th><th>Роль</th><th>Зарплата/мес</th></tr></thead>
+              <thead><tr><th>Сотрудник</th><th>Сумма</th><th>Дата</th><th>Примечание</th><th>Статус</th>{isAdmin&&<th>Действие</th>}</tr></thead>
               <tbody>
-                {fixedEmps.map(e=>{
-                  const d=deptOf(departments,e.dept);
+                {filtered.map(p=>{
+                  const emp = empOf(employees, p.employeeId);
+                  const d   = emp ? deptOf(departments, emp.dept) : null;
                   return (
-                    <tr key={e.id}>
-                      <td><div className="flex-c"><Av name={e.name} color={d?.color}/><span style={{fontWeight:500}}>{e.name}</span></div></td>
-                      <td style={{color:"var(--mu)"}}>{e.role}</td>
-                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(e.salary).toLocaleString()}</td>
+                    <tr key={p.id}>
+                      <td><div className="flex-c"><Av name={emp?.name||"?"} color={d?.color}/><span style={{fontWeight:500}}>{emp?.name||"—"}</span></div></td>
+                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(p.amount).toLocaleString()}</td>
+                      <td style={{color:"var(--mu)",fontSize:12}}>{p.date}</td>
+                      <td style={{color:"var(--mu)",fontSize:12}}>{p.note}</td>
+                      <td>
+                        <span className={`badge ${p.status==="paid"?"b-gr":"b-yw"}`}>
+                          {p.status==="paid"?"✓ Оплачено":"⏳ Ожидает"}
+                        </span>
+                      </td>
+                      {isAdmin && (
+                        <td style={{display:"flex",gap:6}}>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>togglePayment(p.id)}>
+                            {p.status==="paid"?"↩ Отменить":"✓ Оплатить"}
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={()=>deletePayment(p.id)}>×</button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
+                {!filtered.length && <tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>Нет записей</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <div className="card">
+            <div className="card-hd"><div className="card-title">📋 Фиксированные ставки</div></div>
+            <table>
+              <thead><tr><th>Сотрудник</th><th>Роль</th><th>$/мес</th></tr></thead>
+              <tbody>
+                {fixedEmps.map(e=>{const d=deptOf(departments,e.dept);return(
+                  <tr key={e.id}>
+                    <td><div className="flex-c"><Av name={e.name} color={d?.color}/><span style={{fontWeight:500}}>{e.name}</span></div></td>
+                    <td style={{color:"var(--mu)",fontSize:12}}>{e.role}</td>
+                    <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(e.salary).toLocaleString()}</td>
+                  </tr>
+                );})}
               </tbody>
             </table>
           </div>
           <div className="card">
             <div className="card-hd"><div className="card-title">⏱ Почасовые (1099)</div></div>
             <table>
-              <thead><tr><th>Сотрудник</th><th>Ставка/час</th><th>Оценка/мес</th></tr></thead>
+              <thead><tr><th>Сотрудник</th><th>$/час</th><th>~$/мес</th></tr></thead>
               <tbody>
-                {hourlyEmps.map(e=>{
-                  const d=deptOf(departments,e.dept);
-                  return (
-                    <tr key={e.id}>
-                      <td><div className="flex-c"><Av name={e.name} color={d?.color}/><span style={{fontWeight:500}}>{e.name}</span></div></td>
-                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600}}>${e.rate}/h</td>
-                      <td style={{color:"var(--acc)"}}>~${(e.rate*40*4).toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
+                {hourlyEmps.map(e=>{const d=deptOf(departments,e.dept);return(
+                  <tr key={e.id}>
+                    <td><div className="flex-c"><Av name={e.name} color={d?.color}/><span style={{fontWeight:500}}>{e.name}</span></div></td>
+                    <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600}}>${e.rate}/h</td>
+                    <td style={{color:"var(--acc)"}}>~${(e.rate*40*4).toLocaleString()}</td>
+                  </tr>
+                );})}
               </tbody>
             </table>
           </div>
@@ -717,7 +802,7 @@ export default function NovaTeam() {
           {isAdmin && <button className="btn btn-prim" onClick={()=>setModal("schedule")}>+ Добавить смену</button>}
           <select className="inp" style={{width:"auto"}} value={filterEmp} onChange={e=>setFilterEmp(e.target.value)}>
             <option value="all">Все клинеры</option>
-            {cleaningEmps.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+            {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
         <div className="info-box">📅 Расписание для клинеров и супервайзеров. Каждая смена содержит адрес объекта и время.</div>
@@ -942,13 +1027,34 @@ export default function NovaTeam() {
               <Badge cls={a.type==="youtube"?"b-rd":"b-bl"}>{a.type==="youtube"?"▶ YouTube":"📄 SOP"}</Badge>
               {isAdmin && a.visibleTo?.map(v=><Badge key={v} cls="b-mu">{deptOf(INIT_DEPARTMENTS,v)?.name || v}</Badge>)}
             </div>
-            {a.type==="youtube" ? (
+            {a.type==="youtube" && (
               <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:24,textAlign:"center"}}>
                 <div style={{fontSize:40,marginBottom:8}}>▶️</div>
                 <div style={{fontSize:14,marginBottom:12,color:"var(--mu)"}}>{a.desc}</div>
                 <a href={a.url} target="_blank" rel="noreferrer" className="btn btn-prim" style={{textDecoration:"none"}}>Открыть на YouTube</a>
               </div>
-            ) : (
+            )}
+            {a.type==="gdoc" && (
+              <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:24}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                  <span style={{fontSize:36}}>📄</span>
+                  <div>
+                    <div style={{fontWeight:600,marginBottom:4}}>{a.title}</div>
+                    <div style={{fontSize:12,color:"var(--mu)"}}>{a.desc}</div>
+                  </div>
+                </div>
+                <a href={a.url} target="_blank" rel="noreferrer" className="btn btn-prim" style={{textDecoration:"none",marginRight:8}}>
+                  🔗 Открыть документ
+                </a>
+                <span style={{fontSize:11,color:"var(--mu)"}}>Откроется в новой вкладке</span>
+                {a.url && (
+                  <div style={{marginTop:12,background:"var(--s3)",borderRadius:8,padding:"8px 12px",fontSize:11,color:"var(--mu)",wordBreak:"break-all"}}>
+                    {a.url}
+                  </div>
+                )}
+              </div>
+            )}
+            {a.type==="sop" && (
               <div className="kb-full">{a.content}</div>
             )}
           </div>
@@ -971,7 +1077,7 @@ export default function NovaTeam() {
           {filtered.map(a=>(
             <div key={a.id} className="kb-card" style={{borderColor:a.type==="youtube"?"#ef444425":undefined}} onClick={()=>setKbView(a.id)}>
               <div style={{fontSize:26,marginBottom:8}}>{a.thumb}</div>
-              <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>{a.type==="youtube"?"▶ YouTube":"📄 SOP"}</div>
+              <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>{a.type==="youtube"?"▶ YouTube":a.type==="gdoc"?"🔗 Google Doc":"📄 SOP"}</div>
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:600,marginBottom:6}}>{a.title}</div>
               <div style={{fontSize:12,color:"var(--mu)"}}>{a.desc||a.content?.slice(0,60)+"..."}</div>
             </div>
@@ -1069,9 +1175,20 @@ export default function NovaTeam() {
               <div className="modal-title">Новый сотрудник</div>
               <div className="info-box">🔐 Логин и пароль создаёт администратор. Сотрудник не может их изменить.</div>
               <div className="form-row">
-                <div className="form-g"><label className="lbl">Полное имя</label><input className="inp" value={empForm.name} onChange={e=>setEmpForm(p=>({...p,name:e.target.value}))} placeholder="Anna Smith"/></div>
-                <div className="form-g"><label className="lbl">Должность</label><input className="inp" value={empForm.role} onChange={e=>setEmpForm(p=>({...p,role:e.target.value}))} placeholder="Sales Manager"/></div>
+                <div className="form-g"><label className="lbl">Имя</label><input className="inp" value={empForm.name} onChange={e=>setEmpForm(p=>({...p,name:e.target.value}))} placeholder="Anna Smith"/></div>
+                <div className="form-g">
+                  <label className="lbl">Роль в компании</label>
+                  <select className="inp" value={empForm.roleId} onChange={e=>{
+                    const r = ROLES.find(x=>x.id===e.target.value);
+                    setEmpForm(p=>({...p, roleId:e.target.value, role:r?.id==="custom"?p.role:r?.label||"", dept:r?.dept||p.dept}));
+                  }}>
+                    {ROLES.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
+                </div>
               </div>
+              {empForm.roleId==="custom" && (
+                <div className="form-g"><label className="lbl">Своя должность</label><input className="inp" value={empForm.role} onChange={e=>setEmpForm(p=>({...p,role:e.target.value}))} placeholder="Название должности"/></div>
+              )}
               <div className="form-row">
                 <div className="form-g"><label className="lbl">Email (логин)</label><input className="inp" value={empForm.email} onChange={e=>setEmpForm(p=>({...p,email:e.target.value}))} placeholder="anna@nova.team"/></div>
                 <div className="form-g"><label className="lbl">Пароль</label><input className="inp" type="text" value={empForm.password} onChange={e=>setEmpForm(p=>({...p,password:e.target.value}))} placeholder="anna2025"/></div>
@@ -1231,7 +1348,7 @@ export default function NovaTeam() {
                 <label className="lbl">Сотрудник (клинер / супервайзер)</label>
                 <select className="inp" value={schedForm.employeeId} onChange={e=>setSchedForm(p=>({...p,employeeId:e.target.value}))}>
                   <option value="">Выберите...</option>
-                  {cleaningEmps.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                  {employees.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
                 </select>
               </div>
               <div className="form-row">
@@ -1258,6 +1375,40 @@ export default function NovaTeam() {
           </div>
         )}
 
+        {/* ADD SALARY PAYMENT */}
+        {modal==="pay" && (
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-title">Добавить выплату зарплаты</div>
+              <div className="form-g">
+                <label className="lbl">Сотрудник</label>
+                <select className="inp" value={payForm.employeeId} onChange={e=>setPayForm(p=>({...p,employeeId:e.target.value}))}>
+                  <option value="">Выберите сотрудника...</option>
+                  {employees.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-g"><label className="lbl">Сумма $</label><input className="inp" type="number" value={payForm.amount} onChange={e=>setPayForm(p=>({...p,amount:e.target.value}))} placeholder="3500"/></div>
+                <div className="form-g"><label className="lbl">Дата выплаты</label><input className="inp" type="date" value={payForm.date} onChange={e=>setPayForm(p=>({...p,date:e.target.value}))}/></div>
+              </div>
+              <div className="form-row">
+                <div className="form-g"><label className="lbl">Примечание</label><input className="inp" value={payForm.note} onChange={e=>setPayForm(p=>({...p,note:e.target.value}))} placeholder="Июнь 2025"/></div>
+                <div className="form-g">
+                  <label className="lbl">Статус</label>
+                  <select className="inp" value={payForm.status} onChange={e=>setPayForm(p=>({...p,status:e.target.value}))}>
+                    <option value="pending">⏳ Ожидает оплаты</option>
+                    <option value="paid">✓ Оплачено</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-act">
+                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
+                <button className="btn btn-prim" onClick={addSalaryPayment}>Добавить</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ADD KB ITEM */}
         {modal==="kb" && (
           <div className="ovl" onClick={()=>setModal(null)}>
@@ -1267,7 +1418,7 @@ export default function NovaTeam() {
                 <div className="form-g">
                   <label className="lbl">Тип</label>
                   <select className="inp" value={kbForm.type} onChange={e=>setKbForm(p=>({...p,type:e.target.value}))}>
-                    <option value="sop">📄 SOP Документ</option><option value="youtube">▶ YouTube Урок</option>
+                    <option value="sop">📄 SOP Документ</option><option value="youtube">▶ YouTube Урок</option><option value="gdoc">🔗 Google Doc / Ссылка</option>
                   </select>
                 </div>
                 <div className="form-g">
@@ -1295,13 +1446,21 @@ export default function NovaTeam() {
                   })}
                 </div>
               </div>
-              {kbForm.type==="youtube"
-                ? <>
-                    <div className="form-g"><label className="lbl">Ссылка YouTube</label><input className="inp" value={kbForm.url} onChange={e=>setKbForm(p=>({...p,url:e.target.value}))} placeholder="https://youtube.com/watch?v=..."/></div>
-                    <div className="form-g"><label className="lbl">Описание</label><input className="inp" value={kbForm.desc} onChange={e=>setKbForm(p=>({...p,desc:e.target.value}))}/></div>
-                  </>
-                : <div className="form-g"><label className="lbl">Содержание SOP</label><textarea className="inp" value={kbForm.content} onChange={e=>setKbForm(p=>({...p,content:e.target.value}))} placeholder="Пропишите шаги..."/></div>
-              }
+              {kbForm.type==="youtube" && <>
+                <div className="form-g"><label className="lbl">Ссылка YouTube</label><input className="inp" value={kbForm.url} onChange={e=>setKbForm(p=>({...p,url:e.target.value}))} placeholder="https://youtube.com/watch?v=..."/></div>
+                <div className="form-g"><label className="lbl">Описание</label><input className="inp" value={kbForm.desc} onChange={e=>setKbForm(p=>({...p,desc:e.target.value}))}/></div>
+              </>}
+              {kbForm.type==="gdoc" && <>
+                <div className="form-g">
+                  <label className="lbl">Ссылка на Google Doc / внешний документ</label>
+                  <input className="inp" value={kbForm.url} onChange={e=>setKbForm(p=>({...p,url:e.target.value}))} placeholder="https://docs.google.com/document/d/..."/>
+                  <div style={{fontSize:11,color:"var(--mu)",marginTop:4}}>Вставьте ссылку на Google Docs, Notion, Dropbox Paper или любой другой документ</div>
+                </div>
+                <div className="form-g"><label className="lbl">Описание</label><input className="inp" value={kbForm.desc} onChange={e=>setKbForm(p=>({...p,desc:e.target.value}))} placeholder="Краткое описание документа"/></div>
+              </>}
+              {kbForm.type==="sop" && (
+                <div className="form-g"><label className="lbl">Содержание SOP</label><textarea className="inp" value={kbForm.content} onChange={e=>setKbForm(p=>({...p,content:e.target.value}))} placeholder="Пропишите шаги..."/></div>
+              )}
               <div className="modal-act">
                 <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
                 <button className="btn btn-prim" onClick={addKbItem}>Добавить</button>
