@@ -273,6 +273,15 @@ const S = `
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--bg:#07090f;--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
+.light-mode{--bg:#f0f2f7;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#0000000d;--bdr2:#00000018;--tx:#111827;--mu:#6b7280;--mu2:#9ca3af;}
+.light-mode .sb{box-shadow:2px 0 12px #00000010;}
+.light-mode .topbar{box-shadow:0 2px 8px #00000008;}
+.light-mode .inp{color:#111827;}
+.light-mode .chat-inp{color:#111827;}
+.light-mode .btn-g{color:#111827;}
+.light-mode .nb{color:#374151;}
+.light-mode .nb:hover{background:var(--s2);}
+.light-mode .nb.act{background:var(--acc)12;color:var(--acc);}
 body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;}
 button,input,select,textarea{font-family:'DM Sans',sans-serif;cursor:pointer;}
 input,select,textarea{cursor:text;}
@@ -493,6 +502,7 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
 ═══════════════════════════════════════════ */
 export default function App() {
   const [lang, setLang]           = useState("ru");
+  const [theme, setTheme]         = useState("dark");
   const t = T[lang];
   const roles = lang==="ru" ? ROLES_RU : ROLES_EN;
 
@@ -1960,42 +1970,72 @@ export default function App() {
         </div>
 
         {/* ── TAB: ALL LESSONS ── */}
-        {tab==="lessons"&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-            {lessons.map(lsn=>{
-              const dept   = depts.find(d=>d.id===lsn.deptId);
-              const branch = brs.find(b=>b.id===lsn.branchId);
-              const aCount = assigns.filter(a=>a.lessonId===lsn.id).length;
-              const doneC  = assigns.filter(a=>a.lessonId===lsn.id&&a.status==="completed").length;
-              return (
-                <div key={lsn.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,cursor:"pointer",transition:"all .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                    <Bdg cls="b-bl" style={{fontSize:10}}>{lsn.type==="video"?"▶ Video":lsn.type==="quiz"?"📝 Quiz":lsn.type==="pdf"?"📄 PDF":"📖 Text"}</Bdg>
-                    {canAdmin&&<button className="btn btn-d btn-sm" style={{padding:"2px 7px"}} onClick={e=>{e.stopPropagation();deleteLesson(lsn.id);}}>{IC.trash}</button>}
-                  </div>
-                  <div style={{fontWeight:700,fontSize:14,marginBottom:5,lineHeight:1.3}} onClick={()=>setLsnView(lsn.id)}>{lsn.title}</div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-                    {dept  &&<span style={{fontSize:10,color:dept.color}}>{dept.icon} {dept.name}</span>}
-                    {branch&&<span style={{fontSize:10,color:"var(--mu)"}}>📍 {branch.name}</span>}
-                    {lsn.duration&&<span style={{fontSize:10,color:"var(--mu)"}}>⏱ {lsn.duration}{lang==="ru"?"м":"m"}</span>}
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{fontSize:11,color:"var(--mu)"}}>{aCount} {lang==="ru"?"назначений":"assigned"} · {doneC} {lang==="ru"?"завершили":"done"}</div>
-                    <button className="btn btn-p btn-sm" onClick={()=>setLsnView(lsn.id)}>{IC.play}</button>
+        {tab==="lessons"&&(()=>{
+          // Group lessons by department (like TalentLMS sections)
+          const grouped = [];
+          // 1) lessons with a dept
+          depts.forEach(dept=>{
+            const dLessons = lessons.filter(l=>l.deptId===dept.id);
+            if (dLessons.length>0) grouped.push({key:dept.id, label:dept.name, icon:dept.icon, color:dept.color, items:dLessons});
+          });
+          // 2) lessons without dept
+          const ungrouped = lessons.filter(l=>!l.deptId);
+          if (ungrouped.length>0) grouped.push({key:"other", label:lang==="ru"?"Общие уроки":"General", icon:"📚", color:"var(--mu)", items:ungrouped});
+
+          function LessonCard({lsn}) {
+            const dept   = depts.find(d=>d.id===lsn.deptId);
+            const branch = brs.find(b=>b.id===lsn.branchId);
+            const aCount = assigns.filter(a=>a.lessonId===lsn.id).length;
+            const doneC  = assigns.filter(a=>a.lessonId===lsn.id&&a.status==="completed").length;
+            return (
+              <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:13,cursor:"pointer",transition:"border-color .15s"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <Bdg cls="b-bl" style={{fontSize:10}}>{lsn.type==="video"?"▶ Video":lsn.type==="quiz"?"📝 Quiz":lsn.type==="pdf"?"📄 PDF":"📖 Text"}</Bdg>
+                  <div style={{display:"flex",gap:4}}>
+                    {lsn.duration&&<span style={{fontSize:10,color:"var(--mu)"}}>⏱{lsn.duration}{lang==="ru"?"м":"m"}</span>}
+                    {canAdmin&&<button className="btn btn-d btn-sm" style={{padding:"1px 5px"}} onClick={e=>{e.stopPropagation();deleteLesson(lsn.id);}}>{IC.trash}</button>}
                   </div>
                 </div>
-              );
-            })}
-            {!lessons.length&&(
-              <div style={{gridColumn:"1/-1",textAlign:"center",padding:48,color:"var(--mu)"}}>
-                <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.training}</div>
-                <div>{t.noLessons}</div>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:6,lineHeight:1.3}} onClick={()=>setLsnView(lsn.id)}>{lsn.title}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{fontSize:11,color:"var(--mu)"}}>{aCount}{lang==="ru"?" назн.":" assigned"} · {doneC}{lang==="ru"?" готово":" done"}</div>
+                  <button className="btn btn-p btn-sm" style={{padding:"3px 8px"}} onClick={()=>setLsnView(lsn.id)}>{IC.play}</button>
+                </div>
               </div>
-            )}
-          </div>
-        )}
+            );
+          }
+
+          return (
+            <div>
+              {grouped.length===0&&(
+                <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+                  <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.training}</div>
+                  <div>{t.noLessons}</div>
+                </div>
+              )}
+              {grouped.map(group=>(
+                <div key={group.key} style={{marginBottom:20}}>
+                  {/* Section header */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,paddingBottom:10,borderBottom:`2px solid ${group.color}30`}}>
+                    <div style={{width:36,height:36,borderRadius:9,background:group.color+"18",border:`1px solid ${group.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                      {group.icon}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:group.color}}>{group.label}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{group.items.length} {lang==="ru"?"уроков":"lessons"} · {assigns.filter(a=>group.items.some(l=>l.id===a.lessonId)&&a.status==="completed").length} {lang==="ru"?"завершено":"completed"}</div>
+                    </div>
+                  </div>
+                  {/* Lesson cards grid */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
+                    {group.items.map(lsn=><LessonCard key={lsn.id} lsn={lsn}/>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* ── TAB: ASSIGNMENTS ── */}
         {tab==="assign"&&(
@@ -2323,12 +2363,29 @@ export default function App() {
     const [pnlF, setPnlF] = useState({type:"income",amount:"",category:"",date:new Date().toISOString().split("T")[0],note:""});
     const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0,7));
 
-    const CAT_INC = lang==="ru"
+    const defaultCatInc = lang==="ru"
       ? ["Выручка от услуг","Абонентская оплата","Другой доход"]
       : ["Service Revenue","Subscription","Other Income"];
-    const CAT_EXP = lang==="ru"
+    const defaultCatExp = lang==="ru"
       ? ["Зарплата","Аренда","Маркетинг","Расходные материалы","Налоги","Страховка","Оборудование","Другой расход"]
       : ["Payroll","Rent","Marketing","Supplies","Taxes","Insurance","Equipment","Other Expense"];
+
+    const CAT_INC = [...defaultCatInc, ...(p?.pnlCatsInc||[])];
+    const CAT_EXP = [...defaultCatExp, ...(p?.pnlCatsExp||[])];
+
+    const [showCatMgr, setShowCatMgr] = useState(false);
+    const [newCat, setNewCat] = useState({type:"expense", name:""});
+
+    function addCategory() {
+      if (!newCat.name.trim()) return;
+      const field = newCat.type==="income" ? "pnlCatsInc" : "pnlCatsExp";
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,[field]:[...(x[field]||[]),newCat.name.trim()]}:x));
+      setNewCat(f=>({...f,name:""}));
+    }
+    function delCategory(type, name) {
+      const field = type==="income" ? "pnlCatsInc" : "pnlCatsExp";
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,[field]:(x[field]||[]).filter(c=>c!==name)}:x));
+    }
 
     function addEntry() {
       if (!pnlF.amount||!pnlF.category||!pnlF.date) return;
@@ -2383,6 +2440,45 @@ export default function App() {
             onChange={e=>setFilterMonth(e.target.value)}
             style={{width:"auto",padding:"6px 10px"}}/>
         </div>
+
+        {/* Category manager panel */}
+        {showCatMgr&&canEdit&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginBottom:16}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>
+              ⚙️ {lang==="ru"?"Управление категориями":"Manage Categories"}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
+              {[{type:"income",label:lang==="ru"?"Категории доходов":"Income Categories",cats:CAT_INC,defaults:defaultCatInc},
+                {type:"expense",label:lang==="ru"?"Категории расходов":"Expense Categories",cats:CAT_EXP,defaults:defaultCatExp}
+              ].map(({type,label,cats,defaults})=>(
+                <div key={type}>
+                  <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>{label}</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {cats.map(c=>(
+                      <div key={c} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",background:"var(--s2)",borderRadius:7,fontSize:12}}>
+                        <span style={{flex:1}}>{c}</span>
+                        {!defaults.includes(c)&&(
+                          <button onClick={()=>delCategory(type,c)} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:13,lineHeight:1,padding:0}}>×</button>
+                        )}
+                        {defaults.includes(c)&&<span style={{fontSize:9,color:"var(--mu2)",letterSpacing:.3}}>BASE</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div className="lang-toggle" style={{display:"flex"}}>
+                <button className={`lang-btn ${newCat.type==="income"?"act":""}`} onClick={()=>setNewCat(f=>({...f,type:"income"}))}>{lang==="ru"?"Доход":"Income"}</button>
+                <button className={`lang-btn ${newCat.type==="expense"?"act":""}`} onClick={()=>setNewCat(f=>({...f,type:"expense"}))}>{lang==="ru"?"Расход":"Expense"}</button>
+              </div>
+              <input className="inp" value={newCat.name} onChange={e=>setNewCat(f=>({...f,name:e.target.value}))}
+                placeholder={lang==="ru"?"Название категории...":"Category name..."} style={{flex:1,padding:"6px 10px",fontSize:12}}
+                onKeyDown={e=>{if(e.key==="Enter")addCategory();}}/>
+              <button className="btn btn-p btn-sm" onClick={addCategory}>{IC.plus} {lang==="ru"?"Добавить":"Add"}</button>
+            </div>
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className="stats" style={{gridTemplateColumns:"repeat(4,1fr)",marginBottom:18}}>
@@ -2583,7 +2679,7 @@ export default function App() {
   return (
     <LangCtx.Provider value={{lang,t,setLang}}>
       <style>{S}</style>
-      <div className="app">
+      <div className={`app${theme==="light"?" light-mode":""}`}>
         {/* SIDEBAR */}
         <div className="sb">
           <div className="sb-logo">
@@ -2627,9 +2723,15 @@ export default function App() {
           </nav>
           <div className="sb-foot">
             {/* Language toggle */}
-            <div className="lang-toggle" style={{marginBottom:8,width:"100%",justifyContent:"center",display:"flex"}}>
-              <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
-              <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
+            <div style={{display:"flex",gap:6,marginBottom:8}}>
+              <div className="lang-toggle" style={{flex:1,justifyContent:"center",display:"flex"}}>
+                <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
+                <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
+              </div>
+              <div className="lang-toggle" style={{flex:1,justifyContent:"center",display:"flex"}}>
+                <button className={`lang-btn ${theme==="dark"?"act":""}`} onClick={()=>setTheme("dark")} title={lang==="ru"?"Тёмная":"Dark"}>🌙</button>
+                <button className={`lang-btn ${theme==="light"?"act":""}`} onClick={()=>setTheme("light")} title={lang==="ru"?"Светлая":"Light"}>☀️</button>
+              </div>
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
               onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
