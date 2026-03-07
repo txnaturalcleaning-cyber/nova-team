@@ -314,6 +314,43 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px;}
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .app{flex-direction:column;}
+  .sb{display:none;}
+  .main{height:100vh;padding-bottom:62px;}
+  .content{padding:14px;}
+  .stats{grid-template-columns:1fr 1fr !important;}
+  .task-cols{grid-template-columns:1fr !important;}
+  .partner-grid{grid-template-columns:1fr !important;}
+  .kb-grid{grid-template-columns:1fr 1fr !important;}
+  .fr{grid-template-columns:1fr !important;}
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .modal{width:100% !important;max-width:100vw;max-height:88vh;border-radius:20px 20px 0 0;position:fixed;bottom:0;left:0;top:auto;}
+  .ovl{align-items:flex-end;}
+  .topbar{padding:10px 14px;}
+  .pg-title{font-size:15px;}
+  .imp-banner{padding:6px 14px;font-size:11px;flex-wrap:wrap;}
+  .chat-sb{display:none;}
+  .chat-sb.mob-open{display:flex !important;flex-direction:column;position:fixed;inset:0;z-index:200;background:var(--s1);width:100%;padding:56px 14px 14px;}
+  .mob-nav{display:flex !important;}
+  .mob-ch-btn{display:flex !important;}
+}
+.mob-nav{
+  display:none;position:fixed;bottom:0;left:0;right:0;height:60px;
+  background:var(--s1);border-top:1px solid var(--bdr2);
+  z-index:100;align-items:center;justify-content:space-around;padding:0 2px;
+}
+.mob-nb{
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  border:none;background:none;color:var(--mu);
+  font-size:9px;font-weight:500;padding:6px 4px;
+  flex:1;cursor:pointer;transition:color .15s;min-width:0;max-width:60px;
+}
+.mob-nb .mi{font-size:21px;line-height:1.2;}
+.mob-nb.act{color:var(--acc);}
+.mob-ch-btn{display:none;}
 `;
 
 /* ─── HELPERS ─── */
@@ -479,78 +516,138 @@ export default function App() {
   }
   function createEmployee() {
     if (!eF.name.trim()||!eF.email.trim()||!eF.password.trim()) return;
-    const em=eF.email.trim().toLowerCase();
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
-    let p=getPartner(pid);
-    if (!p && isSA && pid==="nce_main") {
-      // auto-create SA workspace
-      p = { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP", email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500", employees:[], departments:[], branches:[], tasks:[], kb:[], schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] };
-      setPartners(ps=>[...ps, p]);
-    }
-    if (!p) return;
-    if ((p.employees||[]).find(e=>e.email===em)) { alert("Email already in use"); return; }
-    updatePartner(pid,{employees:[...(p.employees||[]),{...eF,id:"e_"+Date.now(),email:em,partnerId:pid}]});
+    const em  = eF.email.trim().toLowerCase();
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const newEmp = {...eF, id:"e_"+Date.now(), email:em, partnerId:pid};
+    const existing = partners.find(p => p.id === pid);
+    if (existing) {
+      if (existing.employees?.find(e=>e.email===em)) { alert("Email already in use"); return; }
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, employees:[...(x.employees||[]), newEmp]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[newEmp], departments:[], branches:[], tasks:[], kb:[],
+        schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setEF(defE); setModal(null);
   }
   function deleteEmployee(pid,eid) {
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{employees:(p.employees||[]).filter(e=>e.id!==eid)});
+    setPartners(ps => ps.map(x => x.id===pid ? {...x, employees:(x.employees||[]).filter(e=>e.id!==eid)} : x));
   }
+  // Ensures nce_main workspace exists, returns current or newly created object
+  function ensureWS(pid) {
+    const existing = partners.find(p => p.id === pid);
+    if (existing) return existing;
+    if (pid === "nce_main") {
+      const ws = { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[], branches:[], tasks:[], kb:[],
+        schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] };
+      setPartners(ps => [...ps, ws]);
+      return ws;
+    }
+    return null;
+  }
+
   function createDept() {
     if (!dF.name.trim()) return;
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
-    const p=getPartner(pid)||{id:pid,employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[]};
-    if (!getPartner(pid)&&pid==="nce_main"){setPartners(ps=>[...ps,{...p,companyName:"Natural Cleaning Experts",plan:"VIP",status:"active",logo:"🏢",accentColor:"#f0a500",createdAt:new Date().toISOString().split("T")[0]}]);}
-    if(!p) return;
-    updatePartner(pid,{departments:[...(p.departments||[]),{...dF,id:"d_"+Date.now()}]});
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const existing = partners.find(p => p.id === pid);
+    const newDept  = {...dF, id:"d_"+Date.now()};
+    if (existing) {
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, departments:[...(x.departments||[]), newDept]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[newDept], branches:[], tasks:[], kb:[],
+        schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setDF(defD); setModal(null);
   }
+
   function createBranch() {
     if (!brF.name.trim()) return;
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
-    let p=getPartner(pid);
-    if (!p && isSA && pid==="nce_main") { p={id:"nce_main",companyName:"Natural Cleaning Experts",plan:"VIP",email:"",password:"",status:"active",logo:"🏢",accentColor:"#f0a500",employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[],createdAt:new Date().toISOString().split("T")[0]}; setPartners(ps=>[...ps,p]); }
-    if(!p) return;
-    const lim=PLAN_LIMITS[p.plan]?.branches||1;
-    if ((p.branches||[]).length>=lim) { alert(`${t.branchLimit} ${p.plan}: ${lim}`); return; }
-    updatePartner(pid,{branches:[...(p.branches||[]),{...brF,id:"b_"+Date.now()}]});
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const existing = partners.find(p => p.id === pid);
+    const plan = existing?.plan || "VIP";
+    const lim  = PLAN_LIMITS[plan]?.branches || 999;
+    if ((existing?.branches||[]).length >= lim) { alert(`${t.branchLimit} ${plan}: ${lim}`); return; }
+    const newBranch = {...brF, id:"b_"+Date.now()};
+    if (existing) {
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, branches:[...(x.branches||[]), newBranch]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[], branches:[newBranch], tasks:[], kb:[],
+        schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setBrF(defBr); setModal(null);
   }
   function createTask() {
     if (!tF.title.trim()) return;
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{tasks:[...(p.tasks||[]),{...tF,id:"t_"+Date.now(),createdBy:currentUser.id}]});
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const newItem = {...tF, id:"t_"+Date.now(), createdBy:currentUser.id};
+    const existing = partners.find(p => p.id === pid);
+    if (existing) {
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, tasks:[...(x.tasks||[]), newItem]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[], branches:[], tasks:[newItem], kb:[],
+        schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setTF(defT); setModal(null);
   }
   function updateTask(pid,tid,upd) {
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{tasks:(p.tasks||[]).map(t=>t.id===tid?{...t,...upd}:t)});
+    setPartners(ps => ps.map(x => x.id===pid ? {...x, tasks:(x.tasks||[]).map(t=>t.id===tid?{...t,...upd}:t)} : x));
   }
   function createKb() {
     if (!kF.title.trim()) return;
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{kb:[...(p.kb||[]),{...kF,id:"k_"+Date.now()}]});
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const newItem = {...kF, id:"k_"+Date.now()};
+    const existing = partners.find(p => p.id === pid);
+    if (existing) {
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, kb:[...(x.kb||[]), newItem]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[], branches:[], tasks:[], kb:[newItem],
+        schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setKF(defK); setModal(null);
   }
   function createSched() {
     if (!scF.employeeId||!scF.date) return;
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{schedule:[...(p.schedule||[]),{...scF,id:"sc_"+Date.now()}]});
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const newItem = {...scF, id:"sc_"+Date.now()};
+    const existing = partners.find(p => p.id === pid);
+    if (existing) {
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, schedule:[...(x.schedule||[]), newItem]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[], branches:[], tasks:[], kb:[],
+        schedule:[newItem], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setScF(defSc); setModal(null);
   }
   function createPayment() {
     if (!paF.employeeId||!paF.amount||!paF.date) return;
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{salaryPayments:[...(p.salaryPayments||[]),{...paF,id:"sp_"+Date.now(),amount:Number(paF.amount)}]});
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const newItem = {...paF, id:"sp_"+Date.now(), amount:Number(paF.amount)};
+    const existing = partners.find(p => p.id === pid);
+    if (existing) {
+      setPartners(ps => ps.map(x => x.id===pid ? {...x, salaryPayments:[...(x.salaryPayments||[]), newItem]} : x));
+    } else if (pid === "nce_main") {
+      setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        employees:[], departments:[], branches:[], tasks:[], kb:[],
+        schedule:[], salaryPayments:[newItem], createdAt:new Date().toISOString().split("T")[0] }]);
+    } else return;
     setPaF(defPay); setModal(null);
   }
   function togglePay(pid,id) {
-    const p=getPartner(pid); if(!p) return;
-    updatePartner(pid,{salaryPayments:(p.salaryPayments||[]).map(x=>x.id===id?{...x,status:x.status==="paid"?"pending":"paid"}:x)});
+    setPartners(ps => ps.map(x => x.id===pid ? {...x, salaryPayments:(x.salaryPayments||[]).map(s=>s.id===id?{...s,status:s.status==="paid"?"pending":"paid"}:s)} : x));
   }
   function sendChat() {
     if (!chatInput.trim()) return;
@@ -1027,12 +1124,18 @@ export default function App() {
     function stopRec(){mrec?.stop();setRec(false);setMrec(null);}
 
     const curCh = channels.find(c=>c.id===chatChannel)||channels[0];
+    const [showChSb, setShowChSb] = useState(false);
 
     return (
-      <div className="chat-wrap" style={{height:"calc(100vh - 108px)"}}>
+      <div className="chat-wrap" style={{height:"calc(100vh - 168px)"}}>
 
         {/* LEFT: channel list */}
-        <div className="chat-sb">
+        <div className={`chat-sb ${showChSb?"mob-open":""}`}>
+          {/* Close button on mobile */}
+          {showChSb&&(
+            <button className="btn btn-g btn-sm" style={{position:"absolute",top:14,right:14,zIndex:210}}
+              onClick={()=>setShowChSb(false)}>✕</button>
+          )}
           <div style={{fontSize:10,color:"var(--mu2)",textTransform:"uppercase",letterSpacing:.8,padding:"8px 8px 4px",fontWeight:600}}>
             {t.channels}
           </div>
@@ -1063,7 +1166,11 @@ export default function App() {
 
         {/* RIGHT: messages */}
         <div className="chat-main">
-          <div className="chat-hd">
+          <div className="chat-hd" style={{position:"relative"}}>
+            {/* Mobile: open channels button */}
+            <button className="btn btn-g btn-sm mob-ch-btn"
+              style={{marginRight:8,padding:"5px 8px",fontSize:13}}
+              onClick={()=>setShowChSb(true)}>☰</button>
             {curCh?.icon} {curCh?.label}
           </div>
 
@@ -1259,6 +1366,46 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* MOBILE BOTTOM NAV */}
+        <nav className="mob-nav">
+          {navPages.slice(0,5).map(p=>(
+            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
+              <span className="mi">{p.icon}</span>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{p.label}</span>
+            </button>
+          ))}
+          {navPages.length>5&&(
+            <button className={`mob-nb`} onClick={()=>setModal("mob_menu")}>
+              <span className="mi">⋯</span>
+              <span>{lang==="ru"?"Ещё":"More"}</span>
+            </button>
+          )}
+        </nav>
+
+        {/* MOBILE MORE MENU */}
+        {modal==="mob_menu"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{lang==="ru"?"Все разделы":"All sections"}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {navPages.map(p=>(
+                  <button key={p.key} className="btn btn-g" style={{justifyContent:"flex-start",gap:10,padding:"12px 14px"}}
+                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);}}>
+                    <span style={{fontSize:18}}>{p.icon}</span>
+                    <span style={{fontSize:13}}>{p.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{marginTop:14}}>
+                <button className="btn btn-d" style={{width:"100%",justifyContent:"center"}}
+                  onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");setModal(null);}}>
+                  ⏏ {t.logout}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MAIN */}
         <div className="main">
