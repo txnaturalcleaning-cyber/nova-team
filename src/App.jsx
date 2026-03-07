@@ -469,7 +469,6 @@ export default function App() {
   const [chatMsgs,    setChatMsgs]    = useState({});
   const [kbView,      setKbView]      = useState(null);
   const [kbFilter,    setKbFilter]    = useState("all");
-  const [chatInput,   setChatInput]   = useState("");
   const chatEndRef = useRef(null);
 
   const isSA      = currentUser?.type==="superadmin";
@@ -690,13 +689,7 @@ export default function App() {
   function togglePay(pid,id) {
     setPartners(ps => ps.map(x => x.id===pid ? {...x, salaryPayments:(x.salaryPayments||[]).map(s=>s.id===id?{...s,status:s.status==="paid"?"pending":"paid"}:s)} : x));
   }
-  function sendChat() {
-    if (!chatInput.trim()) return;
-    const pid=activeWS?.id||(isSA?"nce_main":"sa");
-    const key=pid+"_"+chatChannel;
-    setChatMsgs(m=>({...m,[key]:[...(m[key]||[]),{id:"m_"+Date.now(),authorId:currentUser.id,authorName:currentUser.name||currentUser.companyName,text:chatInput.trim(),ts:new Date().toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"})}]}));
-    setChatInput("");
-  }
+
 
   /* ── LOGIN GATE ── */
   if (fbLoading) {
@@ -1374,6 +1367,13 @@ export default function App() {
 
     const curCh = channels.find(c=>c.id===chatChannel)||channels[0];
     const [showChSb, setShowChSb] = useState(false);
+    const [chatInput, setChatInput] = useState("");
+
+    function sendChat() {
+      if (!chatInput.trim()) return;
+      pushMsg({ type:"text", text:chatInput.trim() });
+      setChatInput("");
+    }
 
     return (
       <div className="chat-wrap" style={{height:"calc(100vh - 168px)"}}>
