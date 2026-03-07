@@ -1,5 +1,5 @@
 {
-  "name": "nova-team",
+  "name": "nova-launch-system",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -11,7 +11,8 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "recharts": "^2.10.0"
+    "recharts": "^2.10.0",
+    "firebase": "^10.8.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
