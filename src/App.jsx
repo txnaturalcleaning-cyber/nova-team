@@ -272,16 +272,36 @@ const ROLES_EN = ["CEO / Founder","Operations Manager","Sales Manager","Bookkeep
 const S = `
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-:root{--bg:#07090f;--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
-.light-mode{--bg:#f0f2f7;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#0000000d;--bdr2:#00000018;--tx:#111827;--mu:#6b7280;--mu2:#9ca3af;}
-.light-mode .sb{box-shadow:2px 0 12px #00000010;}
-.light-mode .topbar{box-shadow:0 2px 8px #00000008;}
-.light-mode .inp{color:#111827;}
-.light-mode .chat-inp{color:#111827;}
-.light-mode .btn-g{color:#111827;}
+html.light-mode{background:#f0f4fb;} :root{--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
+.light-mode{--bg:#f0f4fb;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#00000010;--bdr2:#00000020;--tx:#111827;--mu:#6b7280;--mu2:#9ca3af;}
+.light-mode body{background:#f0f4fb;color:#111827;}
+.light-mode .sb{background:#fff;box-shadow:2px 0 16px #0000000f;border-right-color:#0000001a;}
+.light-mode .topbar{background:#fff;box-shadow:0 2px 8px #00000008;border-bottom-color:#0000001a;}
+.light-mode .inp,.light-mode .chat-inp{background:#f4f6fb;border-color:#0000001a;color:#111827;}
+.light-mode .inp:focus,.light-mode .chat-inp:focus{border-color:#0000003a;}
+.light-mode .btn-g{background:#f4f6fb;color:#111827;border-color:#0000001a;}
+.light-mode .btn-g:hover{background:#e8ecf4;}
 .light-mode .nb{color:#374151;}
-.light-mode .nb:hover{background:var(--s2);}
-.light-mode .nb.act{background:var(--acc)12;color:var(--acc);}
+.light-mode .nb:hover{background:#f4f6fb;}
+.light-mode .nb.act{color:var(--acc);}
+.light-mode .sb-logo-name{color:#111827;}
+.light-mode .sb-logo-sub{color:#6b7280;}
+.light-mode .card{background:#fff;border-color:#0000001a;}
+.light-mode .stat{background:#fff;border-color:#0000001a;}
+.light-mode .modal{background:#fff;border-color:#00000020;}
+.light-mode .ovl{background:rgba(0,0,0,0.35);}
+.light-mode .task-col{background:#fff;border-color:#0000001a;}
+.light-mode .task-item{background:#f4f6fb;border-color:#0000001a;}
+.light-mode .partner-card{background:#fff;border-color:#0000001a;}
+.light-mode .kb-card{background:#fff;border-color:#0000001a;}
+.light-mode .chat-wrap,.light-mode .chat-sb{background:#fff;border-color:#0000001a;}
+.light-mode .chat-msg-wrap .bubble{background:#e8ecf4;color:#111827;}
+.light-mode .lang-toggle{background:#f4f6fb;border-color:#0000001a;}
+.light-mode .lang-btn{color:#6b7280;}
+.light-mode select option{background:#fff;color:#111827;}
+.light-mode .tw table{color:#111827;}
+.light-mode .tw thead tr{background:#f4f6fb;}
+.light-mode .tw tbody tr:hover{background:#f8faff;}
 body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;}
 button,input,select,textarea{font-family:'DM Sans',sans-serif;cursor:pointer;}
 input,select,textarea{cursor:text;}
@@ -503,6 +523,11 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
 export default function App() {
   const [lang, setLang]           = useState("ru");
   const [theme, setTheme]         = useState("dark");
+  useEffect(()=>{
+    document.documentElement.classList.toggle("light-mode", theme==="light");
+    document.body.style.background = theme==="light" ? "#f0f2f7" : "#07090f";
+    document.body.style.color = theme==="light" ? "#111827" : "#e6eaf4";
+  }, [theme]);
   const t = T[lang];
   const roles = lang==="ru" ? ROLES_RU : ROLES_EN;
 
@@ -2729,8 +2754,12 @@ export default function App() {
                 <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
               </div>
               <div className="lang-toggle" style={{flex:1,justifyContent:"center",display:"flex"}}>
-                <button className={`lang-btn ${theme==="dark"?"act":""}`} onClick={()=>setTheme("dark")} title={lang==="ru"?"Тёмная":"Dark"}>🌙</button>
-                <button className={`lang-btn ${theme==="light"?"act":""}`} onClick={()=>setTheme("light")} title={lang==="ru"?"Светлая":"Light"}>☀️</button>
+                <button className={`lang-btn ${theme==="dark"?"act":""}`} onClick={()=>setTheme("dark")} title={lang==="ru"?"Тёмная":"Dark"}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+                <button className={`lang-btn ${theme==="light"?"act":""}`} onClick={()=>setTheme("light")} title={lang==="ru"?"Светлая":"Light"}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                </button>
               </div>
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
