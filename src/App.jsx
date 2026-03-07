@@ -591,7 +591,7 @@ export default function App() {
   function getPartner(id) { return partners.find(p=>p.id===id); }
 
   // Forms
-  const defP   = { companyName:"", email:"", password:"", plan:"Basic", status:"active", logo:"", accentColor:"#f0a500" };
+  const defP   = { companyName:"", email:"", password:"", plan:"Basic", status:"active", logo:"", accentColor:"#f0a500", logoUrl:"" };
   const defE   = { name:"", email:"", password:"", role:roles[0], sections:["dashboard","tasks","chat"], chatChannels:["general"], deptId:"", branchId:"", status:"active" };
   const defD   = { name:"", icon:"🏢", color:"#3b82f6", branchId:"" };
   const defBr  = { name:"", city:"" };
@@ -788,62 +788,142 @@ export default function App() {
   /* ════════ PAGES ════════ */
 
   /* ── SA: PARTNERS ── */
-  const SAPartners = () => (
-    <>
-      <div style={{marginBottom:14,display:"flex",gap:8}}>
-        <button className="btn btn-p" onClick={()=>{setPF(defP);setModal("partner");}}>{t.addPartner}</button>
-      </div>
-      {!partners.length && (
-        <div style={{textAlign:"center",padding:60,color:"var(--mu)"}}>
-          <div style={{fontSize:40,marginBottom:12}}>🤝</div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:16,marginBottom:6}}>{t.noPartners}</div>
-          <div style={{fontSize:13}}>{t.noPartnersDesc}</div>
-        </div>
-      )}
-      <div className="partner-grid">
-        {partners.map(p=>(
-          <div key={p.id} className="partner-card">
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-              <div style={{width:42,height:42,borderRadius:10,background:(p.accentColor||"#f0a500")+"20",border:`1px solid ${p.accentColor||"#f0a500"}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{p.logo||"🏢"}</div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName}</div>
-                <div style={{fontSize:11,color:"var(--mu)"}}>{p.email}</div>
-              </div>
-              <Bdg cls={planBdg(p.plan)}>{p.plan}</Bdg>
+  const SAPartners = () => {
+    const [showSaForm, setShowSaForm] = useState(false);
+    const [saF, setSaF] = useState({name:"",email:"",password:""});
+
+    function createSA() {
+      if (!saF.name.trim()||!saF.email.trim()||!saF.password.trim()) return;
+      const newSA = {id:"sa_"+Date.now(), name:saF.name.trim(), email:saF.email.trim().toLowerCase(), password:saF.password, type:"superadmin", createdAt:new Date().toISOString().split("T")[0]};
+      setSaAccounts(prev=>[...prev, newSA]);
+      setSaF({name:"",email:"",password:""});
+      setShowSaForm(false);
+    }
+
+    return (
+      <>
+        {/* ── SA ACCOUNTS BLOCK ── */}
+        <div className="card" style={{marginBottom:20}}>
+          <div className="card-hd">
+            <div className="card-t" style={{display:"flex",alignItems:"center",gap:8}}>
+              {IC.lock} {lang==="ru"?"Супер-администраторы":"Super Admins"}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:12}}>
-              {[
-                {l:t.empCount,   v:(p.employees||[]).length},
-                {l:t.deptCount,  v:(p.departments||[]).length},
-                {l:t.branches,   v:(p.branches||[]).length},
-              ].map((s,i)=>(
-                <div key={i} style={{background:"var(--s2)",borderRadius:8,padding:"7px 9px",textAlign:"center"}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17}}>{s.v}</div>
-                  <div style={{fontSize:10,color:"var(--mu)"}}>{s.l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              <button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button>
-              <button className="btn btn-g btn-sm" onClick={()=>{
-                const pl=["Basic","Pro","VIP"],next=pl[(pl.indexOf(p.plan)+1)%pl.length];
-                if(window.confirm(`${t.confirmPlan} ${next}?`)) updatePartner(p.id,{plan:next});
-              }}>{t.changePlan}</button>
-              <button className="btn btn-sm" style={{background:p.status==="active"?"#ef444415":"#22c55e15",color:p.status==="active"?"var(--rd)":"var(--gr)",border:`1px solid ${p.status==="active"?"#ef444425":"#22c55e25"}`}}
-                onClick={()=>updatePartner(p.id,{status:p.status==="active"?"blocked":"active"})}>
-                {p.status==="active"?t.block:t.unblock}
-              </button>
-              <button className="btn btn-d btn-sm" onClick={()=>deletePartner(p.id)}>× {t.delete}</button>
-            </div>
-            <div style={{fontSize:10,color:"var(--mu)",marginTop:9}}>{t.createdAt}: {p.createdAt} · ${PLAN_LIMITS[p.plan]?.price}/mo</div>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowSaForm(s=>!s)}>
+              {IC.plus} {lang==="ru"?"Добавить SA":"Add SA"}
+            </button>
           </div>
-        ))}
-      </div>
-    </>
-  );
+          {showSaForm&&(
+            <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:14,marginBottom:12}}>
+              <div className="fr" style={{marginBottom:10}}>
+                <div className="fg" style={{marginBottom:0}}>
+                  <label className="lbl">{t.name}</label>
+                  <input className="inp" value={saF.name} onChange={e=>setSaF(f=>({...f,name:e.target.value}))} placeholder="Denis Struchalin"/>
+                </div>
+                <div className="fg" style={{marginBottom:0}}>
+                  <label className="lbl">Email</label>
+                  <input className="inp" value={saF.email} onChange={e=>setSaF(f=>({...f,email:e.target.value}))} placeholder="denis@company.com"/>
+                </div>
+              </div>
+              <div className="fr">
+                <div className="fg" style={{marginBottom:0}}>
+                  <label className="lbl">{t.password}</label>
+                  <input className="inp" type="text" value={saF.password} onChange={e=>setSaF(f=>({...f,password:e.target.value}))} placeholder="Denis2025!"/>
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:6,paddingBottom:0}}>
+                  <button className="btn btn-p" onClick={createSA}>{lang==="ru"?"Создать":"Create"}</button>
+                  <button className="btn btn-g" onClick={()=>setShowSaForm(false)}>{t.cancel}</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {/* Primary SA — always shown */}
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:"var(--s2)",borderRadius:9,border:"1px solid var(--acc)20"}}>
+              <Av name={PRIMARY_SA.name} color="var(--acc)"/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{PRIMARY_SA.name}</div>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{PRIMARY_SA.email}</div>
+              </div>
+              <Bdg cls="b-yw">{lang==="ru"?"Основной":"Primary"}</Bdg>
+            </div>
+            {/* Extra SA accounts */}
+            {saAccounts.map(sa=>(
+              <div key={sa.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:"var(--s2)",borderRadius:9}}>
+                <Av name={sa.name} color="var(--pu)"/>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{sa.name}</div>
+                  <div style={{fontSize:11,color:"var(--mu)"}}>{sa.email}</div>
+                </div>
+                <Bdg cls="b-pu">SA</Bdg>
+                <button className="btn btn-d btn-sm" onClick={()=>setSaAccounts(prev=>prev.filter(a=>a.id!==sa.id))}>{IC.trash}</button>
+              </div>
+            ))}
+            {!saAccounts.length&&(
+              <div style={{fontSize:12,color:"var(--mu2)",padding:"4px 8px"}}>{lang==="ru"?"Дополнительных администраторов нет":"No additional admins yet"}</div>
+            )}
+          </div>
+        </div>
+
+        {/* ── PARTNERS ── */}
+        <div style={{marginBottom:14,display:"flex",gap:8}}>
+          <button className="btn btn-p" onClick={()=>{setPF(defP);setModal("partner");}}>{t.addPartner}</button>
+        </div>
+        {!partners.length && (
+          <div style={{textAlign:"center",padding:60,color:"var(--mu)"}}>
+            <div style={{fontSize:40,marginBottom:12}}>🤝</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:16,marginBottom:6}}>{t.noPartners}</div>
+            <div style={{fontSize:13}}>{t.noPartnersDesc}</div>
+          </div>
+        )}
+        <div className="partner-grid">
+          {partners.map(p=>(
+            <div key={p.id} className="partner-card">
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                <div style={{width:42,height:42,borderRadius:10,background:(p.accentColor||"#f0a500")+"20",border:`1px solid ${p.accentColor||"#f0a500"}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,overflow:"hidden"}}>
+                {p.logoUrl ? <img src={p.logoUrl} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:3}}/> : (p.logo||"🏢")}
+              </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName}</div>
+                  <div style={{fontSize:11,color:"var(--mu)"}}>{p.email}</div>
+                </div>
+                <Bdg cls={planBdg(p.plan)}>{p.plan}</Bdg>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:12}}>
+                {[
+                  {l:t.empCount,  v:(p.employees||[]).length},
+                  {l:t.deptCount, v:(p.departments||[]).length},
+                  {l:t.branches,  v:(p.branches||[]).length},
+                ].map((s,i)=>(
+                  <div key={i} style={{background:"var(--s2)",borderRadius:8,padding:"7px 9px",textAlign:"center"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17}}>{s.v}</div>
+                    <div style={{fontSize:10,color:"var(--mu)"}}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                <button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button>
+                <button className="btn btn-g btn-sm" onClick={()=>{
+                  const pl=["Basic","Pro","VIP"],next=pl[(pl.indexOf(p.plan)+1)%pl.length];
+                  if(window.confirm(`${t.confirmPlan} ${next}?`)) updatePartner(p.id,{plan:next});
+                }}>{t.changePlan}</button>
+                <button className="btn btn-sm" style={{background:p.status==="active"?"#ef444415":"#22c55e15",color:p.status==="active"?"var(--rd)":"var(--gr)",border:`1px solid ${p.status==="active"?"#ef444425":"#22c55e25"}`}}
+                  onClick={()=>updatePartner(p.id,{status:p.status==="active"?"blocked":"active"})}>
+                  {p.status==="active"?t.block:t.unblock}
+                </button>
+                <button className="btn btn-d btn-sm" onClick={()=>deletePartner(p.id)}>× {t.delete}</button>
+              </div>
+              <div style={{fontSize:10,color:"var(--mu)",marginTop:9}}>{t.createdAt}: {p.createdAt} · ${PLAN_LIMITS[p.plan]?.price}/mo</div>
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  };
 
   /* ── DASHBOARD ── */
   const Dashboard = () => {
+    const [logoInput, setLogoInput] = useState("");
+    const [showLogoEdit, setShowLogoEdit] = useState(false);
     if (isSA&&!viewPartner) {
       const totalE=partners.reduce((s,p)=>s+(p.employees||[]).length,0);
       const rev=partners.filter(p=>p.status==="active").reduce((s,p)=>s+(PLAN_LIMITS[p.plan]?.price||0),0);
@@ -888,8 +968,40 @@ export default function App() {
       );
     }
     const ws=activeWS; const emps=ws?.employees||[]; const tasks=ws?.tasks||[]; const depts=ws?.departments||[];
+    const myPid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const myLogo = getPartner(myPid)?.logoUrl||"";
     return (
       <>
+        {/* Logo upload widget — visible to partner and SA in cabinet */}
+        {(isPartner||viewPartner)&&(
+          <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:12,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 16px"}}>
+            <div style={{width:52,height:52,borderRadius:10,background:"var(--s2)",border:"1px solid var(--bdr)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+              {myLogo ? <img src={myLogo} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:4}}/> : <span style={{fontSize:26}}>{ws?.logo||"🏢"}</span>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,marginBottom:4}}>{lang==="ru"?"Логотип компании":"Company Logo"}</div>
+              {showLogoEdit ? (
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input className="inp" value={logoInput} onChange={e=>setLogoInput(e.target.value)}
+                    placeholder="https://...logo.png" style={{fontSize:11,padding:"4px 8px",flex:1}}/>
+                  <button className="btn btn-p btn-sm" onClick={()=>{
+                    setPartners(ps=>ps.map(x=>x.id===myPid?{...x,logoUrl:logoInput}:x));
+                    setShowLogoEdit(false);
+                  }}>{lang==="ru"?"Сохранить":"Save"}</button>
+                  <button className="btn btn-g btn-sm" onClick={()=>setShowLogoEdit(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                </div>
+              ) : (
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"var(--mu)"}}>{myLogo ? (lang==="ru"?"Логотип загружен":"Logo set") : (lang==="ru"?"Логотип не загружен":"No logo yet")}</span>
+                  <button className="btn btn-g btn-sm" onClick={()=>{setLogoInput(myLogo);setShowLogoEdit(true);}}>
+                    {IC.plus} {lang==="ru"?"Изменить":"Change"}
+                  </button>
+                  {myLogo&&<button className="btn btn-d btn-sm" onClick={()=>setPartners(ps=>ps.map(x=>x.id===myPid?{...x,logoUrl:""}:x))}>{IC.trash}</button>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className="stats">
           {[
             {l:t.empCount,   v:emps.length,                                     sub:`${emps.filter(e=>e.status==="active").length} ${t.activePartners}`, c:"var(--acc)"},
@@ -1219,10 +1331,14 @@ export default function App() {
                         <Bdg cls={task.priority==="high"?"b-rd":task.priority==="medium"?"b-yw":"b-gr"}>{t[task.priority]||task.priority}</Bdg>
                         {task.due&&<span style={{fontSize:10,color:"var(--mu)"}}>📅 {task.due}</span>}
                       </div>
-                      {canEdit&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {canEdit&&<div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
                         {col!=="todo"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"todo"})}>{t.back}</button>}
                         {col==="todo"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"in_progress"})}>{t.forward}</button>}
                         {col==="in_progress"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"done"})}>{t.markDone}</button>}
+                        {isSA&&<button className="btn btn-d btn-sm" style={{marginLeft:"auto"}} title={lang==="ru"?"Удалить задачу":"Delete task"}
+                          onClick={()=>setPartners(ps=>ps.map(x=>x.id===pid?{...x,tasks:(x.tasks||[]).filter(tk=>tk.id!==task.id)}:x))}>
+                          {IC.trash}
+                        </button>}
                       </div>}
                     </div>
                   );
@@ -2471,8 +2587,23 @@ export default function App() {
         {/* SIDEBAR */}
         <div className="sb">
           <div className="sb-logo">
-            <div className="sb-logo-name">{brandName}<span style={{color:brandColor}}>.</span></div>
-            <div className="sb-logo-sub">{t.appSub}</div>
+            {(()=>{
+              const logoSrc = viewPartner?.logoUrl || (isPartner?partners.find(p=>p.id===currentUser.id)?.logoUrl:null);
+              return logoSrc ? (
+                <div style={{display:"flex",alignItems:"center",gap:9}}>
+                  <img src={logoSrc} alt="logo" style={{height:34,maxWidth:90,objectFit:"contain",borderRadius:6}}/>
+                  <div>
+                    <div className="sb-logo-name" style={{fontSize:12}}>{brandName}<span style={{color:brandColor}}>.</span></div>
+                    <div className="sb-logo-sub">{t.appSub}</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="sb-logo-name">{brandName}<span style={{color:brandColor}}>.</span></div>
+                  <div className="sb-logo-sub">{t.appSub}</div>
+                </>
+              );
+            })()}
           </div>
           <div className="sb-user">
             <Av name={currentUser.name||currentUser.companyName||"?"} color={brandColor}/>
@@ -2592,8 +2723,11 @@ export default function App() {
                 <div className="fg"><label className="lbl">{t.partnerPass}</label><input className="inp" type="text" value={pF.password} onChange={e=>setPF(p=>({...p,password:e.target.value}))} placeholder="Pass2025!"/></div>
               </div>
               <div className="fr">
-                <div className="fg"><label className="lbl">{t.logo}</label><input className="inp" value={pF.logo} onChange={e=>setPF(p=>({...p,logo:e.target.value}))} placeholder="💎"/></div>
-                <div className="fg">
+                <div className="fg"><label className="lbl">{t.logo} (emoji)</label><input className="inp" value={pF.logo} onChange={e=>setPF(p=>({...p,logo:e.target.value}))} placeholder="💎"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Логотип (URL картинки)":"Logo image URL"}</label><input className="inp" value={pF.logoUrl||""} onChange={e=>setPF(p=>({...p,logoUrl:e.target.value}))} placeholder="https://...logo.png"/></div>
+              </div>
+              <div className="fr">
+                <div className="fg" style={{flex:2}}>
                   <label className="lbl">{t.brandColor}</label>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
                     {["#f0a500","#3b82f6","#22c55e","#ef4444","#a855f7","#ec4899","#06b6d4","#f97316"].map(c=>(
