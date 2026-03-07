@@ -1,5 +1,20 @@
 import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+
+
+/* ─── FIREBASE ─── */
+const firebaseConfig = {
+  apiKey: "AIzaSyCe6xKkp_aOnEolWPGFAxi5iFwxlGqZ3Jo",
+  authDomain: "nova-launch-system.firebaseapp.com",
+  projectId: "nova-launch-system",
+  storageBucket: "nova-launch-system.firebasestorage.app",
+  messagingSenderId: "563032399847",
+  appId: "1:563032399847:web:57288456478398044fe742"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db    = getFirestore(fbApp);
 
 /* ═══════════════════════════════════════════════════════════
    NOVA LAUNCH SYSTEM — Production v1.0 (Bilingual RU/EN)
@@ -444,6 +459,7 @@ export default function App() {
   const roles = lang==="ru" ? ROLES_RU : ROLES_EN;
 
   const [partners,    setPartners]    = useState([]);
+  const [fbLoading,   setFbLoading]   = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [viewPartner, setViewPartner] = useState(null);
   const [saMode,      setSaMode]      = useState("workspace"); // "workspace" | "partners"
@@ -475,6 +491,31 @@ export default function App() {
     }
     return [];
   })();
+
+  // ── Firebase: load & sync partners in real-time ──
+  useEffect(()=>{
+    const ref = doc(db, "app", "data");
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setPartners(data.partners || []);
+      }
+      setFbLoading(false);
+    }, (err) => {
+      console.error("Firebase error:", err);
+      setFbLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // ── Save to Firebase whenever partners change ──
+  const isMounted = useRef(false);
+  useEffect(()=>{
+    if (!isMounted.current) { isMounted.current = true; return; }
+    if (fbLoading) return;
+    const ref = doc(db, "app", "data");
+    setDoc(ref, { partners }, { merge: true }).catch(console.error);
+  }, [partners]);
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:"smooth"}); },[chatMsgs,chatChannel]);
 
@@ -658,6 +699,20 @@ export default function App() {
   }
 
   /* ── LOGIN GATE ── */
+  if (fbLoading) {
+    return (
+      <>
+        <style>{S}</style>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)",flexDirection:"column",gap:16}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,letterSpacing:-1}}>Nova Launch System<span style={{color:"var(--acc)"}}>.</span></div>
+          <div style={{width:36,height:36,border:"3px solid var(--bdr2)",borderTop:"3px solid var(--acc)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          <div style={{fontSize:12,color:"var(--mu)"}}>Загрузка данных...</div>
+        </div>
+      </>
+    );
+  }
+
   if (!currentUser) {
     return (
       <>
