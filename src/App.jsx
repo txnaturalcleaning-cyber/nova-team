@@ -32,17 +32,18 @@ const T = {
     logout: "Выйти",
     dashboard: "Дашборд", partners: "Партнёры", departments: "Отделы и сотрудники",
     branches: "Города", tasks: "Задачи", schedule: "Расписание",
-    salary: "Зарплаты", performance: "Эффективность", chat: "Чат", kb: "База знаний",
+    salary: "Зарплаты", performance: "Эффективность", chat: "Чат", kb: "База знаний", pnl: "Финансы P&L",
     main: "Главное", workspace: "Рабочее пространство",
     addPartner: "+ Добавить партнёра", addEmployee: "+ Добавить пользователя",
     addDept: "+ Новый отдел", addBranch: "+ Добавить город",
     addTask: "+ Создать задачу", addShift: "+ Добавить смену",
     addPayment: "+ Добавить", addMaterial: "+ Добавить материал",
+    addPnl: "+ Добавить запись", pnlIncome: "Доходы", pnlExpense: "Расходы", pnlNet: "Чистая прибыль", pnlMargin: "Маржа", pnlCategory: "Категория", pnlAmount: "Сумма", pnlType: "Тип", pnlInc: "Доход", pnlExp: "Расход", pnlDate: "Дата", pnlNote: "Описание", pnlNoData: "Нет записей", pnlSummary: "Сводка за месяц",
     save: "Сохранить", cancel: "Отмена", delete: "Удалить", create: "Создать",
     createAccount: "Создать аккаунт",
     active: "Активен", inactive: "Неактивен", blocked: "Заблокирован",
-    block: "🔒 Блокировать", unblock: "🔓 Разблокировать",
-    enterCabinet: "👁 Войти в кабинет", exitCabinet: "← Выйти из кабинета",
+    block: "Блокировать", unblock: "Разблокировать",
+    enterCabinet: "Войти в кабинет", exitCabinet: "← Выйти из кабинета",
     viewingPartner: "Вы просматриваете кабинет партнёра:",
     noPartners: "Партнёров пока нет", noPartnersDesc: "Нажмите «+ Добавить партнёра» чтобы создать первый White Label аккаунт",
     noEmployees: "Сотрудников пока нет", noTasks: "Задач пока нет",
@@ -207,22 +208,47 @@ const SUPER_ADMIN = {
   type:"superadmin",
 };
 
+/* ─── SVG ICONS ─── */
+const IC = {
+  dashboard:   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+  departments: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  branches:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  tasks:       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
+  schedule:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  salary:      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  performance: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  chat:        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  kb:          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+  pnl:         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+  partners:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  logout:      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  attach:      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>,
+  mic:         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>,
+  send:        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+  lock:        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+  unlock:      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>,
+  eye:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  plus:        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  trash:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+};
+
 const ALL_SECTIONS = [
-  { id:"dashboard",   icon:"🏠" },
-  { id:"departments", icon:"🏢" },
-  { id:"branches",    icon:"📍" },
-  { id:"tasks",       icon:"✅" },
-  { id:"schedule",    icon:"📅" },
-  { id:"salary",      icon:"💵" },
-  { id:"performance", icon:"📊" },
-  { id:"chat",        icon:"💬" },
-  { id:"kb",          icon:"📚" },
+  { id:"dashboard",   icon:IC.dashboard },
+  { id:"departments", icon:IC.departments },
+  { id:"branches",    icon:IC.branches },
+  { id:"tasks",       icon:IC.tasks },
+  { id:"schedule",    icon:IC.schedule },
+  { id:"salary",      icon:IC.salary },
+  { id:"performance", icon:IC.performance },
+  { id:"chat",        icon:IC.chat },
+  { id:"kb",          icon:IC.kb },
+  { id:"pnl",         icon:IC.pnl },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl"],
 };
 
 const PLAN_LIMITS = {
@@ -302,7 +328,8 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
 .info{background:var(--bl)10;border:1px solid var(--bl)20;border-radius:8px;padding:9px 12px;font-size:12px;color:#93c5fd;margin-bottom:13px;line-height:1.5;}
 .warn{background:var(--acc)10;border:1px solid var(--acc)20;border-radius:8px;padding:9px 12px;font-size:12px;color:#fcd34d;margin-bottom:12px;line-height:1.5;}
 .imp-banner{background:var(--pu)15;border-bottom:1px solid var(--pu)30;padding:7px 20px;display:flex;align-items:center;gap:10px;font-size:12px;color:#c4b5fd;flex-shrink:0;}
-.chat-wrap{display:flex;height:100%;}
+.chat-wrap{display:flex;height:100%;min-height:0;}
+.content.chat-page{padding:0;overflow:hidden;display:flex;flex-direction:column;}
 .chat-sb{width:190px;min-width:190px;border-right:1px solid var(--bdr);padding:8px;overflow-y:auto;}
 .chat-ch{padding:6px 8px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--mu);display:flex;align-items:center;gap:7px;transition:all .15s;}
 .chat-ch:hover{background:var(--s2);color:var(--tx);}
@@ -1376,7 +1403,7 @@ export default function App() {
     }
 
     return (
-      <div className="chat-wrap" style={{height:"calc(100vh - 168px)"}}>
+      <div className="chat-wrap">
 
         {/* LEFT: channel list */}
         <div className={`chat-sb ${showChSb?"mob-open":""}`}>
@@ -1452,7 +1479,7 @@ export default function App() {
             })}
             {!msgs.length&&(
               <div style={{textAlign:"center",color:"var(--mu)",padding:40,fontSize:13}}>
-                <div style={{fontSize:30,marginBottom:8}}>💬</div>
+                <div style={{fontSize:30,marginBottom:8,opacity:.4}}>{IC.chat}</div>
                 {lang==="ru"?"Начните общение...":"Start the conversation..."}
               </div>
             )}
@@ -1473,7 +1500,7 @@ export default function App() {
                 className="btn btn-g btn-sm"
                 style={{padding:"7px 9px",flexShrink:0,fontSize:16,lineHeight:1}}
                 onClick={()=>fileRef.current?.click()}>
-                📎
+                {IC.attach}
               </button>
               {/* Voice — hold to record */}
               <button title={lang==="ru"?"Удерживайте для записи голосового":"Hold to record voice message"}
@@ -1483,7 +1510,7 @@ export default function App() {
                 onMouseDown={startRec} onMouseUp={stopRec}
                 onTouchStart={e=>{e.preventDefault();startRec();}}
                 onTouchEnd={e=>{e.preventDefault();stopRec();}}>
-                {rec?"⏹":"🎙"}
+                rec ? <span style={{width:16,height:16,background:"var(--rd)",borderRadius:2,display:"inline-block"}}/> : IC.mic
               </button>
               {/* Text input */}
               <input className="chat-inp"
@@ -1492,11 +1519,208 @@ export default function App() {
                 onChange={e=>setChatInput(e.target.value)}
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}}}
                 style={{flex:1}}/>
-              <button className="btn btn-p" style={{flexShrink:0}} onClick={sendChat}>→</button>
+              <button className="btn btn-p" style={{flexShrink:0,padding:"8px 13px"}} onClick={sendChat}>{IC.send}</button>
             </div>
           </div>
         </div>
       </div>
+    );
+  };
+
+
+  /* ══════════════════════════════════════
+     P&L — ФИНАНСЫ
+  ══════════════════════════════════════ */
+  const PnL = () => {
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p   = getPartner(pid)||{pnl:[]};
+    const entries = p?.pnl||[];
+    const canEdit = isSA||isPartner;
+
+    const [pnlF, setPnlF] = useState({type:"income",amount:"",category:"",date:new Date().toISOString().split("T")[0],note:""});
+    const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0,7));
+
+    const CAT_INC = lang==="ru"
+      ? ["Выручка от услуг","Абонентская оплата","Другой доход"]
+      : ["Service Revenue","Subscription","Other Income"];
+    const CAT_EXP = lang==="ru"
+      ? ["Зарплата","Аренда","Маркетинг","Расходные материалы","Налоги","Страховка","Оборудование","Другой расход"]
+      : ["Payroll","Rent","Marketing","Supplies","Taxes","Insurance","Equipment","Other Expense"];
+
+    function addEntry() {
+      if (!pnlF.amount||!pnlF.category||!pnlF.date) return;
+      const newItem = {...pnlF, id:"pnl_"+Date.now(), amount:parseFloat(pnlF.amount)};
+      const existing = partners.find(x=>x.id===pid);
+      if (existing) {
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,pnl:[...(x.pnl||[]),newItem]}:x));
+      } else if (pid==="nce_main") {
+        setPartners(ps=>[...ps,{id:"nce_main",companyName:"Natural Cleaning Experts",plan:"VIP",
+          email:"",password:"",status:"active",logo:"🏢",accentColor:"#f0a500",
+          employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[],
+          pnl:[newItem],createdAt:new Date().toISOString().split("T")[0]}]);
+      }
+      setPnlF(f=>({...f,amount:"",note:"",category:""}));
+      setModal(null);
+    }
+
+    function delEntry(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,pnl:(x.pnl||[]).filter(e=>e.id!==id)}:x));
+    }
+
+    // Filter by month
+    const filtered = entries.filter(e=>e.date?.startsWith(filterMonth));
+    const totalInc = filtered.filter(e=>e.type==="income").reduce((s,e)=>s+e.amount,0);
+    const totalExp = filtered.filter(e=>e.type==="expense").reduce((s,e)=>s+e.amount,0);
+    const net      = totalInc - totalExp;
+    const margin   = totalInc>0 ? ((net/totalInc)*100).toFixed(1) : 0;
+
+    // Build chart data — last 6 months
+    const months6 = Array.from({length:6},(_,i)=>{
+      const d = new Date(); d.setMonth(d.getMonth()-5+i);
+      return d.toISOString().slice(0,7);
+    });
+    const chartData = months6.map(m=>{
+      const inc = entries.filter(e=>e.date?.startsWith(m)&&e.type==="income").reduce((s,e)=>s+e.amount,0);
+      const exp = entries.filter(e=>e.date?.startsWith(m)&&e.type==="expense").reduce((s,e)=>s+e.amount,0);
+      return {name:m.slice(5),income:inc,expense:exp,net:inc-exp};
+    });
+
+    const fmt = v => "$"+v.toLocaleString("en",{minimumFractionDigits:0,maximumFractionDigits:0});
+
+    return (
+      <>
+        {/* Top controls */}
+        <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
+          {canEdit&&(
+            <button className="btn btn-p" onClick={()=>setModal("pnl")}>
+              {IC.plus} {t.addPnl}
+            </button>
+          )}
+          <input type="month" className="inp" value={filterMonth}
+            onChange={e=>setFilterMonth(e.target.value)}
+            style={{width:"auto",padding:"6px 10px"}}/>
+        </div>
+
+        {/* Summary cards */}
+        <div className="stats" style={{gridTemplateColumns:"repeat(4,1fr)",marginBottom:18}}>
+          {[
+            {label:t.pnlIncome,  value:fmt(totalInc), color:"var(--gr)",  sub:lang==="ru"?"за месяц":"this month"},
+            {label:t.pnlExpense, value:fmt(totalExp), color:"var(--rd)",  sub:lang==="ru"?"за месяц":"this month"},
+            {label:t.pnlNet,     value:fmt(net),       color:net>=0?"var(--gr)":"var(--rd)", sub:lang==="ru"?"чистая":"net"},
+            {label:t.pnlMargin,  value:margin+"%",     color:"var(--acc)", sub:lang==="ru"?"маржа":"margin"},
+          ].map(c=>(
+            <div key={c.label} className="stat">
+              <div className="stat-l">{c.label}</div>
+              <div className="stat-v" style={{color:c.color,fontSize:20}}>{c.value}</div>
+              <div className="stat-s">{c.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart */}
+        <div className="card" style={{marginBottom:18}}>
+          <div className="card-hd"><div className="card-t">{lang==="ru"?"Динамика за 6 месяцев":"6-Month Trend"}</div></div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08"/>
+              <XAxis dataKey="name" tick={{fill:"#576070",fontSize:11}} axisLine={false} tickLine={false}/>
+              <YAxis tick={{fill:"#576070",fontSize:10}} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`$${v/1000}k`:`$${v}`}/>
+              <Tooltip contentStyle={{background:"#0d1119",border:"1px solid #ffffff14",borderRadius:9,fontSize:12}}
+                formatter={(v,n)=>[fmt(v), n==="income"?(lang==="ru"?"Доходы":"Revenue"):n==="expense"?(lang==="ru"?"Расходы":"Expenses"):(lang==="ru"?"Прибыль":"Profit")]}/>
+              <Bar dataKey="income"  fill="#22c55e" radius={[4,4,0,0]} maxBarSize={32}/>
+              <Bar dataKey="expense" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={32}/>
+              <Bar dataKey="net"     fill="#f0a500" radius={[4,4,0,0]} maxBarSize={32}/>
+            </BarChart>
+          </ResponsiveContainer>
+          <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:8}}>
+            {[["#22c55e",lang==="ru"?"Доходы":"Revenue"],["#ef4444",lang==="ru"?"Расходы":"Expenses"],["#f0a500",lang==="ru"?"Прибыль":"Profit"]].map(([c,l])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--mu)"}}>
+                <div style={{width:10,height:10,borderRadius:2,background:c}}/>
+                {l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Entries table */}
+        <div className="card">
+          <div className="card-hd">
+            <div className="card-t">{lang==="ru"?"Все записи":"All Entries"}</div>
+            <Bdg cls="b-mu">{filtered.length}</Bdg>
+          </div>
+          {filtered.length>0?(
+            <div className="tw">
+              <table>
+                <thead><tr>
+                  <th>{t.pnlDate}</th><th>{t.pnlType}</th><th>{t.pnlCategory}</th>
+                  <th>{t.pnlAmount}</th><th>{t.pnlNote}</th>
+                  {canEdit&&<th></th>}
+                </tr></thead>
+                <tbody>
+                  {filtered.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
+                    <tr key={e.id}>
+                      <td style={{fontSize:12,color:"var(--mu)"}}>{e.date}</td>
+                      <td><Bdg cls={e.type==="income"?"b-gr":"b-rd"}>{e.type==="income"?t.pnlInc:t.pnlExp}</Bdg></td>
+                      <td style={{fontSize:12}}>{e.category}</td>
+                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:e.type==="income"?"var(--gr)":"var(--rd)"}}>{fmt(e.amount)}</td>
+                      <td style={{fontSize:11,color:"var(--mu)"}}>{e.note||"—"}</td>
+                      {canEdit&&<td><button className="btn btn-d btn-sm" onClick={()=>delEntry(e.id)}>{IC.trash}</button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ):(
+            <div style={{textAlign:"center",padding:40,color:"var(--mu)"}}>
+              <div style={{marginBottom:8,opacity:.4}}>{IC.pnl}</div>
+              <div>{t.pnlNoData}</div>
+            </div>
+          )}
+        </div>
+
+        {/* PnL Modal */}
+        {modal==="pnl"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.addPnl}</div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">{t.pnlType}</label>
+                  <select className="inp" value={pnlF.type} onChange={e=>setPnlF(f=>({...f,type:e.target.value,category:""}))}>
+                    <option value="income">{t.pnlInc}</option>
+                    <option value="expense">{t.pnlExp}</option>
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">{t.pnlDate}</label>
+                  <input type="date" className="inp" value={pnlF.date} onChange={e=>setPnlF(f=>({...f,date:e.target.value}))}/>
+                </div>
+              </div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">{t.pnlCategory}</label>
+                  <select className="inp" value={pnlF.category} onChange={e=>setPnlF(f=>({...f,category:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
+                    {(pnlF.type==="income"?CAT_INC:CAT_EXP).map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">{t.pnlAmount} (USD)</label>
+                  <input type="number" className="inp" placeholder="0.00" value={pnlF.amount} onChange={e=>setPnlF(f=>({...f,amount:e.target.value}))}/>
+                </div>
+              </div>
+              <div className="fg">
+                <label className="lbl">{t.pnlNote}</label>
+                <input className="inp" value={pnlF.note} onChange={e=>setPnlF(f=>({...f,note:e.target.value}))} placeholder={lang==="ru"?"Комментарий...":"Note..."}/>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={addEntry}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   };
 
@@ -1555,15 +1779,15 @@ export default function App() {
   const sectionLabels = {
     dashboard:t.dashboard, departments:t.departments, branches:t.branches,
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
-    performance:t.performance, chat:t.chat, kb:t.kb,
+    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl,
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
   const wsPages    = ALL_SECTIONS.filter(s=>myAccess.includes(s.id)).map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
   const navPages   = viewPartner ? wsPages
-    : isSA ? [...allWsPages, {key:"partners",icon:"🤝",label:t.partners,sec:"Nova Launch System"}]
+    : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
@@ -1611,7 +1835,7 @@ export default function App() {
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
               onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");}}>
-              ⏏ {t.logout}
+              ⏏ {IC.logout} {t.logout}
             </button>
           </div>
         </div>
@@ -1673,7 +1897,7 @@ export default function App() {
               </div>
             </div>
           )}
-          <div className="content" style={page==="chat"?{padding:0,overflow:"hidden"}:{}}>
+          <div className={`content${page==="chat"?" chat-page":""}`}>
             {pageMap[page]||<Dashboard/>}
           </div>
         </div>
