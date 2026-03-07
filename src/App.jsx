@@ -2609,10 +2609,36 @@ export default function App() {
               <div className="fr">
                 <div className="fg">
                   <label className="lbl">{t.pnlCategory}</label>
-                  <select className="inp" value={pnlF.category} onChange={e=>setPnlF(f=>({...f,category:e.target.value}))}>
-                    <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
-                    {(pnlF.type==="income"?CAT_INC:CAT_EXP).map(c=><option key={c}>{c}</option>)}
-                  </select>
+                  {pnlF.category==="__new__" ? (
+                    <div style={{display:"flex",gap:6}}>
+                      <input className="inp" autoFocus
+                        placeholder={lang==="ru"?"Новая категория...":"New category name..."}
+                        value={pnlF._newCat||""}
+                        onChange={e=>setPnlF(f=>({...f,_newCat:e.target.value}))}
+                        onKeyDown={e=>{
+                          if (e.key==="Enter"&&pnlF._newCat?.trim()) {
+                            const name=pnlF._newCat.trim();
+                            const field=pnlF.type==="income"?"pnlCatsInc":"pnlCatsExp";
+                            setPartners(ps=>ps.map(x=>x.id===pid?{...x,[field]:[...(x[field]||[]),name]}:x));
+                            setPnlF(f=>({...f,category:name,_newCat:""}));
+                          }
+                        }}/>
+                      <button className="btn btn-p btn-sm" style={{flexShrink:0}} onClick={()=>{
+                        const name=pnlF._newCat?.trim();
+                        if (!name) return;
+                        const field=pnlF.type==="income"?"pnlCatsInc":"pnlCatsExp";
+                        setPartners(ps=>ps.map(x=>x.id===pid?{...x,[field]:[...(x[field]||[]),name]}:x));
+                        setPnlF(f=>({...f,category:name,_newCat:""}));
+                      }}>{IC.check2}</button>
+                      <button className="btn btn-g btn-sm" style={{flexShrink:0}} onClick={()=>setPnlF(f=>({...f,category:"",_newCat:""}))}>×</button>
+                    </div>
+                  ) : (
+                    <select className="inp" value={pnlF.category} onChange={e=>setPnlF(f=>({...f,category:e.target.value}))}>
+                      <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
+                      {(pnlF.type==="income"?CAT_INC:CAT_EXP).map(c=><option key={c}>{c}</option>)}
+                      <option value="__new__">✚ {lang==="ru"?"Добавить новую...":"Add new..."}</option>
+                    </select>
+                  )}
                 </div>
                 <div className="fg">
                   <label className="lbl">{t.pnlAmount} (USD)</label>
