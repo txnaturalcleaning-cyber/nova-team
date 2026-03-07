@@ -203,8 +203,9 @@ const LangCtx = createContext({ lang:"ru", t: T.ru, setLang:()=>{} });
 const useLang = () => useContext(LangCtx);
 
 /* ─── CONSTANTS ─── */
-const SUPER_ADMIN = {
-  id:"sa_1", name:"Zalina Karimova",
+// SA accounts — primary is always in code, extras managed in Firebase (saAccounts)
+const PRIMARY_SA = {
+  id:"sa_1", name:"Zalina Struchalina",
   email:"contact@naturalcleaning4u.com", password:"Zalina2025",
   type:"superadmin",
 };
@@ -415,7 +416,7 @@ function Bdg({ children, cls="b-mu" }) { return <span className={`badge ${cls}`}
 const planBdg = p => ({ Basic:"b-bl", Pro:"b-yw", VIP:"b-pu" }[p]||"b-mu");
 
 /* ─── LOGIN ─── */
-function LoginScreen({ partners, onLogin, lang, setLang }) {
+function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
   const t = T[lang];
   const [email, setEmail] = useState("");
   const [pw, setPw]       = useState("");
@@ -428,7 +429,10 @@ function LoginScreen({ partners, onLogin, lang, setLang }) {
     setL(true); setErr("");
     setTimeout(()=>{
       const e = email.trim().toLowerCase();
-      if (e===SUPER_ADMIN.email&&pw===SUPER_ADMIN.password) { onLogin({...SUPER_ADMIN}); return; }
+      if (e===PRIMARY_SA.email&&pw===PRIMARY_SA.password) { onLogin({...PRIMARY_SA}); return; }
+      // Check extra SA accounts from Firebase
+      const extraSA = (saAccounts||[]).find(a=>a.email.toLowerCase()===e&&a.password===pw);
+      if (extraSA) { onLogin({...extraSA,type:"superadmin"}); return; }
       const partner = partners.find(p=>p.email===e&&p.password===pw&&p.status==="active");
       if (partner) { onLogin({...partner,type:"partner"}); return; }
       let found = null;
@@ -493,6 +497,7 @@ export default function App() {
   const roles = lang==="ru" ? ROLES_RU : ROLES_EN;
 
   const [partners,    setPartners]    = useState([]);
+  const [saAccounts,  setSaAccounts]  = useState([]);
   const [fbLoading,   setFbLoading]   = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [viewPartner, setViewPartner] = useState(null);
@@ -532,6 +537,18 @@ export default function App() {
       if (snap.exists()) {
         const data = snap.data();
         setPartners(data.partners || []);
+        setSaAccounts(data.saAccounts || []);
+        if (data.chatMsgs) setChatMsgs(data.chatMsgs);
+        // Restore session
+        if (data.session) {
+          const saved = data.session;
+          const stillValid = saved.type==="superadmin"
+            ? (saved.email===PRIMARY_SA.email || (data.saAccounts||[]).some(a=>a.id===saved.id))
+            : saved.type==="partner"
+              ? (data.partners||[]).some(p=>p.id===saved.id&&p.status==="active")
+              : (data.partners||[]).some(p=>(p.employees||[]).some(e=>e.id===saved.id&&e.status==="active"));
+          if (stillValid && !currentUser) setCurrentUser(saved);
+        }
       }
       setFbLoading(false);
     }, (err) => {
@@ -549,6 +566,24 @@ export default function App() {
     const ref = doc(db, "app", "data");
     setDoc(ref, { partners }, { merge: true }).catch(console.error);
   }, [partners]);
+
+  // ── Save chatMsgs to Firebase ──
+  const chatMounted = useRef(false);
+  useEffect(()=>{
+    if (!chatMounted.current) { chatMounted.current = true; return; }
+    if (fbLoading) return;
+    const ref = doc(db, "app", "data");
+    setDoc(ref, { chatMsgs }, { merge: true }).catch(console.error);
+  }, [chatMsgs]);
+
+  // ── Save saAccounts to Firebase ──
+  const saMounted = useRef(false);
+  useEffect(()=>{
+    if (!saMounted.current) { saMounted.current = true; return; }
+    if (fbLoading) return;
+    const ref = doc(db, "app", "data");
+    setDoc(ref, { saAccounts }, { merge: true }).catch(console.error);
+  }, [saAccounts]);
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:"smooth"}); },[chatMsgs,chatChannel]);
 
@@ -733,7 +768,7 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)",flexDirection:"column",gap:16}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,letterSpacing:-1}}>Nova Launch System<span style={{color:"var(--acc)"}}>.</span></div>
           <div style={{width:36,height:36,border:"3px solid var(--bdr2)",borderTop:"3px solid var(--acc)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}`}</style>
           <div style={{fontSize:12,color:"var(--mu)"}}>Загрузка данных...</div>
         </div>
       </>
@@ -744,8 +779,8 @@ export default function App() {
     return (
       <>
         <style>{S}</style>
-        <LoginScreen partners={partners} lang={lang} setLang={setLang}
-          onLogin={u=>{setCurrentUser(u);setPage("dashboard");}}/>
+        <LoginScreen partners={partners} saAccounts={saAccounts} lang={lang} setLang={setLang}
+          onLogin={u=>{setCurrentUser(u);setPage("dashboard");setDoc(doc(db,"app","data"),{session:u},{merge:true}).catch(console.error);}}/>
       </>
     );
   }
@@ -1479,7 +1514,12 @@ export default function App() {
                       </a>
                     )}
                     {m.text&&<div style={{fontSize:13,color:"#c8d3e0",lineHeight:1.5}}>{m.text}</div>}
-                    <div style={{fontSize:10,color:"var(--mu)",marginTop:3,textAlign:"right"}}>{m.ts}</div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,marginTop:3}}>
+                      <span style={{fontSize:10,color:"var(--mu)"}}>{m.ts}</span>
+                      {isSA&&<button onClick={()=>setChatMsgs(prev=>({...prev,[key]:(prev[key]||[]).filter(x=>x.id!==m.id)}))}
+                        style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",padding:"0 2px",fontSize:12,opacity:.5,lineHeight:1}}
+                        title="Delete message">×</button>}
+                    </div>
                   </div>
                 </div>
               );
@@ -1509,15 +1549,16 @@ export default function App() {
                 onClick={()=>fileRef.current?.click()}>
                 {IC.attach}
               </button>
-              {/* Voice — hold to record */}
-              <button title={lang==="ru"?"Удерживайте для записи голосового":"Hold to record voice message"}
+              {/* Voice — click to start/stop */}
+              <button title={rec?(lang==="ru"?"Остановить запись":"Stop recording"):(lang==="ru"?"Записать голосовое":"Record voice message")}
                 className="btn btn-g btn-sm"
-                style={{padding:"7px 9px",flexShrink:0,fontSize:16,lineHeight:1,
-                  background:rec?"#ef444420":"",color:rec?"var(--rd)":""}}
-                onMouseDown={startRec} onMouseUp={stopRec}
-                onTouchStart={e=>{e.preventDefault();startRec();}}
-                onTouchEnd={e=>{e.preventDefault();stopRec();}}>
-                rec ? <span style={{width:16,height:16,background:"var(--rd)",borderRadius:2,display:"inline-block"}}/> : IC.mic
+                style={{padding:"7px 9px",flexShrink:0,position:"relative",
+                  background:rec?"#ef444415":"",
+                  border:rec?"1px solid #ef444440":"1px solid var(--bdr)",
+                  color:rec?"var(--rd)":"var(--mu)"}}
+                onClick={rec ? stopRec : startRec}>
+                {IC.mic}
+                {rec&&<span style={{position:"absolute",top:3,right:3,width:6,height:6,background:"var(--rd)",borderRadius:"50%",animation:"pulse 1s infinite"}}/>}
               </button>
               {/* Text input */}
               <input className="chat-inp"
@@ -1876,40 +1917,110 @@ export default function App() {
         )}
 
         {/* ── TAB: PROGRESS ── */}
-        {tab==="progress"&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
-            {emps.map(emp=>{
-              const myA   = assigns.filter(a=>a.employeeId===emp.id);
-              const done  = myA.filter(a=>a.status==="completed").length;
-              const prog  = myA.filter(a=>a.status==="in_progress").length;
-              const pct   = progressPct(emp.id);
-              const dept  = depts.find(d=>d.id===emp.deptId);
-              return (
-                <div key={emp.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                    <Av name={emp.name} color={dept?.color} size="av-lg"/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
-                      <div style={{fontSize:11,color:"var(--mu)"}}>{emp.role}</div>
-                      {dept&&<div style={{fontSize:10,color:dept.color,marginTop:1}}>{dept.icon} {dept.name}</div>}
-                    </div>
-                    <CirclePct pct={pct} size={52} color={pct===100?"var(--gr)":"var(--acc)"}/>
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{height:4,background:"var(--s3)",borderRadius:2,marginBottom:8}}>
-                    <div style={{height:"100%",width:pct+"%",background:pct===100?"var(--gr)":"var(--acc)",borderRadius:2,transition:"width .4s"}}/>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--mu)"}}>
-                    <span>{done} {lang==="ru"?"из":"of"} {myA.length} {lang==="ru"?"уроков":"lessons"}</span>
-                    {prog>0&&<span style={{color:"var(--acc)"}}>{prog} {lang==="ru"?"в процессе":"in progress"}</span>}
-                    {pct===100&&myA.length>0&&<span style={{color:"var(--gr)",display:"flex",alignItems:"center",gap:4}}>{IC.award} {t.certificate}</span>}
+        {tab==="progress"&&(()=>{
+          // Build last-30-days activity chart across all employees
+          const today = new Date();
+          const days30 = Array.from({length:30},(_,i)=>{
+            const d = new Date(today); d.setDate(d.getDate()-29+i);
+            return d.toISOString().split("T")[0];
+          });
+          const activityData = days30.map(day=>({
+            day: day.slice(8), // DD
+            date: day,
+            completed: assigns.filter(a=>a.completedAt===day&&a.status==="completed").length,
+            started:   assigns.filter(a=>a.assignedAt===day).length,
+          }));
+          const hasActivity = activityData.some(d=>d.completed>0||d.started>0);
+
+          return (
+            <div>
+              {/* Activity chart */}
+              <div className="card" style={{marginBottom:20}}>
+                <div className="card-hd">
+                  <div className="card-t">{lang==="ru"?"Активность за 30 дней":"Activity — Last 30 Days"}</div>
+                  <div style={{display:"flex",gap:14}}>
+                    {[["var(--gr)",lang==="ru"?"Завершили урок":"Completed"],["var(--bl)",lang==="ru"?"Назначено":"Assigned"]].map(([c,l])=>(
+                      <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--mu)"}}>
+                        <div style={{width:9,height:9,borderRadius:2,background:c}}/>
+                        {l}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              );
-            })}
-            {!emps.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>{lang==="ru"?"Нет сотрудников":"No employees"}</div>}
-          </div>
-        )}
+                {hasActivity ? (
+                  <ResponsiveContainer width="100%" height={140}>
+                    <BarChart data={activityData} barGap={1} barCategoryGap="20%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#ffffff06" vertical={false}/>
+                      <XAxis dataKey="day" tick={{fill:"#576070",fontSize:10}} axisLine={false} tickLine={false}
+                        interval={4}/>
+                      <YAxis tick={{fill:"#576070",fontSize:10}} axisLine={false} tickLine={false} allowDecimals={false} width={20}/>
+                      <Tooltip
+                        contentStyle={{background:"#0d1119",border:"1px solid #ffffff14",borderRadius:9,fontSize:12}}
+                        labelFormatter={(_,p)=>p?.[0]?.payload?.date||""}
+                        formatter={(v,n)=>[v, n==="completed"?(lang==="ru"?"Завершили":"Completed"):(lang==="ru"?"Назначено":"Assigned")]}/>
+                      <Bar dataKey="completed" fill="var(--gr)" radius={[3,3,0,0]} maxBarSize={18}/>
+                      <Bar dataKey="started"   fill="var(--bl)" radius={[3,3,0,0]} maxBarSize={18}/>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--mu)",fontSize:12}}>
+                    {lang==="ru"?"Активности пока нет — назначьте уроки сотрудникам":"No activity yet — assign lessons to employees"}
+                  </div>
+                )}
+              </div>
+
+              {/* Employee cards */}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+                {emps.map(emp=>{
+                  const myA  = assigns.filter(a=>a.employeeId===emp.id);
+                  const done = myA.filter(a=>a.status==="completed").length;
+                  const prog = myA.filter(a=>a.status==="in_progress").length;
+                  const pct  = progressPct(emp.id);
+                  const dept = depts.find(d=>d.id===emp.deptId);
+                  // Mini activity dots — last 14 days
+                  const dots14 = days30.slice(-14).map(day=>({
+                    date:day,
+                    active: assigns.some(a=>a.employeeId===emp.id&&(a.completedAt===day||a.assignedAt===day))
+                  }));
+                  return (
+                    <div key={emp.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+                      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                        <Av name={emp.name} color={dept?.color} size="av-lg"/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
+                          <div style={{fontSize:11,color:"var(--mu)"}}>{emp.role}</div>
+                          {dept&&<div style={{fontSize:10,color:dept.color,marginTop:1}}>{dept.icon} {dept.name}</div>}
+                        </div>
+                        <CirclePct pct={pct} size={48} color={pct===100?"var(--gr)":"var(--acc)"}/>
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{height:3,background:"var(--s3)",borderRadius:2,marginBottom:8}}>
+                        <div style={{height:"100%",width:pct+"%",background:pct===100?"var(--gr)":"var(--acc)",borderRadius:2,transition:"width .5s"}}/>
+                      </div>
+                      {/* Stats row */}
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--mu)",marginBottom:10}}>
+                        <span>{done}/{myA.length} {lang==="ru"?"уроков":"lessons"}</span>
+                        {prog>0&&<span style={{color:"var(--acc)"}}>{prog} {lang==="ru"?"в работе":"in progress"}</span>}
+                        {pct===100&&myA.length>0&&<span style={{color:"var(--gr)",display:"flex",alignItems:"center",gap:3}}>{IC.award} {t.certificate}</span>}
+                      </div>
+                      {/* Activity dots — last 14 days */}
+                      <div>
+                        <div style={{fontSize:9,color:"var(--mu2)",marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>{lang==="ru"?"Активность (14 дней)":"Activity (14 days)"}</div>
+                        <div style={{display:"flex",gap:3}}>
+                          {dots14.map(d=>(
+                            <div key={d.date} title={d.date}
+                              style={{flex:1,height:8,borderRadius:2,background:d.active?"var(--gr)":"var(--s3)",opacity:d.active?1:.5,transition:"background .2s"}}/>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!emps.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>{lang==="ru"?"Нет сотрудников":"No employees"}</div>}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── TAB: MY LESSONS (employee view) ── */}
         {tab==="my"&&(
@@ -2390,7 +2501,7 @@ export default function App() {
               <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
-              onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");}}>
+              onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
               ⏏ {IC.logout} {t.logout}
             </button>
           </div>
