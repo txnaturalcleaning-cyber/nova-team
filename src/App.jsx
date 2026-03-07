@@ -38,6 +38,7 @@ const T = {
     addDept: "+ Новый отдел", addBranch: "+ Добавить город",
     addTask: "+ Создать задачу", addShift: "+ Добавить смену",
     addPayment: "+ Добавить", addMaterial: "+ Добавить материал",
+    crm: "CRM / Контакты", crmContacts: "Контакты", crmPipeline: "Воронка", crmTags: "Теги", addContact: "+ Контакт", contactName: "Имя", contactPhone: "Телефон", contactEmail: "Email", contactTags: "Теги", contactStatus: "Статус", contactNote: "Заметка", contactHistory: "История", addNote: "+ Заметка", noContacts: "Контактов пока нет", searchContacts: "Поиск по имени, телефону...", filterByTag: "Фильтр по тегу", crmStage: "Стадия воронки", stageLead: "Лид", stageContact: "Контакт", stageNegotiation: "Переговоры", stageClient: "Клиент", stageLost: "Потерян", addTag: "+ Тег", manageTagsTitle: "Управление тегами", automations: "Автоматизации", addAutomation: "+ Автоматизация", triggerTag: "Триггер: тег добавлен", actionSms: "Действие: отправить SMS", delayHours: "Задержка (часов)", msgTemplate: "Шаблон сообщения",
     training: "Обучение", addLesson: "+ Урок", assignLesson: "Назначить", myLessons: "Мои уроки", allLessons: "Все уроки", assignees: "Назначения", progressTab: "Прогресс", lessonTitle: "Название урока", lessonType: "Тип контента", lessonDept: "Отдел", lessonBranch: "Город", lessonContent: "Контент (текст)", lessonUrl: "Ссылка (YouTube / PDF)", lessonDuration: "Длительность (мин)", notStarted: "Не начат", inProgress: "В процессе", completed: "Завершён", markComplete: "Отметить как выполнено", startLesson: "Начать урок", continueLesson: "Продолжить", quizQuestion: "Вопрос", quizAnswer: "Ответ", quizAddQ: "+ Вопрос", certificate: "Сертификат", completionRate: "Выполнено", assignTo: "Назначить сотруднику", noLessons: "Уроков пока нет", noAssignments: "Нет назначений",
     addPnl: "+ Добавить запись", pnlIncome: "Доходы", pnlExpense: "Расходы", pnlNet: "Чистая прибыль", pnlMargin: "Маржа", pnlCategory: "Категория", pnlAmount: "Сумма", pnlType: "Тип", pnlInc: "Доход", pnlExp: "Расход", pnlDate: "Дата", pnlNote: "Описание", pnlNoData: "Нет записей", pnlSummary: "Сводка за месяц",
     save: "Сохранить", cancel: "Отмена", delete: "Удалить", create: "Создать",
@@ -232,6 +233,11 @@ const IC = {
   eye:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   plus:        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   trash:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  crm:         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-4-4h0"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
+  phone:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
+  sms:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  tag:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+  funnel:      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
   training:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>,
   play:        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>,
   check2:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
@@ -251,12 +257,13 @@ const ALL_SECTIONS = [
   { id:"kb",          icon:IC.kb },
   { id:"pnl",         icon:IC.pnl },
   { id:"training",    icon:IC.training },
+  { id:"crm",         icon:IC.crm },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm"],
 };
 
 const PLAN_LIMITS = {
@@ -1733,6 +1740,518 @@ export default function App() {
   };
 
 
+
+  /* ══════════════════════════════════════════════════════
+     CRM — КОНТАКТЫ / ВОРОНКА / АВТОМАТИЗАЦИИ
+  ══════════════════════════════════════════════════════ */
+  const CRM = () => {
+    const pid      = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p        = getPartner(pid)||{};
+    const contacts = p?.contacts||[];
+    const crmTags  = p?.crmTags||[];
+    const automations = p?.automations||[];
+    const canEdit  = isSA||isPartner||isEmp;
+
+    const STAGES = [
+      {id:"lead",       label:t.stageLead,        color:"var(--mu)"},
+      {id:"contact",    label:t.stageContact,     color:"var(--bl)"},
+      {id:"negotiation",label:t.stageNegotiation, color:"var(--acc)"},
+      {id:"client",     label:t.stageClient,      color:"var(--gr)"},
+      {id:"lost",       label:t.stageLost,        color:"var(--rd)"},
+    ];
+
+    const TAG_COLORS = ["#f0a500","#3b82f6","#22c55e","#ef4444","#a855f7","#ec4899","#06b6d4","#f97316","#84cc16","#14b8a6"];
+
+    const [cTab,     setCTab]     = useState("contacts");
+    const [search,   setSearch]   = useState("");
+    const [tagFilter,setTagFilter]= useState("");
+    const [openId,   setOpenId]   = useState(null);
+    const [cF, setCF] = useState({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
+    const [cModal,   setCModal]   = useState(false);
+    const [noteText, setNoteText] = useState("");
+    const [tagMgr,   setTagMgr]   = useState(false);
+    const [newTag,   setNewTag]   = useState({name:"",color:"#f0a500"});
+    const [aF, setAF] = useState({triggerTag:"",delayHours:"1",msgTemplate:"",name:""});
+    const [aModal,   setAModal]   = useState(false);
+
+    // ── CRUD contacts ──
+    function saveContact() {
+      if (!cF.name.trim()) return;
+      const item = {...cF, id:"c_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], history:[]};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),item]}:x));
+      setCF({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
+      setCModal(false);
+    }
+
+    function deleteContact(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).filter(c=>c.id!==id)}:x));
+      if (openId===id) setOpenId(null);
+    }
+
+    function updateContact(id, patch) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===id?{...c,...patch}:c)}:x));
+    }
+
+    function moveStage(id, stage) { updateContact(id,{stage}); }
+
+    function addNote(contactId) {
+      if (!noteText.trim()) return;
+      const note = {id:"n_"+Date.now(), text:noteText.trim(), ts:new Date().toLocaleString(), author:currentUser.name||currentUser.companyName||"SA"};
+      const c = contacts.find(x=>x.id===contactId);
+      updateContact(contactId, {history:[...(c?.history||[]),note]});
+      setNoteText("");
+    }
+
+    function toggleTag(contactId, tag) {
+      const c = contacts.find(x=>x.id===contactId);
+      const tags = c?.tags||[];
+      const newTags = tags.includes(tag) ? tags.filter(t=>t!==tag) : [...tags,tag];
+      updateContact(contactId, {tags:newTags});
+      // trigger automations
+      if (!tags.includes(tag)) {
+        const triggered = automations.filter(a=>a.triggerTag===tag&&a.active);
+        triggered.forEach(a=>{
+          const delay = parseInt(a.delayHours||0)*3600*1000;
+          setTimeout(()=>{
+            const msg = a.msgTemplate.replace("{name}", c?.name||"").replace("{phone}", c?.phone||"");
+            addHistoryEntry(contactId, `🤖 Auto SMS: ${msg}`);
+          }, delay);
+        });
+      }
+    }
+
+    function addHistoryEntry(contactId, text) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>{
+        if (c.id!==contactId) return c;
+        const note = {id:"n_"+Date.now(), text, ts:new Date().toLocaleString(), author:"System"};
+        return {...c, history:[...(c.history||[]),note]};
+      })}:x));
+    }
+
+    // ── Tag management ──
+    function saveTag() {
+      if (!newTag.name.trim()) return;
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,crmTags:[...(x.crmTags||[]),{...newTag,id:"tag_"+Date.now()}]}:x));
+      setNewTag({name:"",color:"#f0a500"});
+    }
+    function deleteTag(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,crmTags:(x.crmTags||[]).filter(t=>t.id!==id)}:x));
+    }
+
+    // ── Automations ──
+    function saveAutomation() {
+      if (!aF.triggerTag||!aF.msgTemplate.trim()) return;
+      const item = {...aF, id:"auto_"+Date.now(), active:true, createdAt:new Date().toISOString().split("T")[0], sentCount:0};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,automations:[...(x.automations||[]),item]}:x));
+      setAF({triggerTag:"",delayHours:"1",msgTemplate:"",name:""});
+      setAModal(false);
+    }
+    function toggleAuto(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,automations:(x.automations||[]).map(a=>a.id===id?{...a,active:!a.active}:a)}:x));
+    }
+    function deleteAuto(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,automations:(x.automations||[]).filter(a=>a.id!==id)}:x));
+    }
+
+    // ── Filtered contacts ──
+    const filtered = contacts.filter(c=>{
+      const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone||"").includes(search) || (c.email||"").toLowerCase().includes(search.toLowerCase());
+      const matchTag    = !tagFilter || (c.tags||[]).includes(tagFilter);
+      return matchSearch && matchTag;
+    });
+
+    // ── Open contact detail ──
+    const openContact = contacts.find(c=>c.id===openId);
+
+    if (openContact) {
+      const stage = STAGES.find(s=>s.id===openContact.stage)||STAGES[0];
+      return (
+        <div style={{maxWidth:760,margin:"0 auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18,cursor:"pointer",color:"var(--mu)",fontSize:13}}
+            onClick={()=>setOpenId(null)}>
+            ← {lang==="ru"?"Назад к контактам":"Back to contacts"}
+          </div>
+
+          {/* Contact header */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20,marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
+              <Av name={openContact.name} color={stage.color} size="av-lg" style={{width:52,height:52,fontSize:20}}/>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,marginBottom:4}}>{openContact.name}</div>
+                <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:13,color:"var(--mu)",marginBottom:10}}>
+                  {openContact.phone&&<span>{IC.phone} {openContact.phone}</span>}
+                  {openContact.email&&<span>✉ {openContact.email}</span>}
+                  <span>📅 {openContact.createdAt}</span>
+                </div>
+                {/* Tags */}
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+                  {(openContact.tags||[]).map(tag=>{
+                    const td = crmTags.find(t=>t.name===tag);
+                    return <span key={tag} style={{fontSize:11,padding:"2px 8px",borderRadius:5,background:(td?.color||"var(--acc)")+"22",color:td?.color||"var(--acc)",border:`1px solid ${td?.color||"var(--acc)"}40`,cursor:"pointer"}}
+                      onClick={()=>toggleTag(openContact.id,tag)}>
+                      {IC.tag} {tag} ×
+                    </span>;
+                  })}
+                  {/* Add tag dropdown */}
+                  <select style={{fontSize:11,padding:"2px 6px",borderRadius:5,background:"var(--s2)",border:"1px solid var(--bdr)",color:"var(--mu)",cursor:"pointer"}}
+                    value="" onChange={e=>{if(e.target.value)toggleTag(openContact.id,e.target.value);}}>
+                    <option value="">+ {lang==="ru"?"тег":"tag"}</option>
+                    {crmTags.filter(t=>!(openContact.tags||[]).includes(t.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              {/* Stage selector */}
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {STAGES.map(s=>(
+                  <button key={s.id} onClick={()=>moveStage(openContact.id,s.id)}
+                    style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${s.id===openContact.stage?s.color:"var(--bdr)"}`,
+                      background:s.id===openContact.stage?s.color+"18":"transparent",
+                      color:s.id===openContact.stage?s.color:"var(--mu)",
+                      fontSize:11,fontWeight:s.id===openContact.stage?600:400,cursor:"pointer",textAlign:"left"}}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Action buttons */}
+            <div style={{display:"flex",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid var(--bdr)",flexWrap:"wrap"}}>
+              {openContact.phone&&(
+                <a href={`tel:${openContact.phone}`} className="btn btn-p btn-sm">{IC.phone} {lang==="ru"?"Позвонить":"Call"}</a>
+              )}
+              {openContact.phone&&(
+                <a href={`sms:${openContact.phone}`} className="btn btn-bl btn-sm">{IC.sms} SMS</a>
+              )}
+              {(isSA||isPartner)&&(
+                <button className="btn btn-d btn-sm" style={{marginLeft:"auto"}} onClick={()=>deleteContact(openContact.id)}>{IC.trash} {t.delete}</button>
+              )}
+            </div>
+          </div>
+
+          {/* History / Notes */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>{t.contactHistory}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,maxHeight:320,overflowY:"auto"}}>
+              {(openContact.history||[]).length===0&&(
+                <div style={{textAlign:"center",color:"var(--mu)",padding:24,fontSize:13}}>{lang==="ru"?"История пуста":"No history yet"}</div>
+              )}
+              {[...(openContact.history||[])].reverse().map(n=>(
+                <div key={n.id} style={{background:"var(--s2)",borderRadius:9,padding:"10px 12px"}}>
+                  <div style={{fontSize:13,lineHeight:1.5}}>{n.text}</div>
+                  <div style={{fontSize:10,color:"var(--mu)",marginTop:4}}>{n.author} · {n.ts}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <input className="inp" value={noteText} onChange={e=>setNoteText(e.target.value)}
+                placeholder={lang==="ru"?"Добавить заметку...":"Add a note..."}
+                onKeyDown={e=>{if(e.key==="Enter")addNote(openContact.id);}}
+                style={{flex:1}}/>
+              <button className="btn btn-p" onClick={()=>addNote(openContact.id)}>{IC.send}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {/* Tab bar */}
+        <div style={{display:"flex",gap:6,marginBottom:18,borderBottom:"1px solid var(--bdr)",paddingBottom:10,flexWrap:"wrap"}}>
+          {[{id:"contacts",label:t.crmContacts},{id:"pipeline",label:t.crmPipeline},{id:"tags",label:t.crmTags},{id:"auto",label:t.automations}].map(tb=>(
+            <button key={tb.id} className={`btn ${cTab===tb.id?"btn-p":"btn-g"}`} style={{fontSize:12}} onClick={()=>setCTab(tb.id)}>{tb.label}</button>
+          ))}
+          {cTab==="contacts"&&(
+            <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setCModal(true)}>{IC.plus} {t.addContact}</button>
+          )}
+          {cTab==="tags"&&(
+            <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setTagMgr(s=>!s)}>{IC.tag} {t.manageTagsTitle}</button>
+          )}
+          {cTab==="auto"&&(
+            <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setAModal(true)}>{IC.plus} {t.addAutomation}</button>
+          )}
+        </div>
+
+        {/* ── TAB: CONTACTS ── */}
+        {cTab==="contacts"&&(
+          <>
+            {/* Search + filter */}
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+              <input className="inp" value={search} onChange={e=>setSearch(e.target.value)}
+                placeholder={t.searchContacts} style={{flex:1,minWidth:200}}/>
+              <select className="inp" value={tagFilter} onChange={e=>setTagFilter(e.target.value)} style={{width:160}}>
+                <option value="">{lang==="ru"?"Все теги":"All tags"}</option>
+                {crmTags.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            </div>
+            {/* Stats row */}
+            <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+              {STAGES.map(s=>{
+                const cnt = contacts.filter(c=>c.stage===s.id).length;
+                return (
+                  <div key={s.id} style={{background:"var(--s1)",border:`1px solid ${cnt>0?s.color+"30":"var(--bdr)"}`,borderRadius:9,padding:"7px 14px",cursor:"pointer",transition:"all .15s"}}
+                    onClick={()=>setSearch("")}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:s.color}}>{cnt}</div>
+                    <div style={{fontSize:10,color:"var(--mu)"}}>{s.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Contact cards */}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {filtered.map(c=>{
+                const stage = STAGES.find(s=>s.id===c.stage)||STAGES[0];
+                return (
+                  <div key={c.id} style={{background:"var(--s1)",border:`1px solid var(--bdr)`,borderRadius:11,padding:"12px 16px",
+                    display:"flex",alignItems:"center",gap:14,cursor:"pointer",transition:"border-color .15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                    <div onClick={()=>setOpenId(c.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}>
+                      <Av name={c.name} color={stage.color}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
+                        <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:10,flexWrap:"wrap"}}>
+                          {c.phone&&<span>{c.phone}</span>}
+                          {c.email&&<span>{c.email}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}}>
+                      {(c.tags||[]).slice(0,3).map(tag=>{
+                        const td=crmTags.find(t=>t.name===tag);
+                        return <span key={tag} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)"}}>{tag}</span>;
+                      })}
+                      {(c.tags||[]).length>3&&<span style={{fontSize:10,color:"var(--mu)"}}>+{(c.tags||[]).length-3}</span>}
+                      <span style={{fontSize:10,padding:"2px 8px",borderRadius:5,background:stage.color+"18",color:stage.color,border:`1px solid ${stage.color}30`,whiteSpace:"nowrap"}}>{stage.label}</span>
+                      {c.phone&&<a href={`tel:${c.phone}`} className="btn btn-g btn-sm" style={{padding:"4px 7px"}} onClick={e=>e.stopPropagation()}>{IC.phone}</a>}
+                    </div>
+                  </div>
+                );
+              })}
+              {!filtered.length&&(
+                <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+                  <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.crm}</div>
+                  <div>{contacts.length?lang==="ru"?"Нет совпадений":"No matches":t.noContacts}</div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── TAB: PIPELINE (Kanban) ── */}
+        {cTab==="pipeline"&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,overflowX:"auto"}}>
+            {STAGES.map(stage=>{
+              const stageContacts = contacts.filter(c=>c.stage===stage.id);
+              return (
+                <div key={stage.id} style={{background:"var(--s1)",border:`1px solid ${stage.color}20`,borderTop:`3px solid ${stage.color}`,borderRadius:10,padding:12,minHeight:300}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
+                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:stage.color}}>{stage.label}</span>
+                    <span style={{marginLeft:"auto",background:stage.color+"18",color:stage.color,fontSize:10,padding:"2px 7px",borderRadius:10}}>{stageContacts.length}</span>
+                  </div>
+                  {stageContacts.map(c=>(
+                    <div key={c.id} style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:8,padding:"9px 10px",marginBottom:7,cursor:"pointer"}}
+                      onClick={()=>setOpenId(c.id)}>
+                      <div style={{fontWeight:600,fontSize:12,marginBottom:3}}>{c.name}</div>
+                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:5}}>{c.phone||c.email||""}</div>
+                      <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                        {(c.tags||[]).slice(0,2).map(tag=>{
+                          const td=crmTags.find(t=>t.name===tag);
+                          return <span key={tag} style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)"}}>{tag}</span>;
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {!stageContacts.length&&<div style={{textAlign:"center",color:"var(--mu2)",fontSize:11,padding:"16px 0"}}>{lang==="ru"?"Пусто":"Empty"}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── TAB: TAGS ── */}
+        {cTab==="tags"&&(
+          <>
+            {tagMgr&&(
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginBottom:16}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>{t.manageTagsTitle}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+                  {crmTags.map(tag=>(
+                    <div key={tag.id} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:7,background:tag.color+"18",border:`1px solid ${tag.color}30`}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                      <span style={{fontSize:12,color:tag.color,fontWeight:600}}>{tag.name}</span>
+                      <span style={{fontSize:10,color:"var(--mu)",marginLeft:2}}>{contacts.filter(c=>(c.tags||[]).includes(tag.name)).length}</span>
+                      <button onClick={()=>deleteTag(tag.id)} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:13,padding:0,lineHeight:1}}>×</button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  <input className="inp" value={newTag.name} onChange={e=>setNewTag(f=>({...f,name:e.target.value}))}
+                    placeholder={lang==="ru"?"Название тега...":"Tag name..."} style={{flex:1,minWidth:150}}
+                    onKeyDown={e=>{if(e.key==="Enter")saveTag();}}/>
+                  <div style={{display:"flex",gap:4}}>
+                    {TAG_COLORS.map(c=>(
+                      <div key={c} onClick={()=>setNewTag(f=>({...f,color:c}))}
+                        style={{width:22,height:22,borderRadius:5,background:c,cursor:"pointer",border:newTag.color===c?"2px solid #fff":"2px solid transparent"}}/>
+                    ))}
+                  </div>
+                  <button className="btn btn-p btn-sm" onClick={saveTag}>{IC.plus} {t.addTag}</button>
+                </div>
+              </div>
+            )}
+            {/* Tags overview */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+              {crmTags.map(tag=>{
+                const tagContacts = contacts.filter(c=>(c.tags||[]).includes(tag.name));
+                return (
+                  <div key={tag.id} style={{background:"var(--s1)",border:`1px solid ${tag.color}25`,borderLeft:`4px solid ${tag.color}`,borderRadius:10,padding:14,cursor:"pointer"}}
+                    onClick={()=>{setTagFilter(tag.name);setCTab("contacts");}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <span style={{width:10,height:10,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                      <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:tag.color}}>{tag.name}</span>
+                      <span style={{marginLeft:"auto",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:20,color:tag.color}}>{tagContacts.length}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"контактов":"contacts"}</div>
+                    <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>
+                      {tagContacts.slice(0,4).map(c=><Av key={c.id} name={c.name} color={tag.color}/>)}
+                      {tagContacts.length>4&&<span style={{fontSize:10,color:"var(--mu)",alignSelf:"center"}}>+{tagContacts.length-4}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+              {!crmTags.length&&(
+                <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>
+                  <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.tag}</div>
+                  <div>{lang==="ru"?"Тегов пока нет — создай первый":"No tags yet — create the first one"}</div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── TAB: AUTOMATIONS ── */}
+        {cTab==="auto"&&(
+          <>
+            <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:12,marginBottom:16,fontSize:12,color:"var(--mu)",display:"flex",gap:10,alignItems:"flex-start"}}>
+              <span style={{fontSize:16}}>🤖</span>
+              <span>{lang==="ru"?"Воронка работает автоматически: когда контакту добавляется тег — система ждёт заданное время и отправляет SMS шаблон. (SMS отправка активируется после подключения Twilio)":"Funnel works automatically: when a tag is added to a contact — the system waits the set time and sends the SMS template. (SMS sending activates after Twilio connection)"}</span>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {automations.map(a=>{
+                const tag = crmTags.find(t=>t.name===a.triggerTag);
+                return (
+                  <div key={a.id} style={{background:"var(--s1)",border:`1px solid ${a.active?"var(--gr)20":"var(--bdr)"}`,borderRadius:11,padding:16,opacity:a.active?1:.6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                      <div style={{fontWeight:600,fontSize:14,flex:1}}>{a.name||lang==="ru"?"Автоматизация":"Automation"}</div>
+                      <Bdg cls={a.active?"b-gr":"b-mu"}>{a.active?(lang==="ru"?"Активна":"Active"):(lang==="ru"?"Пауза":"Paused")}</Bdg>
+                      <button className="btn btn-g btn-sm" onClick={()=>toggleAuto(a.id)}>{a.active?(lang==="ru"?"Пауза":"Pause"):(lang==="ru"?"Активировать":"Activate")}</button>
+                      <button className="btn btn-d btn-sm" onClick={()=>deleteAuto(a.id)}>{IC.trash}</button>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",fontSize:12}}>
+                      <div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:6}}>
+                        {IC.tag} <span>{lang==="ru"?"Тег:":"Tag:"}</span>
+                        <span style={{color:tag?.color||"var(--acc)",fontWeight:600}}>{a.triggerTag}</span>
+                      </div>
+                      <span style={{color:"var(--mu)"}}>→</span>
+                      <div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px"}}>
+                        ⏱ {a.delayHours}h
+                      </div>
+                      <span style={{color:"var(--mu)"}}>→</span>
+                      <div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:180}}>
+                        {IC.sms} <span style={{color:"var(--mu)"}}>{a.msgTemplate}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {!automations.length&&(
+                <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+                  <div style={{fontSize:32,marginBottom:8}}>🤖</div>
+                  <div>{lang==="ru"?"Автоматизаций пока нет":"No automations yet"}</div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── CONTACT CREATE MODAL ── */}
+        {cModal&&(
+          <div className="ovl" onClick={()=>setCModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.addContact}</div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.contactName} *</label><input className="inp" value={cF.name} onChange={e=>setCF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
+                <div className="fg"><label className="lbl">{t.contactPhone}</label><input className="inp" value={cF.phone} onChange={e=>setCF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.contactEmail}</label><input className="inp" value={cF.email} onChange={e=>setCF(f=>({...f,email:e.target.value}))} placeholder="jane@example.com"/></div>
+                <div className="fg">
+                  <label className="lbl">{t.crmStage}</label>
+                  <select className="inp" value={cF.stage} onChange={e=>setCF(f=>({...f,stage:e.target.value}))}>
+                    {STAGES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="fg">
+                <label className="lbl">{t.contactTags}</label>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"6px 0"}}>
+                  {crmTags.map(tag=>(
+                    <button key={tag.id} type="button"
+                      style={{fontSize:11,padding:"3px 10px",borderRadius:6,cursor:"pointer",border:`1px solid ${(cF.tags||[]).includes(tag.name)?tag.color:"var(--bdr)"}`,
+                        background:(cF.tags||[]).includes(tag.name)?tag.color+"22":"transparent",
+                        color:(cF.tags||[]).includes(tag.name)?tag.color:"var(--mu)"}}
+                      onClick={()=>{
+                        const tags=cF.tags||[];
+                        setCF(f=>({...f,tags:tags.includes(tag.name)?tags.filter(t=>t!==tag.name):[...tags,tag.name]}));
+                      }}>{tag.name}</button>
+                  ))}
+                  {!crmTags.length&&<span style={{fontSize:11,color:"var(--mu2)"}}>{lang==="ru"?"Сначала создайте теги во вкладке Теги":"Create tags first in the Tags tab"}</span>}
+                </div>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setCModal(false)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={saveContact}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── AUTOMATION CREATE MODAL ── */}
+        {aModal&&(
+          <div className="ovl" onClick={()=>setAModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.addAutomation}</div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Название автоматизации":"Automation name"}</label><input className="inp" value={aF.name} onChange={e=>setAF(f=>({...f,name:e.target.value}))} placeholder={lang==="ru"?"Приветственное SMS":"Welcome SMS"}/></div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">{t.triggerTag}</label>
+                  <select className="inp" value={aF.triggerTag} onChange={e=>setAF(f=>({...f,triggerTag:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Выберите тег —":"— Select tag —"}</option>
+                    {crmTags.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">{t.delayHours}</label>
+                  <input type="number" className="inp" value={aF.delayHours} onChange={e=>setAF(f=>({...f,delayHours:e.target.value}))} min="0" placeholder="1"/>
+                </div>
+              </div>
+              <div className="fg">
+                <label className="lbl">{t.msgTemplate}</label>
+                <textarea className="inp" value={aF.msgTemplate} onChange={e=>setAF(f=>({...f,msgTemplate:e.target.value}))} style={{minHeight:80}}
+                  placeholder={lang==="ru"?"Привет, {name}! Благодарим за интерес к нашим услугам уборки. Позвоните нам: +1 512...":"Hi {name}! Thanks for your interest in our cleaning services. Call us: +1 512..."}/>
+                <div style={{fontSize:10,color:"var(--mu)",marginTop:3}}>{"{name}"} = {lang==="ru"?"имя контакта":"contact name"}, {"{phone}"} = {lang==="ru"?"телефон":"phone"}</div>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setAModal(false)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={saveAutomation}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+
   /* ══════════════════════════════════════════════════════
      LMS — ОБУЧЕНИЕ (Training / Learning Management)
   ══════════════════════════════════════════════════════ */
@@ -2715,7 +3234,7 @@ export default function App() {
   const sectionLabels = {
     dashboard:t.dashboard, departments:t.departments, branches:t.branches,
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
-    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training,
+    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training, crm:t.crm,
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
@@ -2723,7 +3242,7 @@ export default function App() {
   const navPages   = viewPartner ? wsPages
     : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
