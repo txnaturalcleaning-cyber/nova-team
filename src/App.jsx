@@ -1,786 +1,772 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
-/* ─────────────────────────── CONSTANTS ─────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   NOVA LAUNCH SYSTEM — Production v1.0 (Bilingual RU/EN)
+   Super Admin: contact@naturalcleaning4u.com / NLS2025!
+═══════════════════════════════════════════════════════════ */
 
-const INIT_DEPARTMENTS = [
-  { id:"sales",      name:"Отдел продаж",          icon:"💼", color:"#f0a500" },
-  { id:"ops",        name:"Операционный отдел",     icon:"⚙️",  color:"#3b82f6" },
-  { id:"mgmt",       name:"Отдел управления",       icon:"🏢", color:"#a855f7" },
-  { id:"finance",    name:"Финансовый отдел",       icon:"💰", color:"#22c55e" },
-  { id:"hr",         name:"Отдел найма",            icon:"🎯", color:"#ec4899" },
-  { id:"reps",       name:"Отдел представителей",   icon:"🤝", color:"#f97316" },
-  { id:"supervision",name:"Отдел супервайзинга",    icon:"👁️", color:"#06b6d4" },
-  { id:"smm",        name:"Отдел SMM",              icon:"📱", color:"#8b5cf6" },
-  { id:"marketing",  name:"Отдел маркетинга",       icon:"📣", color:"#ef4444" },
-];
-
-const DEPT_COLORS = ["#f0a500","#3b82f6","#a855f7","#22c55e","#ec4899","#f97316","#06b6d4","#8b5cf6","#ef4444","#14b8a6","#f59e0b","#6366f1"];
-
-const BRANCHES = [
-  { id:"austin",     name:"Austin",         isHQ:true },
-  { id:"florida",    name:"Florida" },
-  { id:"california", name:"California" },
-  { id:"washington", name:"Washington" },
-  { id:"newyork",    name:"New York" },
-  { id:"nc",         name:"North Carolina" },
-];
-
-// All non-cleaning dept staff for schedule (office workers)
-const OFFICE_DEPTS = ["sales","mgmt","finance","hr","reps","smm","marketing"];
-
-const INIT_EMPLOYEES = [
-  { id:1,  name:"Zalina Karimova",  dept:"mgmt",       branch:"austin",  role:"CEO / Основатель",  rate:0,  salary:0,   salaryType:"fixed", status:"active", email:"zalina@nova.team",  password:"zalina123",  type:"employee" },
-  { id:2,  name:"Anna Petrov",      dept:"supervision",branch:"austin",  role:"Supervisor",         rate:22, salary:2800,salaryType:"hourly",status:"active", email:"anna@nova.team",    password:"anna123",    type:"employee" },
-  { id:3,  name:"Maria Gonzalez",   dept:"ops",        branch:"austin",  role:"Cleaner",            rate:18, salary:0,   salaryType:"hourly",status:"active", email:"maria@nova.team",   password:"maria123",   type:"employee" },
-  { id:4,  name:"Sofia Reyes",      dept:"ops",        branch:"florida", role:"Cleaner",            rate:18, salary:0,   salaryType:"hourly",status:"active", email:"sofia@nova.team",   password:"sofia123",   type:"employee" },
-  { id:5,  name:"Elena Novak",      dept:"sales",      branch:"austin",  role:"Sales Manager",      rate:25, salary:3500,salaryType:"fixed", status:"active", email:"elena@nova.team",   password:"elena123",   type:"employee" },
-  { id:6,  name:"Dmitry Volkov",    dept:"hr",         branch:"austin",  role:"HR Specialist",      rate:20, salary:3000,salaryType:"fixed", status:"active", email:"dmitry@nova.team",  password:"dmitry123",  type:"employee" },
-  { id:7,  name:"Julia Kim",        dept:"finance",    branch:"austin",  role:"Bookkeeper",         rate:30, salary:4000,salaryType:"fixed", status:"active", email:"julia@nova.team",   password:"julia123",   type:"employee" },
-  { id:8,  name:"Carlos Mendez",    dept:"reps",       branch:"florida", role:"Representative",     rate:19, salary:0,   salaryType:"hourly",status:"active", email:"carlos@nova.team",  password:"carlos123",  type:"employee" },
-];
-
-const INIT_CLIENTS = [
-  { id:101, name:"Startup Cleaning Co", contact:"Mike Johnson", email:"mike@startupclean.com", password:"client101", city:"Dallas", plan:"Basic", status:"active", joined:"2025-01-15", type:"client" },
-  { id:102, name:"Clean Pro LLC",       contact:"Sarah Davis",  email:"sarah@cleanpro.com",   password:"client102", city:"Houston",plan:"Pro",   status:"active", joined:"2025-02-01", type:"client" },
-];
-
-const INIT_TASKS = [
-  { id:1, title:"Позвонить 10 потенциальным клиентам", assignee:5, dept:"sales",      priority:"high",   status:"in_progress", due:"2025-06-10", createdBy:1 },
-  { id:2, title:"Провести интервью с 3 кандидатами",   assignee:6, dept:"hr",         priority:"medium", status:"todo",        due:"2025-06-12", createdBy:1 },
-  { id:3, title:"Подготовить отчёт за май",            assignee:7, dept:"finance",    priority:"high",   status:"todo",        due:"2025-06-08", createdBy:1 },
-  { id:4, title:"Проверить качество объекта 14",       assignee:2, dept:"supervision",priority:"medium", status:"done",        due:"2025-06-05", createdBy:2 },
-  { id:5, title:"Обновить SOP уборки ванных",          assignee:3, dept:"ops",        priority:"low",    status:"todo",        due:"2025-06-15", createdBy:1 },
-  { id:6, title:"Отправить предложение клиенту ABC",   assignee:5, dept:"sales",      priority:"high",   status:"done",        due:"2025-06-04", createdBy:5 },
-];
-
-const INIT_SCHEDULE = [
-  { id:1, employeeId:3, date:"2025-06-09", startTime:"09:00", endTime:"13:00", address:"123 Oak St, Austin", client:"Johnson Family",   notes:"Ключ под ковриком", status:"confirmed" },
-  { id:2, employeeId:3, date:"2025-06-09", startTime:"14:00", endTime:"17:00", address:"456 Elm Ave, Austin", client:"Smith Residence",  notes:"",                  status:"confirmed" },
-  { id:3, employeeId:4, date:"2025-06-09", startTime:"10:00", endTime:"14:00", address:"789 Pine Rd, Miami",  client:"Davis Condo",      notes:"2 этаж, кв 4",      status:"confirmed" },
-  { id:4, employeeId:2, date:"2025-06-10", startTime:"08:00", endTime:"12:00", address:"321 Maple Dr, Austin",client:"Green Office LLC",  notes:"Офис 3 этажа",      status:"pending"   },
-  { id:5, employeeId:3, date:"2025-06-11", startTime:"09:00", endTime:"12:00", address:"654 Cedar Ln, Austin", client:"Brown Family",    notes:"",                  status:"confirmed" },
-];
-
-const INIT_CHAT_MSGS = {
-  general:    [
-    { id:1, author:1,   authorType:"employee", text:"👋 Добро пожаловать в общий чат! Здесь обсуждаем встречи и общие вопросы.", ts:"08:00" },
-    { id:2, author:1,   authorType:"employee", text:"📅 Встреча команды в пятницу в 14:00 по Zoom.", ts:"08:05" },
-    { id:3, author:5,   authorType:"employee", text:"Буду! Есть новости по продажам 🔥", ts:"09:10" },
-  ],
-  sales:      [{ id:1, author:5, authorType:"employee", text:"Закрыли 2 новых клиента сегодня 🎉", ts:"10:32" }],
-  ops:        [{ id:1, author:3, authorType:"employee", text:"Объект 14 готов ✅", ts:"09:15" }],
-  mgmt:       [{ id:1, author:1, authorType:"employee", text:"Встреча по стратегии в пятницу", ts:"08:00" }],
-  finance:    [{ id:1, author:7, authorType:"employee", text:"Отчёт за апрель загружен", ts:"11:00" }],
-  hr:         [{ id:1, author:6, authorType:"employee", text:"5 новых резюме на вакансию клинера", ts:"13:20" }],
-  reps:       [{ id:1, author:8, authorType:"employee", text:"Флорида — 3 новых объекта!", ts:"14:00" }],
-  supervision:[{ id:1, author:2, authorType:"employee", text:"Все объекты Austin проверены ✅", ts:"16:00" }],
-  smm:        [{ id:1, author:1, authorType:"employee", text:"Нужен контент-план на июнь", ts:"09:00" }],
-  marketing:  [{ id:1, author:1, authorType:"employee", text:"Запускаем рекламу в следующий вторник", ts:"10:00" }],
-  clients:    [
-    { id:1, author:101, authorType:"client", text:"Добрый день! Как войти в базу знаний?", ts:"11:00" },
-    { id:2, author:1,   authorType:"employee", text:"Привет! Ссылка в письме, которое мы отправили при регистрации.", ts:"11:05" },
-  ],
+/* ─── TRANSLATIONS ─── */
+const T = {
+  ru: {
+    appName: "Nova Launch System", appSub: "Business Platform",
+    login: "Вход в систему", loginSub: "Введите ваши данные для входа",
+    email: "Email", password: "Пароль", enter: "Войти →", checking: "Проверяем...",
+    wrongCreds: "Неверный email или пароль", fillAll: "Введите email и пароль",
+    superAdmin: "Супер-админ", owner: "Владелец", employee: "Сотрудник",
+    logout: "Выйти",
+    dashboard: "Дашборд", partners: "Партнёры", departments: "Отделы и сотрудники",
+    branches: "Города", tasks: "Задачи", schedule: "Расписание",
+    salary: "Зарплаты", performance: "Эффективность", chat: "Чат", kb: "База знаний",
+    main: "Главное", workspace: "Рабочее пространство",
+    addPartner: "+ Добавить партнёра", addEmployee: "+ Добавить пользователя",
+    addDept: "+ Новый отдел", addBranch: "+ Добавить город",
+    addTask: "+ Создать задачу", addShift: "+ Добавить смену",
+    addPayment: "+ Добавить", addMaterial: "+ Добавить материал",
+    save: "Сохранить", cancel: "Отмена", delete: "Удалить", create: "Создать",
+    createAccount: "Создать аккаунт",
+    active: "Активен", inactive: "Неактивен", blocked: "Заблокирован",
+    block: "🔒 Блокировать", unblock: "🔓 Разблокировать",
+    enterCabinet: "👁 Войти в кабинет", exitCabinet: "← Выйти из кабинета",
+    viewingPartner: "Вы просматриваете кабинет партнёра:",
+    noPartners: "Партнёров пока нет", noPartnersDesc: "Нажмите «+ Добавить партнёра» чтобы создать первый White Label аккаунт",
+    noEmployees: "Сотрудников пока нет", noTasks: "Задач пока нет",
+    noBranches: "Городов пока нет", noSchedule: "Расписание пусто",
+    noPayments: "Нет записей", noKb: "Материалов пока нет",
+    totalPartners: "Партнёров всего", totalEmployees: "Сотрудников",
+    monthlyRevenue: "Ежемес. выручка", blockedCount: "Заблокировано",
+    activePartners: "активных", inAllCompanies: "Во всех компаниях",
+    byActivePlans: "По активным тарифам",
+    empCount: "Сотрудников", taskCount: "Задач", inProgress: "В работе",
+    deptCount: "Отделов", done: "Выполнено", created: "Создано",
+    recentTasks: "Последние задачи", employees: "Сотрудники",
+    allPartners: "Все партнёры", company: "Компания", plan: "Тариф",
+    createdAt: "Дата", status: "Статус", actions: "Действия",
+    name: "Имя и фамилия", role: "Роль", emailLogin: "Email (логин)",
+    companyName: "Название компании", logo: "Логотип (эмодзи)",
+    brandColor: "Цвет бренда (Pro+)", partnerEmail: "Email (логин партнёра)",
+    partnerPass: "Пароль",
+    planBasic: "Basic — $97/мес (до 10 сотр., 1 город)",
+    planPro: "Pro — $197/мес (до 50 сотр., 5 городов + брендинг)",
+    planVIP: "VIP — $297/мес (∞ сотр., брендинг + SOPы)",
+    newPartner: "Новый партнёр White Label",
+    partnerInfo: "🏢 Партнёр получит изолированный кабинет с доступами согласно тарифу. Вы всегда можете войти в его кабинет.",
+    addUser: "Добавить пользователя",
+    empInfo: "🔐 Логин и пароль создаёт администратор. Сотрудник не может изменить свои данные.",
+    accessSections: "Доступы к разделам",
+    accessWarn: "Выберите только те разделы к которым сотрудник будет иметь доступ.",
+    statusLabel: "Статус",
+    newDept: "Новый отдел", deptName: "Название отдела", deptIcon: "Иконка", deptColor: "Цвет",
+    preview: "Предпросмотр:",
+    newBranch: "Новый город / офис", branchName: "Название офиса", branchCity: "Город",
+    branchLimit: "Лимит городов для тарифа",
+    newTask: "Новая задача", taskTitle: "Название задачи", assignee: "Исполнитель",
+    priority: "Приоритет", due: "Срок", selectAssignee: "Выберите...",
+    high: "Высокий", medium: "Средний", low: "Низкий",
+    todo: "📋 К выполнению", inProgressCol: "⚡ В работе", doneCol: "✅ Готово",
+    back: "← Назад", forward: "В работу →", markDone: "✓ Готово",
+    newShift: "Добавить смену", shiftEmp: "Сотрудник",
+    startTime: "Начало", endTime: "Конец", address: "Адрес объекта",
+    clientName: "Клиент", notes: "Заметки", confirmed: "✓ Подтв.", pending: "Ожид.",
+    newPayment: "Добавить выплату", amount: "Сумма $", payDate: "Дата выплаты",
+    note: "Примечание", payStatus: "Статус",
+    paid: "✓ Оплачено", notPaid: "⏳ Ожидает",
+    markPaid: "✓ Оплатить", unmarkPaid: "↩ Отменить",
+    totalPaid: "Выплачено", totalPending: "Ожидает", totalRecords: "Записей",
+    allTime: "Всего оплачено", toPay: "К выплате", inHistory: "В истории",
+    efficiency: "эффективность", noPerf: "Добавьте сотрудников чтобы отслеживать эффективность",
+    channels: "Каналы", general: "Общий", typeMessage: "Написать сообщение...",
+    all: "Все", sop: "SOP", youtube: "YouTube", gdocs: "Документы",
+    newKb: "Добавить материал в базу знаний",
+    kbType: "Тип", kbDept: "Отдел", kbIcon: "Иконка", kbTitle: "Название",
+    kbUrl: "Ссылка YouTube", kbDesc: "Описание", kbContent: "Содержание SOP",
+    kbGdocUrl: "Ссылка на Google Doc / внешний документ",
+    kbGdocDesc: "Краткое описание документа",
+    kbGdocHint: "Вставьте ссылку на Google Docs, Notion, Dropbox Paper или любой другой документ",
+    openYt: "Открыть на YouTube", openDoc: "🔗 Открыть документ",
+    opensNewTab: "Откроется в новой вкладке",
+    backToKb: "← Назад к базе знаний",
+    sopType: "📄 SOP Документ", ytType: "▶ YouTube Урок", gdocType: "🔗 Google Doc / Ссылка",
+    changePlan: "⬆ Тариф", confirmPlan: "Сменить тариф на",
+    confirmDelete: "Удалить партнёра?",
+    empPerPlan: "Сотрудников:", citiesPerPlan: "Городов:",
+    noAccess: "Нет доступа к этому разделу",
+    copyright: "Nova Launch System © 2025",
+    loading: "Загрузка...",
+  },
+  en: {
+    appName: "Nova Launch System", appSub: "Business Platform",
+    login: "Sign In", loginSub: "Enter your credentials to continue",
+    email: "Email", password: "Password", enter: "Sign In →", checking: "Checking...",
+    wrongCreds: "Incorrect email or password", fillAll: "Please enter email and password",
+    superAdmin: "Super Admin", owner: "Owner", employee: "Employee",
+    logout: "Sign Out",
+    dashboard: "Dashboard", partners: "Partners", departments: "Departments & Staff",
+    branches: "Cities", tasks: "Tasks", schedule: "Schedule",
+    salary: "Payroll", performance: "Performance", chat: "Chat", kb: "Knowledge Base",
+    main: "Main", workspace: "Workspace",
+    addPartner: "+ Add Partner", addEmployee: "+ Add User",
+    addDept: "+ New Department", addBranch: "+ Add City",
+    addTask: "+ Create Task", addShift: "+ Add Shift",
+    addPayment: "+ Add", addMaterial: "+ Add Material",
+    save: "Save", cancel: "Cancel", delete: "Delete", create: "Create",
+    createAccount: "Create Account",
+    active: "Active", inactive: "Inactive", blocked: "Blocked",
+    block: "🔒 Block", unblock: "🔓 Unblock",
+    enterCabinet: "👁 View Cabinet", exitCabinet: "← Exit Cabinet",
+    viewingPartner: "You are viewing partner cabinet:",
+    noPartners: "No partners yet", noPartnersDesc: "Click «+ Add Partner» to create your first White Label account",
+    noEmployees: "No employees yet", noTasks: "No tasks yet",
+    noBranches: "No cities yet", noSchedule: "Schedule is empty",
+    noPayments: "No records", noKb: "No materials yet",
+    totalPartners: "Total Partners", totalEmployees: "Employees",
+    monthlyRevenue: "Monthly Revenue", blockedCount: "Blocked",
+    activePartners: "active", inAllCompanies: "Across all companies",
+    byActivePlans: "By active plans",
+    empCount: "Employees", taskCount: "Tasks", inProgress: "In Progress",
+    deptCount: "Departments", done: "Completed", created: "Created",
+    recentTasks: "Recent Tasks", employees: "Employees",
+    allPartners: "All Partners", company: "Company", plan: "Plan",
+    createdAt: "Date", status: "Status", actions: "Actions",
+    name: "Full Name", role: "Role", emailLogin: "Email (login)",
+    companyName: "Company Name", logo: "Logo (emoji)",
+    brandColor: "Brand Color (Pro+)", partnerEmail: "Email (partner login)",
+    partnerPass: "Password",
+    planBasic: "Basic — $97/mo (up to 10 staff, 1 city)",
+    planPro: "Pro — $197/mo (up to 50 staff, 5 cities + branding)",
+    planVIP: "VIP — $297/mo (∞ staff, branding + SOPs)",
+    newPartner: "New White Label Partner",
+    partnerInfo: "🏢 Partner will get an isolated cabinet with access per their plan. You can always view their cabinet.",
+    addUser: "Add User",
+    empInfo: "🔐 Login and password are set by the admin. The employee cannot change their credentials.",
+    accessSections: "Section Access",
+    accessWarn: "Select only the sections this employee should have access to.",
+    statusLabel: "Status",
+    newDept: "New Department", deptName: "Department Name", deptIcon: "Icon", deptColor: "Color",
+    preview: "Preview:",
+    newBranch: "New City / Office", branchName: "Office Name", branchCity: "City",
+    branchLimit: "City limit for plan",
+    newTask: "New Task", taskTitle: "Task Title", assignee: "Assignee",
+    priority: "Priority", due: "Due Date", selectAssignee: "Select...",
+    high: "High", medium: "Medium", low: "Low",
+    todo: "📋 To Do", inProgressCol: "⚡ In Progress", doneCol: "✅ Done",
+    back: "← Back", forward: "Start →", markDone: "✓ Done",
+    newShift: "Add Shift", shiftEmp: "Employee",
+    startTime: "Start", endTime: "End", address: "Object Address",
+    clientName: "Client", notes: "Notes", confirmed: "✓ Confirmed", pending: "Pending",
+    newPayment: "Add Payment", amount: "Amount $", payDate: "Payment Date",
+    note: "Note", payStatus: "Status",
+    paid: "✓ Paid", notPaid: "⏳ Pending",
+    markPaid: "✓ Mark Paid", unmarkPaid: "↩ Undo",
+    totalPaid: "Paid", totalPending: "Pending", totalRecords: "Records",
+    allTime: "Total Paid", toPay: "To Pay", inHistory: "In History",
+    efficiency: "efficiency", noPerf: "Add employees to track performance",
+    channels: "Channels", general: "General", typeMessage: "Type a message...",
+    all: "All", sop: "SOP", youtube: "YouTube", gdocs: "Documents",
+    newKb: "Add Knowledge Base Material",
+    kbType: "Type", kbDept: "Department", kbIcon: "Icon", kbTitle: "Title",
+    kbUrl: "YouTube Link", kbDesc: "Description", kbContent: "SOP Content",
+    kbGdocUrl: "Google Doc / External Document Link",
+    kbGdocDesc: "Brief description",
+    kbGdocHint: "Paste a link to Google Docs, Notion, Dropbox Paper or any other document",
+    openYt: "Open on YouTube", openDoc: "🔗 Open Document",
+    opensNewTab: "Opens in a new tab",
+    backToKb: "← Back to Knowledge Base",
+    sopType: "📄 SOP Document", ytType: "▶ YouTube Lesson", gdocType: "🔗 Google Doc / Link",
+    changePlan: "⬆ Plan", confirmPlan: "Change plan to",
+    confirmDelete: "Delete this partner?",
+    empPerPlan: "Employees:", citiesPerPlan: "Cities:",
+    noAccess: "No access to this section",
+    copyright: "Nova Launch System © 2025",
+    loading: "Loading...",
+  }
 };
 
-const INIT_KB = [
-  { id:1, type:"youtube", dept:"ops",   title:"Стандарты уборки ванных",      url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ", desc:"Видеоинструкция", thumb:"🛁", visibleTo:["ops","supervision","mgmt"] },
-  { id:2, type:"sop",     dept:"ops",   title:"SOP: Уборка кухни",            content:"1. Обеззараживать поверхности\n2. Чистить плиту\n3. Мыть раковину до блеска\n4. Протирать фасады шкафов\n5. Пол — в последнюю очередь", thumb:"🍳", visibleTo:["ops","supervision","mgmt"] },
-  { id:3, type:"sop",     dept:"hr",    title:"SOP: Онбординг нового клинера", content:"День 1:\n• Подписать 1099 контракт\n• Заполнить W-9\n• Добавить в Telegram\n\nНеделя 1:\n• Теневая уборка\n• Оценочная уборка\n• Обратная связь", thumb:"📋", visibleTo:["hr","mgmt"] },
-  { id:4, type:"youtube", dept:"sales", title:"Техники закрытия сделок",      url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ", desc:"Мастер-класс по продажам", thumb:"💼", visibleTo:["sales","mgmt"] },
-  { id:5, type:"sop",     dept:"sales", title:"SOP: Скрипт первого звонка",   content:"1. 'Natural Cleaning Experts, добрый день!'\n2. Выяснить потребность\n3. Предложить осмотр\n4. Назвать цену\n5. Закрыть на запись", thumb:"📞", visibleTo:["sales","mgmt"] },
-  { id:6, type:"sop",     dept:"finance","title":"SOP: Выплаты 1099",        content:"• Выплаты каждую пятницу\n• Zelle (основной), Venmo (альт.)\n• 1099-NEC при $600+/год\n• Срок: 31 января", thumb:"💰", visibleTo:["finance","mgmt"] },
-  { id:7, type:"youtube", dept:"ops",   title:"Стандарты уборки спален",      url:"https://www.youtube.com/watch?v=dQw4w9WgXcQ", desc:"Как убирать спальни по стандарту", thumb:"🛏️", visibleTo:["ops","supervision","mgmt","clients"] },
-  { id:8, type:"sop",     dept:"smm",   title:"SOP: Контент-план Instagram",  content:"Понедельник: до-после уборки\nСреда: отзывы клиентов\nПятница: видео процесса\nВоскресенье: образовательный пост", thumb:"📱", visibleTo:["smm","marketing","mgmt"] },
-];
+const LangCtx = createContext({ lang:"ru", t: T.ru, setLang:()=>{} });
+const useLang = () => useContext(LangCtx);
 
-
-const ROLES = [
-  { id:"ceo",           label:"CEO / Основатель",        dept:"mgmt"        },
-  { id:"ops_manager",   label:"Операционный менеджер",    dept:"ops"         },
-  { id:"sales_manager", label:"Менеджер по продажам",     dept:"sales"       },
-  { id:"bookkeeper",    label:"Буккипер / Бухгалтер",     dept:"finance"     },
-  { id:"hr_specialist", label:"HR Специалист",            dept:"hr"          },
-  { id:"supervisor",    label:"Супервайзер",              dept:"supervision" },
-  { id:"cleaner",       label:"Клинер",                   dept:"ops"         },
-  { id:"representative",label:"Представитель компании",   dept:"reps"        },
-  { id:"smm_manager",   label:"SMM Менеджер",             dept:"smm"         },
-  { id:"marketer",      label:"Маркетолог",               dept:"marketing"   },
-  { id:"sales_admin",   label:"Администратор продаж",     dept:"sales"       },
-  { id:"custom",        label:"Своя роль...",             dept:""            },
-];
-
-const INIT_SALARY_PAYMENTS = [
-  { id:1, employeeId:5, amount:3500, date:"2025-05-31", status:"paid",    note:"Май 2025"  },
-  { id:2, employeeId:6, amount:3000, date:"2025-05-31", status:"paid",    note:"Май 2025"  },
-  { id:3, employeeId:7, amount:4000, date:"2025-05-31", status:"paid",    note:"Май 2025"  },
-  { id:4, employeeId:5, amount:3500, date:"2025-06-30", status:"pending", note:"Июнь 2025" },
-  { id:5, employeeId:6, amount:3000, date:"2025-06-30", status:"pending", note:"Июнь 2025" },
-  { id:6, employeeId:7, amount:4000, date:"2025-06-30", status:"pending", note:"Июнь 2025" },
-];
-
-const PERF_DATA = {
-  1:[{w:"W18",done:5,assigned:6},{w:"W19",done:7,assigned:8},{w:"W20",done:6,assigned:7},{w:"W21",done:8,assigned:9}],
-  2:[{w:"W18",done:4,assigned:4},{w:"W19",done:5,assigned:6},{w:"W20",done:5,assigned:5},{w:"W21",done:6,assigned:6}],
-  5:[{w:"W18",done:8,assigned:10},{w:"W19",done:9,assigned:10},{w:"W20",done:7,assigned:9},{w:"W21",done:10,assigned:10}],
-  6:[{w:"W18",done:3,assigned:4},{w:"W19",done:4,assigned:5},{w:"W20",done:4,assigned:4},{w:"W21",done:5,assigned:5}],
-  7:[{w:"W18",done:6,assigned:6},{w:"W19",done:5,assigned:6},{w:"W20",done:6,assigned:6},{w:"W21",done:7,assigned:7}],
+/* ─── CONSTANTS ─── */
+const SUPER_ADMIN = {
+  id:"sa_1", name:"Zalina Karimova",
+  email:"contact@naturalcleaning4u.com", password:"Zalina2025",
+  type:"superadmin",
 };
 
-/* ─────────────────────────── STYLES ─────────────────────────── */
+const ALL_SECTIONS = [
+  { id:"dashboard",   icon:"🏠" },
+  { id:"departments", icon:"🏢" },
+  { id:"branches",    icon:"📍" },
+  { id:"tasks",       icon:"✅" },
+  { id:"schedule",    icon:"📅" },
+  { id:"salary",      icon:"💵" },
+  { id:"performance", icon:"📊" },
+  { id:"chat",        icon:"💬" },
+  { id:"kb",          icon:"📚" },
+];
+
+const PLAN_SECTIONS = {
+  Basic: ["dashboard","departments","tasks","chat","kb"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb"],
+};
+
+const PLAN_LIMITS = {
+  Basic: { employees:10,  branches:1,   price:97  },
+  Pro:   { employees:50,  branches:5,   price:197 },
+  VIP:   { employees:999, branches:999, price:297 },
+};
+
+const ROLES_RU = ["CEO / Основатель","Операционный менеджер","Менеджер по продажам","Буккипер / Бухгалтер","HR Специалист","Супервайзер","Клинер","Представитель компании","SMM Менеджер","Маркетолог","Администратор продаж","Другое"];
+const ROLES_EN = ["CEO / Founder","Operations Manager","Sales Manager","Bookkeeper / Accountant","HR Specialist","Supervisor","Cleaner","Company Representative","SMM Manager","Marketer","Sales Administrator","Other"];
+
+/* ─── STYLES ─── */
 const S = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-:root{
-  --bg:#080b12;--s1:#0f1420;--s2:#161c2a;--s3:#1e2535;
-  --bdr:#ffffff0c;--bdr2:#ffffff16;
-  --tx:#e8ecf4;--mu:#5a6480;--mu2:#3d4560;
-  --acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;
-}
+:root{--bg:#07090f;--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
 body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;}
-button{cursor:pointer;font-family:'DM Sans',sans-serif;}
-input,select,textarea{font-family:'DM Sans',sans-serif;}
+button,input,select,textarea{font-family:'DM Sans',sans-serif;cursor:pointer;}
+input,select,textarea{cursor:text;}
 .app{display:flex;height:100vh;overflow:hidden;}
-.sidebar{width:240px;min-width:240px;background:var(--s1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;}
-.s-logo{padding:18px 16px 14px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;}
-.s-logo-txt{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.5px;}
-.s-logo-txt span{color:var(--acc);}
-.s-user{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--bdr);}
-.s-nav{flex:1;padding:6px 8px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
-.s-sec{font-size:10px;color:var(--mu2);text-transform:uppercase;letter-spacing:1px;padding:10px 8px 3px;font-weight:600;}
-.nav-btn{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;border:none;background:none;color:var(--mu);font-size:13px;font-weight:500;width:100%;text-align:left;transition:all .15s;}
-.nav-btn:hover{background:var(--s2);color:var(--tx);}
-.nav-btn.active{color:var(--acc);background:var(--acc)12;}
-.nav-btn .ni{width:16px;text-align:center;font-size:14px;}
-.nav-btn .nbadge{margin-left:auto;background:var(--acc);color:#000;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;}
-.s-foot{padding:10px 16px;border-top:1px solid var(--bdr);font-size:11px;color:var(--mu);}
+.sb{width:232px;min-width:232px;background:var(--s1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;}
+.sb-logo{padding:16px 14px 12px;border-bottom:1px solid var(--bdr);}
+.sb-logo-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.3px;line-height:1.2;}
+.sb-logo-sub{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-top:2px;}
+.sb-user{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--bdr);}
+.sb-nav{flex:1;padding:5px 7px;overflow-y:auto;display:flex;flex-direction:column;}
+.sb-sec{font-size:10px;color:var(--mu2);text-transform:uppercase;letter-spacing:.8px;padding:9px 8px 3px;font-weight:600;}
+.nb{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;border:none;background:none;color:var(--mu);font-size:13px;font-weight:500;width:100%;text-align:left;transition:all .15s;}
+.nb:hover{background:var(--s2);color:var(--tx);}
+.nb.act{color:var(--acc);background:var(--acc)10;}
+.nb .ni{width:15px;text-align:center;font-size:13px;flex-shrink:0;}
+.nb .cnt{margin-left:auto;background:var(--acc);color:#000;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;}
+.sb-foot{padding:9px 13px;border-top:1px solid var(--bdr);}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-.topbar{padding:13px 22px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;background:var(--s1);flex-shrink:0;}
-.page-title{font-family:'Syne',sans-serif;font-size:19px;font-weight:700;}
-.page-sub{font-size:12px;color:var(--mu);margin-top:1px;}
-.content{flex:1;overflow-y:auto;padding:22px;}
-.btn{padding:7px 14px;border-radius:8px;border:none;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
-.btn-prim{background:var(--acc);color:#000;}
-.btn-prim:hover{background:#fbbf24;}
-.btn-ghost{background:var(--s2);color:var(--tx);border:1px solid var(--bdr);}
-.btn-ghost:hover{background:var(--s3);}
+.topbar{padding:11px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;background:var(--s1);flex-shrink:0;}
+.pg-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;}
+.pg-sub{font-size:11px;color:var(--mu);margin-top:1px;}
+.content{flex:1;overflow-y:auto;padding:20px;}
+.btn{padding:7px 14px;border-radius:8px;border:none;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
+.btn-p{background:var(--acc);color:#000;} .btn-p:hover{background:#fbbf24;}
+.btn-g{background:var(--s2);color:var(--tx);border:1px solid var(--bdr);} .btn-g:hover{background:var(--s3);}
+.btn-d{background:#ef444415;color:var(--rd);border:1px solid #ef444425;}
+.btn-bl{background:#3b82f615;color:var(--bl);border:1px solid #3b82f625;}
 .btn-sm{padding:4px 10px;font-size:11px;}
-.btn-danger{background:#ef444418;color:var(--rd);border:1px solid #ef444428;}
-.card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:18px;}
-.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
-.card-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;}
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
-.stat{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px 18px;}
-.stat-lbl{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;}
-.stat-val{font-family:'Syne',sans-serif;font-size:26px;font-weight:700;margin-top:4px;}
-.stat-sub{font-size:11px;margin-top:3px;color:var(--mu);}
-.tbl-wrap{overflow-x:auto;}
+.card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:17px;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;}
+.card-t{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.stat{background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:14px 16px;}
+.stat-l{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;}
+.stat-v{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-top:4px;}
+.stat-s{font-size:11px;color:var(--mu);margin-top:2px;}
+.tw{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
-th{text-align:left;padding:8px 12px;color:var(--mu);font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:500;border-bottom:1px solid var(--bdr);}
-td{padding:11px 12px;border-bottom:1px solid var(--bdr);}
+th{text-align:left;padding:7px 10px;color:var(--mu);font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:500;border-bottom:1px solid var(--bdr);}
+td{padding:10px 10px;border-bottom:1px solid var(--bdr);}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--s2);}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;}
-.b-gr{background:#22c55e18;color:var(--gr);}
-.b-rd{background:#ef444418;color:var(--rd);}
-.b-yw{background:#f0a50018;color:var(--acc);}
-.b-bl{background:#3b82f618;color:var(--bl);}
-.b-pu{background:#a855f718;color:#a855f7;}
-.b-mu{background:#ffffff10;color:var(--mu);}
+.b-gr{background:#22c55e15;color:var(--gr);} .b-rd{background:#ef444415;color:var(--rd);}
+.b-yw{background:#f0a50015;color:var(--acc);} .b-bl{background:#3b82f615;color:var(--bl);}
+.b-pu{background:#a855f715;color:var(--pu);} .b-mu{background:#ffffff0b;color:var(--mu);}
 .av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
-.av-lg{width:40px;height:40px;font-size:14px;}
+.av-lg{width:38px;height:38px;font-size:13px;}
 .flex-c{display:flex;align-items:center;gap:10px;}
-.ovl{position:fixed;inset:0;background:#00000088;display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
-.modal{background:var(--s1);border:1px solid var(--bdr2);border-radius:16px;padding:26px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;}
-.modal-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:18px;}
-.form-g{margin-bottom:14px;}
-.lbl{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block;}
-.inp{width:100%;background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:9px 11px;color:var(--tx);font-size:13px;outline:none;transition:border-color .15s;}
+.ovl{position:fixed;inset:0;background:#00000092;display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(4px);}
+.modal{background:var(--s1);border:1px solid var(--bdr2);border-radius:16px;padding:24px;width:520px;max-width:95vw;max-height:92vh;overflow-y:auto;}
+.modal-t{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;}
+.fg{margin-bottom:12px;}
+.lbl{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block;}
+.inp{width:100%;background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;transition:border-color .15s;}
 .inp:focus{border-color:var(--acc);}
 select.inp option{background:var(--s2);}
-textarea.inp{resize:vertical;min-height:80px;}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.form-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
-.modal-act{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;}
-.dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-bottom:20px;}
-.dept-card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;}
-.dept-card:hover{transform:translateY(-2px);border-color:var(--bdr2);}
-.task-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
-.task-col{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:14px;}
-.task-item{background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:12px;margin-bottom:8px;}
-.perf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;}
-.perf-card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:18px;}
-.chat-layout{display:flex;height:100%;}
-.chat-sidebar{width:200px;min-width:200px;border-right:1px solid var(--bdr);padding:10px 8px;overflow-y:auto;}
-.chat-ch{padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;color:var(--mu);display:flex;align-items:center;gap:8px;transition:all .15s;}
+textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.ma{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+.info{background:var(--bl)10;border:1px solid var(--bl)20;border-radius:8px;padding:9px 12px;font-size:12px;color:#93c5fd;margin-bottom:13px;line-height:1.5;}
+.warn{background:var(--acc)10;border:1px solid var(--acc)20;border-radius:8px;padding:9px 12px;font-size:12px;color:#fcd34d;margin-bottom:12px;line-height:1.5;}
+.imp-banner{background:var(--pu)15;border-bottom:1px solid var(--pu)30;padding:7px 20px;display:flex;align-items:center;gap:10px;font-size:12px;color:#c4b5fd;flex-shrink:0;}
+.chat-wrap{display:flex;height:100%;}
+.chat-sb{width:190px;min-width:190px;border-right:1px solid var(--bdr);padding:8px;overflow-y:auto;}
+.chat-ch{padding:6px 8px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--mu);display:flex;align-items:center;gap:7px;transition:all .15s;}
 .chat-ch:hover{background:var(--s2);color:var(--tx);}
-.chat-ch.active{background:var(--acc)15;color:var(--acc);}
+.chat-ch.act{background:var(--acc)12;color:var(--acc);font-weight:500;}
 .chat-main{flex:1;display:flex;flex-direction:column;}
-.chat-hd{padding:12px 16px;border-bottom:1px solid var(--bdr);font-weight:600;font-size:14px;}
-.chat-msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
-.chat-bubble{background:var(--s2);border-radius:10px;padding:10px 13px;max-width:70%;}
-.chat-input-area{padding:10px 14px;border-top:1px solid var(--bdr);display:flex;gap:10px;}
-.chat-input{flex:1;background:var(--s2);border:1px solid var(--bdr);border-radius:10px;padding:9px 13px;color:var(--tx);font-size:13px;outline:none;}
-.chat-input:focus{border-color:var(--acc);}
-.chat-locked{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--mu);gap:8px;}
-.kb-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:4px;width:fit-content;}
-.kb-tab{padding:6px 14px;border-radius:7px;border:none;background:none;color:var(--mu);font-size:13px;font-weight:500;transition:all .15s;}
-.kb-tab.active{background:var(--acc);color:#000;}
-.kb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;}
-.kb-card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:18px;cursor:pointer;transition:all .15s;}
+.chat-hd{padding:10px 14px;border-bottom:1px solid var(--bdr);font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;}
+.chat-msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+.chat-bbl{background:var(--s2);border-radius:10px;padding:10px 12px;max-width:68%;}
+.chat-ia{padding:9px 12px;border-top:1px solid var(--bdr);display:flex;gap:8px;}
+.chat-inp{flex:1;background:var(--s2);border:1px solid var(--bdr);border-radius:9px;padding:8px 11px;color:var(--tx);font-size:13px;outline:none;}
+.chat-inp:focus{border-color:var(--acc);}
+.kb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:12px;}
+.kb-card{background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:16px;cursor:pointer;transition:all .15s;}
 .kb-card:hover{border-color:var(--bdr2);transform:translateY(-1px);}
-.kb-full{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:24px;white-space:pre-line;line-height:1.9;font-size:14px;color:#c0cadf;}
-.kb-back{display:flex;align-items:center;gap:6px;color:var(--mu);cursor:pointer;font-size:13px;margin-bottom:16px;}
-.kb-back:hover{color:var(--tx);}
-.sched-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px;}
-.sched-day{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:12px;min-height:120px;}
-.sched-day-hd{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
-.sched-day-date{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px;}
-.sched-shift{background:var(--s2);border-left:3px solid var(--acc);border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:11px;}
-.sched-list{display:flex;flex-direction:column;gap:10px;}
-.sched-item{background:var(--s1);border:1px solid var(--bdr);border-radius:10px;padding:14px;}
-.branch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:20px;}
-.branch-card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;}
-.branch-card:hover{transform:translateY(-2px);}
-.branch-hq{border-color:var(--acc)30!important;background:var(--acc)08;}
-.info-box{background:var(--bl)12;border:1px solid var(--bl)25;border-radius:8px;padding:10px 14px;font-size:12px;color:#93c5fd;margin-bottom:16px;}
-::-webkit-scrollbar{width:5px;height:5px;}
+.task-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;}
+.task-col{background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:12px;}
+.task-item{background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:11px;margin-bottom:7px;}
+.partner-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:13px;}
+.partner-card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:17px;transition:all .15s;}
+.partner-card:hover{border-color:var(--bdr2);}
+.lang-toggle{display:flex;gap:3px;background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:3px;}
+.lang-btn{padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:600;background:none;color:var(--mu);transition:all .15s;}
+.lang-btn.act{background:var(--acc);color:#000;}
+::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px;}
 `;
 
-/* ─────────────────────────── HELPERS ─────────────────────────── */
-const COLORS_AV = ["#f0a500","#e05c2a","#22c55e","#3b82f6","#a855f7","#ec4899","#06b6d4","#f97316"];
-const avColor = name => COLORS_AV[(name||"?").charCodeAt(0) % COLORS_AV.length];
-const deptOf  = (depts, id) => depts.find(d => d.id === id);
-const empOf   = (emps, id)  => emps.find(e => e.id === id);
-const STATUS_LABELS = { todo:"К выполнению", in_progress:"В работе", done:"Готово" };
-const STATUS_COLORS = { todo:"muted", in_progress:"yellow", done:"green" };
-const PRIO_COLORS   = { high:"b-rd", medium:"b-yw", low:"b-gr" };
+/* ─── HELPERS ─── */
+const AVC = ["#f0a500","#e05c2a","#22c55e","#3b82f6","#a855f7","#ec4899","#06b6d4","#f97316"];
+const avColor = n => AVC[(n||"?").charCodeAt(0) % AVC.length];
 
-function Av({ name="?", size="", color }) {
+function Av({ name="?", color, size="" }) {
   const c = color || avColor(name);
-  const initials = name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
-  return <div className={`av ${size}`} style={{background:c+"28",color:c}}>{initials}</div>;
+  const i = (name||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();
+  return <div className={`av ${size}`} style={{background:c+"22",color:c}}>{i}</div>;
 }
-function Badge({ children, cls }) {
-  return <span className={`badge ${cls||"b-mu"}`}>{children}</span>;
-}
+function Bdg({ children, cls="b-mu" }) { return <span className={`badge ${cls}`}>{children}</span>; }
+const planBdg = p => ({ Basic:"b-bl", Pro:"b-yw", VIP:"b-pu" }[p]||"b-mu");
 
-/* ─────────────────────────── LOGIN ─────────────────────────── */
-function LoginScreen({ employees, clients, onLogin }) {
-  const [email, setEmail]     = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw]   = useState(false);
-  const [error, setError]     = useState("");
-  const [loading, setLoading] = useState(false);
+/* ─── LOGIN ─── */
+function LoginScreen({ partners, onLogin, lang, setLang }) {
+  const t = T[lang];
+  const [email, setEmail] = useState("");
+  const [pw, setPw]       = useState("");
+  const [show, setShow]   = useState(false);
+  const [err, setErr]     = useState("");
+  const [loading, setL]   = useState(false);
 
-  function handleLogin() {
-    if (!email.trim() || !password.trim()) { setError("Введите email и пароль"); return; }
-    setLoading(true); setError("");
-    setTimeout(() => {
+  function tryLogin() {
+    if (!email.trim()||!pw.trim()) { setErr(t.fillAll); return; }
+    setL(true); setErr("");
+    setTimeout(()=>{
       const e = email.trim().toLowerCase();
-      const user = [...employees, ...clients].find(u => u.email === e && u.password === password);
-      if (user) onLogin(user);
-      else { setError("Неверный email или пароль"); setLoading(false); }
-    }, 600);
+      if (e===SUPER_ADMIN.email&&pw===SUPER_ADMIN.password) { onLogin({...SUPER_ADMIN}); return; }
+      const partner = partners.find(p=>p.email===e&&p.password===pw&&p.status==="active");
+      if (partner) { onLogin({...partner,type:"partner"}); return; }
+      let found = null;
+      for (const p of partners) {
+        const emp=(p.employees||[]).find(em=>em.email===e&&em.password===pw&&em.status==="active");
+        if (emp) { found={...emp,type:"employee",partnerId:p.id}; break; }
+      }
+      if (found) { onLogin(found); return; }
+      setErr(t.wrongCreds); setL(false);
+    },600);
   }
 
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)",flexDirection:"column"}}>
-      <div style={{position:"absolute",top:"35%",left:"50%",transform:"translate(-50%,-50%)",width:500,height:500,background:"var(--acc)",opacity:.04,borderRadius:"50%",filter:"blur(100px)",pointerEvents:"none"}}/>
-      <div style={{textAlign:"center",marginBottom:28}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:44,fontWeight:800,letterSpacing:-2}}>NOVA<span style={{color:"var(--acc)"}}>.</span>TEAM</div>
-        <div style={{color:"var(--mu)",fontSize:14,marginTop:6}}>Платформа управления командой</div>
+      <div style={{position:"absolute",top:"38%",left:"50%",transform:"translate(-50%,-50%)",width:500,height:500,background:"var(--acc)",opacity:.04,borderRadius:"50%",filter:"blur(100px)",pointerEvents:"none"}}/>
+      {/* Language toggle */}
+      <div style={{position:"absolute",top:20,right:24}} className="lang-toggle">
+        <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
+        <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
       </div>
-      <div style={{background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:18,padding:"30px 34px",width:400}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:19,fontWeight:700,marginBottom:4}}>Добро пожаловать</div>
-        <div style={{fontSize:13,color:"var(--mu)",marginBottom:22}}>Войдите в свой аккаунт</div>
-        <div style={{marginBottom:14}}>
-          <label style={{fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Email</label>
-          <input style={{width:"100%",background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"10px 13px",color:"var(--tx)",fontSize:13,outline:"none"}}
-            placeholder="your@nova.team" value={email}
-            onChange={e=>{setEmail(e.target.value);setError("");}}
-            onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+      <div style={{textAlign:"center",marginBottom:26}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,color:"var(--mu)",textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>{t.appName}</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:36,fontWeight:800,letterSpacing:-1.5,lineHeight:1.1}}>
+          {lang==="ru"?"Платформа управления":"Business Management"}<br/>
+          <span style={{color:"var(--acc)"}}>{lang==="ru"?"клининговым бизнесом":"for Cleaning Companies"}</span>
         </div>
-        <div style={{marginBottom:18}}>
-          <label style={{fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Пароль</label>
+      </div>
+      <div style={{background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:16,padding:"26px 30px",width:390}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700,marginBottom:3}}>{t.login}</div>
+        <div style={{fontSize:12,color:"var(--mu)",marginBottom:20}}>{t.loginSub}</div>
+        <div className="fg">
+          <label className="lbl">{t.email}</label>
+          <input className="inp" placeholder="your@email.com" value={email}
+            onChange={e=>{setEmail(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
+        </div>
+        <div className="fg">
+          <label className="lbl">{t.password}</label>
           <div style={{position:"relative"}}>
-            <input style={{width:"100%",background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"10px 42px 10px 13px",color:"var(--tx)",fontSize:13,outline:"none"}}
-              type={showPw?"text":"password"} placeholder="••••••••" value={password}
-              onChange={e=>{setPassword(e.target.value);setError("");}}
-              onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
-            <button onClick={()=>setShowPw(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--mu)",fontSize:15,padding:2}}>{showPw?"🙈":"👁"}</button>
+            <input className="inp" type={show?"text":"password"} placeholder="••••••••" value={pw}
+              style={{paddingRight:38}}
+              onChange={e=>{setPw(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&tryLogin()}/>
+            <button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--mu)",fontSize:14,padding:2}}>{show?"🙈":"👁"}</button>
           </div>
         </div>
-        {error && <div style={{background:"#ef444418",border:"1px solid #ef444430",borderRadius:8,padding:"9px 13px",fontSize:12,color:"var(--rd)",marginBottom:14}}>⚠️ {error}</div>}
-        <button onClick={handleLogin} disabled={loading}
-          style={{width:"100%",background:loading?"var(--s3)":"var(--acc)",color:loading?"var(--mu)":"#000",border:"none",borderRadius:10,padding:"11px",fontSize:14,fontWeight:600,fontFamily:"'Syne',sans-serif",cursor:loading?"not-allowed":"pointer"}}>
-          {loading?"Проверяем...":"Войти →"}
+        {err&&<div style={{background:"#ef444415",border:"1px solid #ef444428",borderRadius:8,padding:"8px 11px",fontSize:12,color:"var(--rd)",marginBottom:13}}>⚠️ {err}</div>}
+        <button onClick={tryLogin} disabled={loading}
+          style={{width:"100%",background:loading?"var(--s3)":"var(--acc)",color:loading?"var(--mu)":"#000",border:"none",borderRadius:10,padding:"10px",fontSize:14,fontWeight:600,fontFamily:"'Syne',sans-serif",transition:"all .2s"}}>
+          {loading?t.checking:t.enter}
         </button>
-        <div style={{marginTop:18,background:"var(--s2)",borderRadius:10,border:"1px solid var(--bdr)",padding:"12px"}}>
-          <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>Быстрый вход (тест)</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-            {employees.slice(0,4).map(e=>(
-              <button key={e.id} onClick={()=>{setEmail(e.email);setPassword(e.password);setError("");}}
-                style={{background:"none",border:"1px solid var(--bdr)",borderRadius:6,padding:"5px 8px",color:"var(--mu)",fontSize:11,cursor:"pointer",textAlign:"left"}}>
-                {e.name.split(" ")[0]} · {e.role.split(" ")[0]}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
-      <div style={{marginTop:18,fontSize:11,color:"var(--mu2)"}}> Natural Cleaning Experts © 2025</div>
+      <div style={{marginTop:14,fontSize:11,color:"var(--mu2)"}}>{t.copyright}</div>
     </div>
   );
 }
 
-/* ─────────────────────────── MAIN APP ─────────────────────────── */
-export default function NovaTeam() {
-  const [departments,     setDepartments]     = useState(INIT_DEPARTMENTS);
-  const [employees,       setEmployees]       = useState(INIT_EMPLOYEES);
-  const [clients,         setClients]         = useState(INIT_CLIENTS);
-  const [tasks,           setTasks]           = useState(INIT_TASKS);
-  const [schedule,        setSchedule]        = useState(INIT_SCHEDULE);
-  const [salaryPayments,  setSalaryPayments]  = useState(INIT_SALARY_PAYMENTS);
-  const [chatMsgs,    setChatMsgs]    = useState(INIT_CHAT_MSGS);
-  const [kb,          setKb]          = useState(INIT_KB);
+/* ═══════════════════════════════════════════
+   MAIN APP
+═══════════════════════════════════════════ */
+export default function App() {
+  const [lang, setLang]           = useState("ru");
+  const t = T[lang];
+  const roles = lang==="ru" ? ROLES_RU : ROLES_EN;
+
+  const [partners,    setPartners]    = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [viewPartner, setViewPartner] = useState(null);
+  const [saMode,      setSaMode]      = useState("workspace"); // "workspace" | "partners"
   const [page,        setPage]        = useState("dashboard");
+  const [modal,       setModal]       = useState(null);
   const [chatChannel, setChatChannel] = useState("general");
+  const [chatMsgs,    setChatMsgs]    = useState({});
   const [kbView,      setKbView]      = useState(null);
   const [kbFilter,    setKbFilter]    = useState("all");
-  const [modal,       setModal]       = useState(null);
   const [chatInput,   setChatInput]   = useState("");
   const chatEndRef = useRef(null);
 
-  const isAdmin  = currentUser?.id === 1 && currentUser?.type === "employee";
-  const isClient = currentUser?.type === "client";
+  const isSA      = currentUser?.type==="superadmin";
+  const isPartner = currentUser?.type==="partner";
+  const isEmp     = currentUser?.type==="employee";
 
-  // Default forms
-  const defEmp  = { name:"", dept:"ops", branch:"austin", role:"", roleId:"cleaner", rate:"18", salary:"0", salaryType:"hourly", status:"active", email:"", password:"" };
-  const defPay  = { employeeId:"", amount:"", date:"", status:"pending", note:"" };
-  const defCli  = { name:"", contact:"", email:"", password:"", city:"austin", plan:"Basic" };
-  const defTask = { title:"", assignee:"", dept:"ops", priority:"medium", due:"", status:"todo" };
-  const defKb   = { type:"sop", dept:"ops", title:"", url:"", content:"", desc:"", thumb:"📄", visibleTo:[] };
-  const defDept = { name:"", icon:"🏢", color:"#3b82f6" };
-  const defSched= { employeeId:"", date:"", startTime:"09:00", endTime:"13:00", address:"", client:"", notes:"", status:"confirmed" };
+  const workspace  = viewPartner || (isPartner ? partners.find(p=>p.id===currentUser.id) : null);
+  const empPartner = isEmp ? partners.find(p=>p.id===currentUser.partnerId) : null;
+  // SA gets a special built-in workspace "nce_main"
+  const saPartner  = isSA ? (partners.find(p=>p.id==="nce_main") || { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP", employees:[], departments:[], branches:[], tasks:[], kb:[], schedule:[], salaryPayments:[] }) : null;
+  const activeWS   = isEmp ? empPartner : (isSA && !viewPartner) ? saPartner : workspace;
 
-  const [empForm,   setEmpForm]   = useState(defEmp);
-  const [payForm,   setPayForm]   = useState(defPay);
-  const [cliForm,   setCliForm]   = useState(defCli);
-  const [taskForm,  setTaskForm]  = useState(defTask);
-  const [kbForm,    setKbForm]    = useState(defKb);
-  const [deptForm,  setDeptForm]  = useState(defDept);
-  const [schedForm, setSchedForm] = useState(defSched);
+  const myAccess = (() => {
+    if (isSA) return ALL_SECTIONS.map(s=>s.id);
+    if (isPartner) return PLAN_SECTIONS[workspace?.plan]||PLAN_SECTIONS.Basic;
+    if (isEmp) {
+      const planS = PLAN_SECTIONS[empPartner?.plan]||PLAN_SECTIONS.Basic;
+      return (currentUser.sections||[]).filter(s=>planS.includes(s));
+    }
+    return [];
+  })();
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({behavior:"smooth"}); }, [chatMsgs, chatChannel]);
+  useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:"smooth"}); },[chatMsgs,chatChannel]);
 
-  // Visibility helpers
-  const myDept    = currentUser?.dept;
-  const visibleEmps  = isAdmin ? employees : employees.filter(e => e.dept === myDept);
-  const visibleTasks = isAdmin ? tasks : tasks.filter(t => t.dept === myDept || t.assignee === currentUser?.id);
-  const canAccessChat = (ch) => ch === "general" || ch === "clients" || isAdmin || ch === myDept;
-  const chatDepts = isAdmin ? departments : departments.filter(d => d.id === myDept);
-  const officeEmps   = employees.filter(e => OFFICE_DEPTS.includes(e.dept));
-  const cleaningEmps  = employees.filter(e => e.dept === "ops" || e.dept === "supervision");
+  function updatePartner(id, upd) { setPartners(ps=>ps.map(p=>p.id===id?{...p,...upd}:p)); }
+  function getPartner(id) { return partners.find(p=>p.id===id); }
 
-  // KB visibility: admin sees all, client sees "clients" tagged, others see their dept
-  const visibleKb = isAdmin ? kb
-    : isClient ? kb.filter(a => a.visibleTo?.includes("clients"))
-    : kb.filter(a => a.visibleTo?.includes(myDept) || a.visibleTo?.includes("all"));
+  // Forms
+  const defP   = { companyName:"", email:"", password:"", plan:"Basic", status:"active", logo:"", accentColor:"#f0a500" };
+  const defE   = { name:"", email:"", password:"", role:roles[0], sections:["dashboard","tasks","chat"], status:"active" };
+  const defD   = { name:"", icon:"🏢", color:"#3b82f6" };
+  const defBr  = { name:"", city:"" };
+  const defT   = { title:"", assigneeId:"", priority:"medium", due:"", status:"todo" };
+  const defK   = { type:"sop", title:"", thumb:"📄", url:"", content:"", desc:"" };
+  const defSc  = { employeeId:"", date:"", startTime:"09:00", endTime:"13:00", address:"", clientName:"", notes:"", status:"confirmed" };
+  const defPay = { employeeId:"", amount:"", date:"", note:"", status:"pending" };
 
-  // CRUD helpers
-  function addEmployee() {
-    if (!empForm.name.trim() || !empForm.email.trim() || !empForm.password.trim()) return;
-    const em = empForm.email.trim().toLowerCase();
-    if ([...employees, ...clients].find(u => u.email === em)) { alert("Email уже занят"); return; }
-    setEmployees(p => [...p, { ...empForm, id:Date.now(), rate:Number(empForm.rate), salary:Number(empForm.salary), type:"employee" }]);
-    setEmpForm(defEmp); setModal(null);
+  const [pF,  setPF]  = useState(defP);
+  const [eF,  setEF]  = useState(defE);
+  const [dF,  setDF]  = useState(defD);
+  const [brF, setBrF] = useState(defBr);
+  const [tF,  setTF]  = useState(defT);
+  const [kF,  setKF]  = useState(defK);
+  const [scF, setScF] = useState(defSc);
+  const [paF, setPaF] = useState(defPay);
+
+  // CRUD
+  function createPartner() {
+    if (!pF.companyName.trim()||!pF.email.trim()||!pF.password.trim()) return;
+    const em=pF.email.trim().toLowerCase();
+    if (partners.find(p=>p.email===em)) { alert("Email already in use"); return; }
+    const id="p_"+Date.now();
+    setPartners(ps=>[...ps,{...pF,id,email:em,employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[],createdAt:new Date().toISOString().split("T")[0]}]);
+    setPF(defP); setModal(null);
   }
-
-  function addSalaryPayment() {
-    if (!payForm.employeeId || !payForm.amount || !payForm.date) return;
-    setSalaryPayments(p => [...p, { ...payForm, id:Date.now(), amount:Number(payForm.amount), employeeId:Number(payForm.employeeId) }]);
-    setPayForm(defPay); setModal(null);
+  function deletePartner(id) {
+    if (!window.confirm(t.confirmDelete)) return;
+    setPartners(ps=>ps.filter(p=>p.id!==id));
+    if (viewPartner?.id===id) setViewPartner(null);
   }
-
-  function togglePayment(id) {
-    setSalaryPayments(p => p.map(x => x.id===id ? {...x, status:x.status==="paid"?"pending":"paid"} : x));
+  function createEmployee() {
+    if (!eF.name.trim()||!eF.email.trim()||!eF.password.trim()) return;
+    const em=eF.email.trim().toLowerCase();
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    let p=getPartner(pid);
+    if (!p && isSA && pid==="nce_main") {
+      // auto-create SA workspace
+      p = { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP", email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500", employees:[], departments:[], branches:[], tasks:[], kb:[], schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] };
+      setPartners(ps=>[...ps, p]);
+    }
+    if (!p) return;
+    if ((p.employees||[]).find(e=>e.email===em)) { alert("Email already in use"); return; }
+    updatePartner(pid,{employees:[...(p.employees||[]),{...eF,id:"e_"+Date.now(),email:em,partnerId:pid}]});
+    setEF(defE); setModal(null);
   }
-
-  function deletePayment(id) { setSalaryPayments(p => p.filter(x => x.id!==id)); }
-
-  function addClient() {
-    if (!cliForm.name.trim() || !cliForm.email.trim() || !cliForm.password.trim()) return;
-    const em = cliForm.email.trim().toLowerCase();
-    if ([...employees, ...clients].find(u => u.email === em)) { alert("Email уже занят"); return; }
-    setClients(p => [...p, { ...cliForm, id:Date.now(), email:em, joined:new Date().toISOString().split('T')[0], status:"active", type:"client" }]);
-    setCliForm(defCli); setModal(null);
+  function deleteEmployee(pid,eid) {
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{employees:(p.employees||[]).filter(e=>e.id!==eid)});
   }
-
-  function addTask() {
-    if (!taskForm.title.trim()) return;
-    setTasks(p => [...p, { ...taskForm, id:Date.now(), assignee:Number(taskForm.assignee), createdBy:currentUser.id }]);
-    setTaskForm({ ...defTask, dept:myDept||"ops", assignee:String(currentUser?.id) });
-    setModal(null);
+  function createDept() {
+    if (!dF.name.trim()) return;
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const p=getPartner(pid)||{id:pid,employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[]};
+    if (!getPartner(pid)&&pid==="nce_main"){setPartners(ps=>[...ps,{...p,companyName:"Natural Cleaning Experts",plan:"VIP",status:"active",logo:"🏢",accentColor:"#f0a500",createdAt:new Date().toISOString().split("T")[0]}]);}
+    if(!p) return;
+    updatePartner(pid,{departments:[...(p.departments||[]),{...dF,id:"d_"+Date.now()}]});
+    setDF(defD); setModal(null);
   }
-
-  function updateTaskStatus(id, status) { setTasks(p => p.map(t => t.id===id ? {...t,status} : t)); }
-
-  function addDept() {
-    if (!deptForm.name.trim()) return;
-    const id = deptForm.name.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");
-    if (departments.find(d => d.id === id)) { alert("Отдел с таким ID уже существует"); return; }
-    setDepartments(p => [...p, { ...deptForm, id }]);
-    // Add chat channel for new dept
-    setChatMsgs(p => ({ ...p, [id]:[] }));
-    setDeptForm(defDept); setModal(null);
+  function createBranch() {
+    if (!brF.name.trim()) return;
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    let p=getPartner(pid);
+    if (!p && isSA && pid==="nce_main") { p={id:"nce_main",companyName:"Natural Cleaning Experts",plan:"VIP",email:"",password:"",status:"active",logo:"🏢",accentColor:"#f0a500",employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[],createdAt:new Date().toISOString().split("T")[0]}; setPartners(ps=>[...ps,p]); }
+    if(!p) return;
+    const lim=PLAN_LIMITS[p.plan]?.branches||1;
+    if ((p.branches||[]).length>=lim) { alert(`${t.branchLimit} ${p.plan}: ${lim}`); return; }
+    updatePartner(pid,{branches:[...(p.branches||[]),{...brF,id:"b_"+Date.now()}]});
+    setBrF(defBr); setModal(null);
   }
-
-  function addKbItem() {
-    if (!kbForm.title.trim()) return;
-    const vt = kbForm.visibleTo.length > 0 ? kbForm.visibleTo : [kbForm.dept];
-    setKb(p => [...p, { ...kbForm, id:Date.now(), visibleTo:vt }]);
-    setKbForm(defKb); setModal(null);
+  function createTask() {
+    if (!tF.title.trim()) return;
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{tasks:[...(p.tasks||[]),{...tF,id:"t_"+Date.now(),createdBy:currentUser.id}]});
+    setTF(defT); setModal(null);
   }
-
-  function addSchedule() {
-    if (!schedForm.employeeId || !schedForm.date) return;
-    setSchedule(p => [...p, { ...schedForm, id:Date.now(), employeeId:Number(schedForm.employeeId) }]);
-    setSchedForm(defSched); setModal(null);
+  function updateTask(pid,tid,upd) {
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{tasks:(p.tasks||[]).map(t=>t.id===tid?{...t,...upd}:t)});
   }
-
+  function createKb() {
+    if (!kF.title.trim()) return;
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{kb:[...(p.kb||[]),{...kF,id:"k_"+Date.now()}]});
+    setKF(defK); setModal(null);
+  }
+  function createSched() {
+    if (!scF.employeeId||!scF.date) return;
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{schedule:[...(p.schedule||[]),{...scF,id:"sc_"+Date.now()}]});
+    setScF(defSc); setModal(null);
+  }
+  function createPayment() {
+    if (!paF.employeeId||!paF.amount||!paF.date) return;
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{salaryPayments:[...(p.salaryPayments||[]),{...paF,id:"sp_"+Date.now(),amount:Number(paF.amount)}]});
+    setPaF(defPay); setModal(null);
+  }
+  function togglePay(pid,id) {
+    const p=getPartner(pid); if(!p) return;
+    updatePartner(pid,{salaryPayments:(p.salaryPayments||[]).map(x=>x.id===id?{...x,status:x.status==="paid"?"pending":"paid"}:x)});
+  }
   function sendChat() {
-    if (!chatInput.trim() || !chatChannel) return;
-    setChatMsgs(p => ({
-      ...p,
-      [chatChannel]: [...(p[chatChannel]||[]), {
-        id:Date.now(), author:currentUser.id, authorType:currentUser.type,
-        text:chatInput.trim(), ts:new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'})
-      }]
-    }));
+    if (!chatInput.trim()) return;
+    const pid=activeWS?.id||(isSA?"nce_main":"sa");
+    const key=pid+"_"+chatChannel;
+    setChatMsgs(m=>({...m,[key]:[...(m[key]||[]),{id:"m_"+Date.now(),authorId:currentUser.id,authorName:currentUser.name||currentUser.companyName,text:chatInput.trim(),ts:new Date().toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"})}]}));
     setChatInput("");
   }
 
-  function removeEmp(id) { setEmployees(p => p.filter(e => e.id !== id)); }
-  function removeCli(id) { setClients(p => p.filter(c => c.id !== id)); }
-
-  /* ──────────── LOGIN ──────────── */
+  /* ── LOGIN GATE ── */
   if (!currentUser) {
     return (
       <>
         <style>{S}</style>
-        <LoginScreen employees={employees} clients={clients} onLogin={u => { setCurrentUser(u); setChatChannel("general"); }} />
+        <LoginScreen partners={partners} lang={lang} setLang={setLang}
+          onLogin={u=>{setCurrentUser(u);setPage("dashboard");}}/>
       </>
     );
   }
 
-  /* ──────────── DASHBOARD ──────────── */
-  const Dashboard = () => {
-    const myT = visibleTasks.filter(t => t.assignee === currentUser.id);
-    const totalPayroll = employees.filter(e=>e.salaryType==="fixed").reduce((s,e)=>s+Number(e.salary),0);
-    return (
-      <>
-        <div className="stats-row">
-          {[
-            { lbl:"Сотрудников",  val:employees.length,                                          sub:`${employees.filter(e=>e.status==="active").length} активных`, color:"var(--acc)" },
-            { lbl:"Клиентов NLS", val:clients.length,                                            sub:`${clients.filter(c=>c.status==="active").length} активных`, color:"#22c55e" },
-            { lbl:"Задач",        val:visibleTasks.length,                                       sub:`${visibleTasks.filter(t=>t.status==="done").length} выполнено`, color:"#3b82f6" },
-            isAdmin
-              ? { lbl:"Фонд зарплат", val:`$${totalPayroll.toLocaleString()}`, sub:"Фиксированных/мес", color:"#a855f7" }
-              : { lbl:"Мои задачи",   val:myT.length, sub:`${myT.filter(t=>t.status==="done").length} сделано`, color:"#06b6d4" },
-          ].map((s,i) => (
-            <div className="stat" key={i}>
-              <div className="stat-lbl">{s.lbl}</div>
-              <div className="stat-val" style={{color:s.color}}>{s.val}</div>
-              <div className="stat-sub">{s.sub}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          <div className="card">
-            <div className="card-hd"><div className="card-title">Последние задачи</div><button className="btn btn-ghost btn-sm" onClick={()=>setPage("tasks")}>Все →</button></div>
-            {visibleTasks.slice(0,5).map(t => {
-              const emp = empOf(employees, t.assignee);
-              return (
-                <div key={t.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--bdr)"}}>
-                  {emp && <Av name={emp.name} />}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.title}</div>
-                    <div style={{fontSize:11,color:"var(--mu)"}}>{emp?.name}</div>
-                  </div>
-                  <Badge cls={`badge ${STATUS_COLORS[t.status]==="green"?"b-gr":STATUS_COLORS[t.status]==="yellow"?"b-yw":"b-mu"}`}>{STATUS_LABELS[t.status]}</Badge>
-                </div>
-              );
-            })}
-          </div>
-          <div className="card">
-            <div className="card-hd"><div className="card-title">Отделы</div><button className="btn btn-ghost btn-sm" onClick={()=>setPage("departments")}>Все →</button></div>
-            {departments.map(d => (
-              <div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
-                <span style={{fontSize:16,width:22,textAlign:"center"}}>{d.icon}</span>
-                <span style={{flex:1,fontSize:13,fontWeight:500}}>{d.name}</span>
-                <span style={{fontSize:13,fontWeight:600,color:d.color}}>{employees.filter(e=>e.dept===d.id).length}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </>
-    );
-  };
+  /* ════════ PAGES ════════ */
 
-  /* ──────────── DEPARTMENTS ──────────── */
-  const Departments = () => {
-    const [activeD, setActiveD] = useState(null);
-    const deptEmps = activeD ? employees.filter(e=>e.dept===activeD) : [];
-    const d = deptOf(departments, activeD);
-
-    if (activeD) return (
-      <>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-          <button className="btn btn-ghost btn-sm" onClick={()=>setActiveD(null)}>← Назад</button>
-          <span style={{fontSize:18}}>{d?.icon}</span>
-          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17}}>{d?.name}</span>
-          <Badge cls="b-mu">{deptEmps.length} сотрудников</Badge>
-          {isAdmin && <button className="btn btn-prim btn-sm" style={{marginLeft:"auto"}} onClick={()=>{ setEmpForm({...defEmp,dept:activeD}); setModal("emp"); }}>+ Добавить</button>}
-        </div>
-        <div className="card">
-          <div className="tbl-wrap">
-            <table>
-              <thead><tr><th>Сотрудник</th><th>Роль</th><th>Email</th><th>Ставка</th><th>Зарплата</th><th>Статус</th>{isAdmin&&<th></th>}</tr></thead>
-              <tbody>
-                {deptEmps.map(m => (
-                  <tr key={m.id}>
-                    <td><div className="flex-c"><Av name={m.name} color={d?.color}/><span style={{fontWeight:500}}>{m.name}</span></div></td>
-                    <td style={{color:"var(--mu)"}}>{m.role}</td>
-                    <td style={{fontSize:12,color:"var(--mu)"}}>{m.email}</td>
-                    <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600}}>{m.salaryType==="hourly"?`$${m.rate}/h`:"—"}</td>
-                    <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600,color:"var(--gr)"}}>{m.salaryType==="fixed"?`$${m.salary}/мес`:"По часам"}</td>
-                    <td><Badge cls={m.status==="active"?"b-gr":"b-rd"}>{m.status==="active"?"Активен":"Неактив."}</Badge></td>
-                    {isAdmin && <td><button className="btn btn-danger btn-sm" onClick={()=>removeEmp(m.id)}>×</button></td>}
-                  </tr>
-                ))}
-                {!deptEmps.length && <tr><td colSpan={7} style={{textAlign:"center",color:"var(--mu)",padding:24}}>Нет сотрудников</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </>
-    );
-
-    return (
-      <>
-        {isAdmin && (
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            <button className="btn btn-prim" onClick={()=>setModal("emp")}>+ Добавить сотрудника</button>
-            <button className="btn btn-ghost" onClick={()=>setModal("dept")}>+ Новый отдел</button>
-          </div>
-        )}
-        <div className="dept-grid">
-          {departments.map(d => {
-            const cnt = employees.filter(e=>e.dept===d.id).length;
-            return (
-              <div key={d.id} className="dept-card" onClick={()=>setActiveD(d.id)}>
-                <div style={{fontSize:24,marginBottom:8}}>{d.icon}</div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:14,marginBottom:4}}>{d.name}</div>
-                <div style={{fontSize:12,color:"var(--mu)",marginBottom:10}}>{cnt} сотрудников</div>
-                <div style={{height:3,borderRadius:2,background:d.color,opacity:.7}} />
-              </div>
-            );
-          })}
-        </div>
-      </>
-    );
-  };
-
-  /* ──────────── BRANCHES ──────────── */
-  const Branches = () => {
-    const [activeBr, setActiveBr] = useState(null);
-    return (
-      <>
-        <div className="branch-grid">
-          {BRANCHES.map(b => {
-            const cnt = employees.filter(e=>e.branch===b.id).length;
-            return (
-              <div key={b.id} className={`branch-card ${b.isHQ?"branch-hq":""} ${activeBr===b.id?"":""}` } onClick={()=>setActiveBr(b.id===activeBr?null:b.id)}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                  <span style={{fontSize:20}}>{b.isHQ?"🏢":"🏙️"}</span>
-                  <div>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15}}>{b.name}</div>
-                    <div style={{fontSize:11,color:"var(--mu)"}}>{b.isHQ?"Головной офис":"Подразделение"}</div>
-                  </div>
-                </div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:b.isHQ?"var(--acc)":"var(--tx)"}}>{cnt}</div>
-                <div style={{fontSize:11,color:"var(--mu)"}}>сотрудников</div>
-              </div>
-            );
-          })}
-        </div>
-        {activeBr && (
-          <div className="card">
-            <div className="card-hd">
-              <div className="card-title">{BRANCHES.find(b=>b.id===activeBr)?.name}</div>
-              {isAdmin && <button className="btn btn-prim btn-sm" onClick={()=>{ setEmpForm({...defEmp,branch:activeBr}); setModal("emp"); }}>+ Добавить</button>}
-            </div>
-            <div className="tbl-wrap">
-              <table>
-                <thead><tr><th>Сотрудник</th><th>Отдел</th><th>Роль</th><th>Статус</th></tr></thead>
-                <tbody>
-                  {employees.filter(e=>e.branch===activeBr).map(m => {
-                    const d = deptOf(departments, m.dept);
-                    return (
-                      <tr key={m.id}>
-                        <td><div className="flex-c"><Av name={m.name}/><span style={{fontWeight:500}}>{m.name}</span></div></td>
-                        <td><span style={{color:d?.color}}>{d?.icon} {d?.name}</span></td>
-                        <td style={{color:"var(--mu)"}}>{m.role}</td>
-                        <td><Badge cls={m.status==="active"?"b-gr":"b-rd"}>{m.status==="active"?"Активен":"Неактив."}</Badge></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  };
-
-  /* ──────────── CLIENTS (NLS) ──────────── */
-  const Clients = () => (
+  /* ── SA: PARTNERS ── */
+  const SAPartners = () => (
     <>
-      {isAdmin && (
-        <div style={{marginBottom:16}}>
-          <button className="btn btn-prim" onClick={()=>setModal("client")}>+ Добавить клиента</button>
+      <div style={{marginBottom:14,display:"flex",gap:8}}>
+        <button className="btn btn-p" onClick={()=>{setPF(defP);setModal("partner");}}>{t.addPartner}</button>
+      </div>
+      {!partners.length && (
+        <div style={{textAlign:"center",padding:60,color:"var(--mu)"}}>
+          <div style={{fontSize:40,marginBottom:12}}>🤝</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:16,marginBottom:6}}>{t.noPartners}</div>
+          <div style={{fontSize:13}}>{t.noPartnersDesc}</div>
         </div>
       )}
-      <div className="info-box">ℹ️ Клиенты Nova Launch System получают доступ к обучению и общему чату. Они не видят внутренние отделы.</div>
-      <div className="card">
-        <div className="card-hd"><div className="card-title">Клиенты Nova Launch System</div><Badge cls="b-bl">{clients.length}</Badge></div>
-        <div className="tbl-wrap">
-          <table>
-            <thead><tr><th>Компания</th><th>Контакт</th><th>Email</th><th>Город</th><th>Тариф</th><th>Дата</th><th>Статус</th>{isAdmin&&<th></th>}</tr></thead>
-            <tbody>
-              {clients.map(c => (
-                <tr key={c.id}>
-                  <td><div className="flex-c"><Av name={c.name} color="#06b6d4"/><span style={{fontWeight:500}}>{c.name}</span></div></td>
-                  <td style={{color:"var(--mu)"}}>{c.contact}</td>
-                  <td style={{fontSize:12,color:"var(--mu)"}}>{c.email}</td>
-                  <td>{c.city}</td>
-                  <td><Badge cls={c.plan==="Pro"?"b-yw":"b-bl"}>{c.plan}</Badge></td>
-                  <td style={{fontSize:12,color:"var(--mu)"}}>{c.joined}</td>
-                  <td><Badge cls={c.status==="active"?"b-gr":"b-rd"}>{c.status==="active"?"Активен":"Неактив."}</Badge></td>
-                  {isAdmin && <td><button className="btn btn-danger btn-sm" onClick={()=>removeCli(c.id)}>×</button></td>}
-                </tr>
+      <div className="partner-grid">
+        {partners.map(p=>(
+          <div key={p.id} className="partner-card">
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+              <div style={{width:42,height:42,borderRadius:10,background:(p.accentColor||"#f0a500")+"20",border:`1px solid ${p.accentColor||"#f0a500"}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{p.logo||"🏢"}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName}</div>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{p.email}</div>
+              </div>
+              <Bdg cls={planBdg(p.plan)}>{p.plan}</Bdg>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:12}}>
+              {[
+                {l:t.empCount,   v:(p.employees||[]).length},
+                {l:t.deptCount,  v:(p.departments||[]).length},
+                {l:t.branches,   v:(p.branches||[]).length},
+              ].map((s,i)=>(
+                <div key={i} style={{background:"var(--s2)",borderRadius:8,padding:"7px 9px",textAlign:"center"}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17}}>{s.v}</div>
+                  <div style={{fontSize:10,color:"var(--mu)"}}>{s.l}</div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              <button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button>
+              <button className="btn btn-g btn-sm" onClick={()=>{
+                const pl=["Basic","Pro","VIP"],next=pl[(pl.indexOf(p.plan)+1)%pl.length];
+                if(window.confirm(`${t.confirmPlan} ${next}?`)) updatePartner(p.id,{plan:next});
+              }}>{t.changePlan}</button>
+              <button className="btn btn-sm" style={{background:p.status==="active"?"#ef444415":"#22c55e15",color:p.status==="active"?"var(--rd)":"var(--gr)",border:`1px solid ${p.status==="active"?"#ef444425":"#22c55e25"}`}}
+                onClick={()=>updatePartner(p.id,{status:p.status==="active"?"blocked":"active"})}>
+                {p.status==="active"?t.block:t.unblock}
+              </button>
+              <button className="btn btn-d btn-sm" onClick={()=>deletePartner(p.id)}>× {t.delete}</button>
+            </div>
+            <div style={{fontSize:10,color:"var(--mu)",marginTop:9}}>{t.createdAt}: {p.createdAt} · ${PLAN_LIMITS[p.plan]?.price}/mo</div>
+          </div>
+        ))}
       </div>
     </>
   );
 
-  /* ──────────── SALARY ──────────── */
-  const Salary = () => {
-    const [filterEmp, setFilterEmp] = useState("all");
-    const fixedEmps   = employees.filter(e=>e.salaryType==="fixed");
-    const hourlyEmps  = employees.filter(e=>e.salaryType==="hourly");
-    const totalPaid   = salaryPayments.filter(p=>p.status==="paid").reduce((s,p)=>s+p.amount,0);
-    const totalPending= salaryPayments.filter(p=>p.status==="pending").reduce((s,p)=>s+p.amount,0);
-    const filtered    = filterEmp==="all" ? salaryPayments : salaryPayments.filter(p=>p.employeeId===Number(filterEmp));
-
+  /* ── DASHBOARD ── */
+  const Dashboard = () => {
+    if (isSA&&!viewPartner) {
+      const totalE=partners.reduce((s,p)=>s+(p.employees||[]).length,0);
+      const rev=partners.filter(p=>p.status==="active").reduce((s,p)=>s+(PLAN_LIMITS[p.plan]?.price||0),0);
+      return (
+        <>
+          <div className="stats">
+            {[
+              {l:t.totalPartners,  v:partners.length,                                sub:`${partners.filter(p=>p.status==="active").length} ${t.activePartners}`, c:"var(--acc)"},
+              {l:t.totalEmployees, v:totalE,                                         sub:t.inAllCompanies,c:"var(--bl)"},
+              {l:t.monthlyRevenue, v:`$${rev.toLocaleString()}`,                     sub:t.byActivePlans, c:"var(--gr)"},
+              {l:t.blockedCount,   v:partners.filter(p=>p.status==="blocked").length,sub:t.partners,      c:"var(--rd)"},
+            ].map((s,i)=>(
+              <div className="stat" key={i}>
+                <div className="stat-l">{s.l}</div>
+                <div className="stat-v" style={{color:s.c}}>{s.v}</div>
+                <div className="stat-s">{s.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div className="card-hd"><div className="card-t">{t.allPartners}</div></div>
+            <div className="tw">
+              <table>
+                <thead><tr><th>{t.company}</th><th>{t.plan}</th><th>{t.empCount}</th><th>{t.createdAt}</th><th>{t.status}</th><th>{t.actions}</th></tr></thead>
+                <tbody>
+                  {partners.map(p=>(
+                    <tr key={p.id}>
+                      <td><div className="flex-c"><div style={{fontSize:18}}>{p.logo||"🏢"}</div><div><div style={{fontWeight:500}}>{p.companyName}</div><div style={{fontSize:11,color:"var(--mu)"}}>{p.email}</div></div></div></td>
+                      <td><Bdg cls={planBdg(p.plan)}>{p.plan} — ${PLAN_LIMITS[p.plan]?.price}/mo</Bdg></td>
+                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600}}>{(p.employees||[]).length}</td>
+                      <td style={{color:"var(--mu)",fontSize:12}}>{p.createdAt}</td>
+                      <td><Bdg cls={p.status==="active"?"b-gr":"b-rd"}>{p.status==="active"?t.active:t.blocked}</Bdg></td>
+                      <td><button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button></td>
+                    </tr>
+                  ))}
+                  {!partners.length&&<tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{t.noPartners}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      );
+    }
+    const ws=activeWS; const emps=ws?.employees||[]; const tasks=ws?.tasks||[]; const depts=ws?.departments||[];
     return (
       <>
-        <div className="stats-row">
+        <div className="stats">
           {[
-            { lbl:"Выплачено",   val:`$${totalPaid.toLocaleString()}`,    sub:"Всего оплачено",   color:"var(--gr)"  },
-            { lbl:"Ожидает",     val:`$${totalPending.toLocaleString()}`,  sub:"К выплате",        color:"var(--acc)" },
-            { lbl:"Фикс. ставок",val:fixedEmps.length,                    sub:"Сотрудников",      color:"var(--bl)"  },
-            { lbl:"Почасовых",   val:hourlyEmps.length,                   sub:"1099 подрядчиков", color:"#a855f7"    },
+            {l:t.empCount,   v:emps.length,                                     sub:`${emps.filter(e=>e.status==="active").length} ${t.activePartners}`, c:"var(--acc)"},
+            {l:t.taskCount,  v:tasks.length,                                    sub:`${tasks.filter(t=>t.status==="done").length} ${t.done}`,             c:"var(--bl)"},
+            {l:t.inProgress, v:tasks.filter(t=>t.status==="in_progress").length,sub:t.tasks,                                                              c:"var(--gr)"},
+            {l:t.deptCount,  v:depts.length,                                    sub:t.created,                                                            c:"var(--pu)"},
           ].map((s,i)=>(
             <div className="stat" key={i}>
-              <div className="stat-lbl">{s.lbl}</div>
-              <div className="stat-val" style={{color:s.color}}>{s.val}</div>
-              <div className="stat-sub">{s.sub}</div>
+              <div className="stat-l">{s.l}</div>
+              <div className="stat-v" style={{color:s.c}}>{s.v}</div>
+              <div className="stat-s">{s.sub}</div>
             </div>
           ))}
         </div>
-
-        <div className="card" style={{marginBottom:16}}>
-          <div className="card-hd">
-            <div className="card-title">💵 История выплат</div>
-            <div style={{display:"flex",gap:8}}>
-              <select className="inp" style={{width:"auto",padding:"5px 10px",fontSize:12}} value={filterEmp} onChange={e=>setFilterEmp(e.target.value)}>
-                <option value="all">Все сотрудники</option>
-                {fixedEmps.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
-              {isAdmin && <button className="btn btn-prim btn-sm" onClick={()=>setModal("pay")}>+ Добавить</button>}
-            </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
+          <div className="card">
+            <div className="card-hd"><div className="card-t">{t.recentTasks}</div></div>
+            {tasks.slice(0,5).map(task=>{
+              const emp=emps.find(e=>e.id===task.assigneeId);
+              return (
+                <div key={task.id} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:"1px solid var(--bdr)"}}>
+                  {emp&&<Av name={emp.name}/>}
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div><div style={{fontSize:11,color:"var(--mu)"}}>{emp?.name||"—"}</div></div>
+                  <Bdg cls={task.status==="done"?"b-gr":task.status==="in_progress"?"b-yw":"b-mu"}>{task.status==="done"?t.done:task.status==="in_progress"?t.inProgress:t.todo.replace("📋 ","")}</Bdg>
+                </div>
+              );
+            })}
+            {!tasks.length&&<div style={{textAlign:"center",color:"var(--mu)",padding:18,fontSize:13}}>{t.noTasks}</div>}
           </div>
-          <div className="tbl-wrap">
+          <div className="card">
+            <div className="card-hd"><div className="card-t">{t.employees}</div></div>
+            {emps.slice(0,6).map(e=>(
+              <div key={e.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
+                <Av name={e.name}/>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500}}>{e.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{e.role}</div></div>
+                <Bdg cls={e.status==="active"?"b-gr":"b-rd"}>{e.status==="active"?t.active:t.inactive}</Bdg>
+              </div>
+            ))}
+            {!emps.length&&<div style={{textAlign:"center",color:"var(--mu)",padding:18,fontSize:13}}>{t.noEmployees}</div>}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  /* ── EMPLOYEES ── */
+  const Employees = () => {
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{employees:[],departments:[]}; const emps=p?.employees||[]; const depts=p?.departments||[];
+    const canEdit=isSA||isPartner; const lim=PLAN_LIMITS[p?.plan]?.employees||10;
+    return (
+      <>
+        {canEdit&&(
+          <div style={{display:"flex",gap:8,marginBottom:15,flexWrap:"wrap",alignItems:"center"}}>
+            <button className="btn btn-p" onClick={()=>{setEF({...defE,role:roles[0]});setModal("emp");}}>{t.addEmployee}</button>
+            <button className="btn btn-g" onClick={()=>{setDF(defD);setModal("dept");}}>{t.addDept}</button>
+            <span style={{marginLeft:"auto",fontSize:12,color:"var(--mu)"}}>{t.empCount} {emps.length}/{lim}</span>
+          </div>
+        )}
+        {depts.length>0&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:10,marginBottom:18}}>
+            {depts.map(d=>(
+              <div key={d.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"13px 14px"}}>
+                <div style={{fontSize:22,marginBottom:6}}>{d.icon}</div>
+                <div style={{fontWeight:600,fontSize:13,marginBottom:2}}>{d.name}</div>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{emps.filter(e=>e.deptId===d.id).length} {t.employees.toLowerCase()}</div>
+                <div style={{height:2,borderRadius:1,background:d.color,marginTop:9,opacity:.7}}/>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="card">
+          <div className="card-hd"><div className="card-t">{t.employees}</div><Bdg cls="b-mu">{emps.length}</Bdg></div>
+          <div className="tw">
             <table>
-              <thead><tr><th>Сотрудник</th><th>Сумма</th><th>Дата</th><th>Примечание</th><th>Статус</th>{isAdmin&&<th>Действие</th>}</tr></thead>
+              <thead><tr><th>{t.name}</th><th>{t.role}</th><th>{t.email}</th><th>{t.accessSections}</th><th>{t.status}</th>{canEdit&&<th></th>}</tr></thead>
               <tbody>
-                {filtered.map(p=>{
-                  const emp = empOf(employees, p.employeeId);
-                  const d   = emp ? deptOf(departments, emp.dept) : null;
+                {emps.map(e=>{
+                  const d=depts.find(x=>x.id===e.deptId);
                   return (
-                    <tr key={p.id}>
-                      <td><div className="flex-c"><Av name={emp?.name||"?"} color={d?.color}/><span style={{fontWeight:500}}>{emp?.name||"—"}</span></div></td>
-                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(p.amount).toLocaleString()}</td>
-                      <td style={{color:"var(--mu)",fontSize:12}}>{p.date}</td>
-                      <td style={{color:"var(--mu)",fontSize:12}}>{p.note}</td>
-                      <td>
-                        <span className={`badge ${p.status==="paid"?"b-gr":"b-yw"}`}>
-                          {p.status==="paid"?"✓ Оплачено":"⏳ Ожидает"}
-                        </span>
-                      </td>
-                      {isAdmin && (
-                        <td style={{display:"flex",gap:6}}>
-                          <button className="btn btn-ghost btn-sm" onClick={()=>togglePayment(p.id)}>
-                            {p.status==="paid"?"↩ Отменить":"✓ Оплатить"}
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={()=>deletePayment(p.id)}>×</button>
-                        </td>
-                      )}
+                    <tr key={e.id}>
+                      <td><div className="flex-c"><Av name={e.name} color={d?.color}/><div><div style={{fontWeight:500}}>{e.name}</div>{d&&<div style={{fontSize:10,color:d.color}}>{d.icon} {d.name}</div>}</div></div></td>
+                      <td style={{color:"var(--mu)",fontSize:12}}>{e.role}</td>
+                      <td style={{fontSize:11,color:"var(--mu)"}}>{e.email}</td>
+                      <td><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(e.sections||[]).slice(0,3).map(s=><Bdg key={s} cls="b-mu">{ALL_SECTIONS.find(x=>x.id===s)?.icon}</Bdg>)}{(e.sections||[]).length>3&&<Bdg cls="b-mu">+{(e.sections||[]).length-3}</Bdg>}</div></td>
+                      <td><Bdg cls={e.status==="active"?"b-gr":"b-rd"}>{e.status==="active"?t.active:t.inactive}</Bdg></td>
+                      {canEdit&&<td><button className="btn btn-d btn-sm" onClick={()=>deleteEmployee(pid,e.id)}>×</button></td>}
                     </tr>
                   );
                 })}
-                {!filtered.length && <tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>Нет записей</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          <div className="card">
-            <div className="card-hd"><div className="card-title">📋 Фиксированные ставки</div></div>
-            <table>
-              <thead><tr><th>Сотрудник</th><th>Роль</th><th>$/мес</th></tr></thead>
-              <tbody>
-                {fixedEmps.map(e=>{const d=deptOf(departments,e.dept);return(
-                  <tr key={e.id}>
-                    <td><div className="flex-c"><Av name={e.name} color={d?.color}/><span style={{fontWeight:500}}>{e.name}</span></div></td>
-                    <td style={{color:"var(--mu)",fontSize:12}}>{e.role}</td>
-                    <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(e.salary).toLocaleString()}</td>
-                  </tr>
-                );})}
-              </tbody>
-            </table>
-          </div>
-          <div className="card">
-            <div className="card-hd"><div className="card-title">⏱ Почасовые (1099)</div></div>
-            <table>
-              <thead><tr><th>Сотрудник</th><th>$/час</th><th>~$/мес</th></tr></thead>
-              <tbody>
-                {hourlyEmps.map(e=>{const d=deptOf(departments,e.dept);return(
-                  <tr key={e.id}>
-                    <td><div className="flex-c"><Av name={e.name} color={d?.color}/><span style={{fontWeight:500}}>{e.name}</span></div></td>
-                    <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600}}>${e.rate}/h</td>
-                    <td style={{color:"var(--acc)"}}>~${(e.rate*40*4).toLocaleString()}</td>
-                  </tr>
-                );})}
+                {!emps.length&&<tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{t.noEmployees}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -789,102 +775,66 @@ export default function NovaTeam() {
     );
   };
 
-  /* ──────────── SCHEDULE ──────────── */
-  const Schedule = () => {
-    const [filterEmp, setFilterEmp] = useState("all");
-    const filtered = filterEmp==="all" ? schedule : schedule.filter(s=>s.employeeId===Number(filterEmp));
-    const byDate = {};
-    filtered.forEach(s => { if(!byDate[s.date]) byDate[s.date]=[]; byDate[s.date].push(s); });
-    const dates = Object.keys(byDate).sort();
+  /* ── BRANCHES ── */
+  const Branches = () => {
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{branches:[],employees:[]}; const brs=p?.branches||[]; const emps=p?.employees||[];
+    const canEdit=isSA||isPartner; const lim=PLAN_LIMITS[p?.plan]?.branches||1;
     return (
       <>
-        <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
-          {isAdmin && <button className="btn btn-prim" onClick={()=>setModal("schedule")}>+ Добавить смену</button>}
-          <select className="inp" style={{width:"auto"}} value={filterEmp} onChange={e=>setFilterEmp(e.target.value)}>
-            <option value="all">Все клинеры</option>
-            {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        </div>
-        <div className="info-box">📅 Расписание для клинеров и супервайзеров. Каждая смена содержит адрес объекта и время.</div>
-        <div className="sched-list">
-          {dates.map(date => (
-            <div key={date} style={{marginBottom:16}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:10,color:"var(--acc)"}}>
-                📅 {new Date(date).toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})}
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:10}}>
-                {byDate[date].map(s => {
-                  const emp = empOf(employees, s.employeeId);
-                  const d   = emp ? deptOf(departments, emp.dept) : null;
-                  return (
-                    <div key={s.id} className="sched-item">
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                        {emp && <Av name={emp.name} color={d?.color}/>}
-                        <div>
-                          <div style={{fontWeight:600,fontSize:13}}>{emp?.name}</div>
-                          <div style={{fontSize:11,color:"var(--mu)"}}>{emp?.role}</div>
-                        </div>
-                        <Badge cls={s.status==="confirmed"?"b-gr":"b-yw"} style={{marginLeft:"auto"}}>{s.status==="confirmed"?"✓ Подтв.":"Ожид."}</Badge>
-                      </div>
-                      <div style={{fontSize:13,fontFamily:"'Syne',sans-serif",fontWeight:600,marginBottom:4}}>
-                        🕐 {s.startTime} – {s.endTime}
-                      </div>
-                      <div style={{fontSize:12,color:"var(--mu)",marginBottom:2}}>📍 {s.address}</div>
-                      <div style={{fontSize:12,color:"var(--tx)"}}>👤 {s.client}</div>
-                      {s.notes && <div style={{fontSize:11,color:"var(--mu)",marginTop:6,fontStyle:"italic"}}>💬 {s.notes}</div>}
-                    </div>
-                  );
-                })}
-              </div>
+        {canEdit&&<div style={{marginBottom:14,display:"flex",gap:8,alignItems:"center"}}><button className="btn btn-p" onClick={()=>{setBrF(defBr);setModal("branch");}}>{t.addBranch}</button><span style={{fontSize:12,color:"var(--mu)"}}>{t.branches}: {brs.length}/{lim}</span></div>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
+          {brs.map(b=>(
+            <div key={b.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+              <div style={{fontSize:26,marginBottom:6}}>🏙️</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16}}>{b.name}</div>
+              <div style={{fontSize:12,color:"var(--mu)",marginBottom:9}}>{b.city}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:700,color:"var(--acc)"}}>{emps.filter(e=>e.branchId===b.id).length}</div>
+              <div style={{fontSize:11,color:"var(--mu)"}}>{t.employees.toLowerCase()}</div>
             </div>
           ))}
-          {!dates.length && (
-            <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
-              <div style={{fontSize:32,marginBottom:8}}>📅</div>
-              <div>Нет смен для выбранного фильтра</div>
-            </div>
-          )}
+          {!brs.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}><div style={{fontSize:36,marginBottom:8}}>📍</div><div>{t.noBranches}</div></div>}
         </div>
       </>
     );
   };
 
-  /* ──────────── TASKS ──────────── */
+  /* ── TASKS ── */
   const Tasks = () => {
-    const cols = ["todo","in_progress","done"];
-    const colNames = { todo:"📋 К выполнению", in_progress:"⚡ В работе", done:"✅ Готово" };
-    const colColors = { todo:"var(--mu)", in_progress:"var(--acc)", done:"var(--gr)" };
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{tasks:[],employees:[]}; const tasks=p?.tasks||[]; const emps=p?.employees||[];
+    const canEdit=isSA||isPartner||isEmp;
+    const cols=[["todo",t.todo,"var(--mu)"],["in_progress",t.inProgressCol,"var(--acc)"],["done",t.doneCol,"var(--gr)"]];
     return (
       <>
-        <div style={{marginBottom:14}}>
-          <button className="btn btn-prim" onClick={()=>{ setTaskForm({...defTask,dept:myDept||"ops",assignee:String(currentUser.id)}); setModal("task"); }}>+ Создать задачу</button>
-        </div>
+        {canEdit&&<div style={{marginBottom:13}}><button className="btn btn-p" onClick={()=>{setTF({...defT,assigneeId:isEmp?currentUser.id:""});setModal("task");}}>{t.addTask}</button></div>}
         <div className="task-cols">
-          {cols.map(col => {
-            const colT = visibleTasks.filter(t=>t.status===col);
+          {cols.map(([col,label,color])=>{
+            const colT=tasks.filter(x=>x.status===col);
             return (
               <div key={col} className="task-col">
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:600,color:colColors[col],marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
-                  {colNames[col]}<span style={{marginLeft:"auto",background:"var(--s3)",color:"var(--mu)",fontSize:11,padding:"2px 8px",borderRadius:12}}>{colT.length}</span>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                  {label}<span style={{marginLeft:"auto",background:"var(--s3)",color:"var(--mu)",fontSize:10,padding:"2px 7px",borderRadius:10}}>{colT.length}</span>
                 </div>
-                {colT.map(t => {
-                  const emp = empOf(employees, t.assignee);
+                {colT.map(task=>{
+                  const emp=emps.find(e=>e.id===task.assigneeId);
                   return (
-                    <div key={t.id} className="task-item">
-                      <div style={{fontSize:13,fontWeight:500,marginBottom:8,lineHeight:1.4}}>{t.title}</div>
-                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                        {emp && <div className="flex-c" style={{gap:5}}><Av name={emp.name}/><span style={{fontSize:11,color:"var(--mu)"}}>{emp.name.split(' ')[0]}</span></div>}
-                        <span className={`badge ${PRIO_COLORS[t.priority]||"b-mu"}`}>{t.priority}</span>
-                        {t.due && <span style={{fontSize:10,color:"var(--mu)"}}>📅 {t.due}</span>}
+                    <div key={task.id} className="task-item">
+                      <div style={{fontSize:13,fontWeight:500,marginBottom:7,lineHeight:1.4}}>{task.title}</div>
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:7}}>
+                        {emp&&<div className="flex-c" style={{gap:5}}><Av name={emp.name}/><span style={{fontSize:11,color:"var(--mu)"}}>{emp.name.split(" ")[0]}</span></div>}
+                        <Bdg cls={task.priority==="high"?"b-rd":task.priority==="medium"?"b-yw":"b-gr"}>{t[task.priority]||task.priority}</Bdg>
+                        {task.due&&<span style={{fontSize:10,color:"var(--mu)"}}>📅 {task.due}</span>}
                       </div>
-                      <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>
-                        {col!=="todo"        && <button className="btn btn-ghost btn-sm" onClick={()=>updateTaskStatus(t.id,"todo")}>← Назад</button>}
-                        {col==="todo"        && <button className="btn btn-ghost btn-sm" onClick={()=>updateTaskStatus(t.id,"in_progress")}>В работу →</button>}
-                        {col==="in_progress" && <button className="btn btn-ghost btn-sm" onClick={()=>updateTaskStatus(t.id,"done")}>✓ Готово</button>}
-                      </div>
+                      {canEdit&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {col!=="todo"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"todo"})}>{t.back}</button>}
+                        {col==="todo"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"in_progress"})}>{t.forward}</button>}
+                        {col==="in_progress"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"done"})}>{t.markDone}</button>}
+                      </div>}
                     </div>
                   );
                 })}
+                {!colT.length&&<div style={{textAlign:"center",color:"var(--mu)",fontSize:12,padding:"18px 0"}}>{t.noTasks}</div>}
               </div>
             );
           })}
@@ -893,582 +843,717 @@ export default function NovaTeam() {
     );
   };
 
-  /* ──────────── PERFORMANCE ──────────── */
-  const Performance = () => (
-    <div className="perf-grid">
-      {visibleEmps.map(emp => {
-        const data = PERF_DATA[emp.id] || [];
-        const total = data.reduce((s,d)=>s+d.assigned,0);
-        const done  = data.reduce((s,d)=>s+d.done,0);
-        const pct   = total ? Math.round(done/total*100) : 0;
-        const d = deptOf(departments, emp.dept);
-        return (
-          <div key={emp.id} className="perf-card">
-            <div className="flex-c" style={{marginBottom:12}}>
-              <Av name={emp.name} size="av-lg" color={d?.color}/>
-              <div>
-                <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
-                <div style={{fontSize:11,color:"var(--mu)"}}>{d?.icon} {d?.name}</div>
-              </div>
-              <div style={{marginLeft:"auto",textAlign:"right"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:pct>=80?"var(--gr)":pct>=60?"var(--acc)":"var(--rd)"||"var(--mu)"}}>{total?`${pct}%`:"—"}</div>
-                <div style={{fontSize:11,color:"var(--mu)"}}>эффективность</div>
-              </div>
-            </div>
-            {data.length > 0 ? (
-              <ResponsiveContainer width="100%" height={100}>
-                <BarChart data={data} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08"/>
-                  <XAxis dataKey="w" tick={{fill:"#5a6480",fontSize:10}} axisLine={false} tickLine={false}/>
-                  <YAxis hide/>
-                  <Tooltip contentStyle={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:8,fontSize:12}}/>
-                  <Bar dataKey="assigned" fill="#ffffff12" radius={[3,3,0,0]} name="Назначено"/>
-                  <Bar dataKey="done" fill={d?.color||"var(--acc)"} radius={[3,3,0,0]} name="Выполнено"/>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{fontSize:12,color:"var(--mu)",textAlign:"center",padding:"16px 0"}}>Данные появятся после выполнения задач</div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  /* ──────────── CHAT ──────────── */
-  const Chat = () => {
-    const msgs = chatMsgs[chatChannel] || [];
-    const canAccess = canAccessChat(chatChannel);
-    const chName = chatChannel==="general" ? "Общий чат" : chatChannel==="clients" ? "Клиенты NLS" : deptOf(departments,chatChannel)?.name || chatChannel;
+  /* ── SCHEDULE ── */
+  const Schedule = () => {
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{schedule:[],employees:[]}; const sch=p?.schedule||[]; const emps=p?.employees||[];
+    const canEdit=isSA||isPartner;
+    const byDate={}; sch.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
+    const dates=Object.keys(byDate).sort();
     return (
-      <div className="chat-layout" style={{height:"calc(100vh - 108px)"}}>
-        <div className="chat-sidebar">
-          <div style={{fontSize:10,color:"var(--mu2)",textTransform:"uppercase",letterSpacing:1,padding:"4px 2px 6px",fontWeight:600}}>Общие</div>
-          {[
-            { id:"general", icon:"📢", name:"Общий" },
-            ...(isAdmin||isClient?[{ id:"clients", icon:"🏢", name:"Клиенты NLS" }]:[]),
-          ].map(ch=>(
-            <div key={ch.id} className={`chat-ch ${chatChannel===ch.id?"active":""}`} onClick={()=>setChatChannel(ch.id)}
-              style={{marginBottom:ch.id==="clients"?8:2,paddingBottom:ch.id==="clients"?8:0,borderBottom:ch.id==="clients"?"1px solid var(--bdr)":"none"}}>
-              <span>{ch.icon}</span><span>{ch.name}</span>
+      <>
+        {canEdit&&<div style={{marginBottom:13}}><button className="btn btn-p" onClick={()=>{setScF(defSc);setModal("schedule");}}>{t.addShift}</button></div>}
+        {dates.map(date=>(
+          <div key={date} style={{marginBottom:16}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"var(--acc)",marginBottom:10}}>
+              📅 {new Date(date+"T12:00:00").toLocaleDateString(lang==="ru"?"ru":"en",{weekday:"long",day:"numeric",month:"long"})}
             </div>
-          ))}
-          {!isClient && <>
-            <div style={{fontSize:10,color:"var(--mu2)",textTransform:"uppercase",letterSpacing:1,padding:"4px 2px 6px",fontWeight:600}}>Отделы</div>
-            {chatDepts.map(d=>(
-              <div key={d.id} className={`chat-ch ${chatChannel===d.id?"active":""}`} onClick={()=>setChatChannel(d.id)}>
-                <span>{d.icon}</span><span>{d.name.replace("Отдел ","").replace("Операционный","Ops")}</span>
-              </div>
-            ))}
-          </>}
-        </div>
-        <div className="chat-main">
-          <div className="chat-hd">
-            {chatChannel==="general" && "📢 Общий чат"}
-            {chatChannel==="clients" && "🏢 Клиенты Nova Launch System"}
-            {chatChannel!=="general"&&chatChannel!=="clients" && `${deptOf(departments,chatChannel)?.icon||""} ${deptOf(departments,chatChannel)?.name||chatChannel}`}
-            {!canAccess && <span style={{fontSize:12,color:"var(--rd)",marginLeft:8}}>🔒 Нет доступа</span>}
-          </div>
-          {canAccess ? (
-            <>
-              <div className="chat-msgs">
-                {msgs.map(m=>{
-                  const author = m.authorType==="client"
-                    ? clients.find(c=>c.id===m.author)
-                    : empOf(employees,m.author);
-                  if(!author) return null;
-                  const isMe = m.author===currentUser.id && m.authorType===currentUser.type;
-                  const d = m.authorType==="employee" ? deptOf(departments,author.dept) : null;
-                  const color = m.authorType==="client" ? "#06b6d4" : d?.color||"var(--acc)";
-                  const displayName = m.authorType==="client" ? author.name : author.name?.split(' ')[0];
-                  return (
-                    <div key={m.id} style={{display:"flex",gap:10,flexDirection:isMe?"row-reverse":"row"}}>
-                      <Av name={author.name||"?"} color={color}/>
-                      <div className="chat-bubble" style={{background:isMe?"var(--acc)15":undefined}}>
-                        <div style={{fontSize:11,fontWeight:600,color,marginBottom:4}}>{displayName} {m.authorType==="client"&&"🏢"}</div>
-                        <div style={{fontSize:13,color:"#c8d0e0",lineHeight:1.5}}>{m.text}</div>
-                        <div style={{fontSize:10,color:"var(--mu)",marginTop:4}}>{m.ts}</div>
-                      </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10}}>
+              {byDate[date].map(s=>{
+                const emp=emps.find(e=>e.id===s.employeeId);
+                return (
+                  <div key={s.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:13}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      {emp&&<Av name={emp.name}/>}
+                      <div><div style={{fontWeight:500,fontSize:13}}>{emp?.name||"—"}</div><div style={{fontSize:11,color:"var(--mu)"}}>{emp?.role}</div></div>
+                      <Bdg cls={s.status==="confirmed"?"b-gr":"b-yw"}>{s.status==="confirmed"?t.confirmed:t.pending}</Bdg>
                     </div>
-                  );
-                })}
-                {!msgs.length && <div style={{textAlign:"center",color:"var(--mu)",padding:40,fontSize:13}}>Начните общение...</div>}
-                <div ref={chatEndRef}/>
-              </div>
-              <div className="chat-input-area">
-                <input className="chat-input" placeholder={`Написать в "${chName}"...`}
-                  value={chatInput} onChange={e=>setChatInput(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendChat(); }}}/>
-                <button className="btn btn-prim" onClick={sendChat}>→</button>
-              </div>
-            </>
-          ) : (
-            <div className="chat-locked"><span style={{fontSize:36}}>🔒</span><span>Доступ закрыт</span><span style={{fontSize:12}}>Этот канал принадлежит другому отделу</span></div>
-          )}
-        </div>
-      </div>
+                    <div style={{fontWeight:600,fontSize:13,marginBottom:3}}>🕐 {s.startTime} – {s.endTime}</div>
+                    <div style={{fontSize:12,color:"var(--mu)"}}>📍 {s.address}</div>
+                    <div style={{fontSize:12}}>👤 {s.clientName}</div>
+                    {s.notes&&<div style={{fontSize:11,color:"var(--mu)",marginTop:5,fontStyle:"italic"}}>💬 {s.notes}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {!dates.length&&<div style={{textAlign:"center",padding:48,color:"var(--mu)"}}><div style={{fontSize:36,marginBottom:8}}>📅</div><div>{t.noSchedule}</div></div>}
+      </>
     );
   };
 
-  /* ──────────── KNOWLEDGE BASE ──────────── */
-  const KnowledgeBase = () => {
-    const filtered = kbFilter==="all" ? visibleKb : visibleKb.filter(a=>a.type===kbFilter);
-
-    if (kbView) {
-      const a = kb.find(k=>k.id===kbView);
-      if (!a) { setKbView(null); return null; }
-      return (
-        <>
-          <div className="kb-back" onClick={()=>setKbView(null)}>← Назад к базе знаний</div>
-          <div style={{maxWidth:700}}>
-            <div style={{fontSize:30,marginBottom:8}}>{a.thumb}</div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,marginBottom:4}}>{a.title}</div>
-            <div style={{fontSize:12,color:"var(--mu)",marginBottom:20,display:"flex",gap:8,flexWrap:"wrap"}}>
-              <Badge cls={a.type==="youtube"?"b-rd":"b-bl"}>{a.type==="youtube"?"▶ YouTube":"📄 SOP"}</Badge>
-              {isAdmin && a.visibleTo?.map(v=><Badge key={v} cls="b-mu">{deptOf(INIT_DEPARTMENTS,v)?.name || v}</Badge>)}
-            </div>
-            {a.type==="youtube" && (
-              <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:24,textAlign:"center"}}>
-                <div style={{fontSize:40,marginBottom:8}}>▶️</div>
-                <div style={{fontSize:14,marginBottom:12,color:"var(--mu)"}}>{a.desc}</div>
-                <a href={a.url} target="_blank" rel="noreferrer" className="btn btn-prim" style={{textDecoration:"none"}}>Открыть на YouTube</a>
-              </div>
-            )}
-            {a.type==="gdoc" && (
-              <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:24}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                  <span style={{fontSize:36}}>📄</span>
-                  <div>
-                    <div style={{fontWeight:600,marginBottom:4}}>{a.title}</div>
-                    <div style={{fontSize:12,color:"var(--mu)"}}>{a.desc}</div>
-                  </div>
-                </div>
-                <a href={a.url} target="_blank" rel="noreferrer" className="btn btn-prim" style={{textDecoration:"none",marginRight:8}}>
-                  🔗 Открыть документ
-                </a>
-                <span style={{fontSize:11,color:"var(--mu)"}}>Откроется в новой вкладке</span>
-                {a.url && (
-                  <div style={{marginTop:12,background:"var(--s3)",borderRadius:8,padding:"8px 12px",fontSize:11,color:"var(--mu)",wordBreak:"break-all"}}>
-                    {a.url}
-                  </div>
-                )}
-              </div>
-            )}
-            {a.type==="sop" && (
-              <div className="kb-full">{a.content}</div>
-            )}
-          </div>
-        </>
-      );
-    }
-
+  /* ── SALARY ── */
+  const Salary = () => {
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{salaryPayments:[],employees:[]}; const pays=p?.salaryPayments||[]; const emps=p?.employees||[];
+    const canEdit=isSA||isPartner;
+    const paid=pays.filter(x=>x.status==="paid").reduce((s,x)=>s+x.amount,0);
+    const pend=pays.filter(x=>x.status==="pending").reduce((s,x)=>s+x.amount,0);
     return (
       <>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-          <div className="kb-tabs">
-            {[["all","Все"],["sop","SOP"],["youtube","YouTube"]].map(([val,lbl])=>(
-              <button key={val} className={`kb-tab ${kbFilter===val?"active":""}`} onClick={()=>setKbFilter(val)}>{lbl}</button>
-            ))}
-          </div>
-          {isAdmin && <button className="btn btn-prim" onClick={()=>setModal("kb")}>+ Добавить материал</button>}
-        </div>
-        {!isAdmin && <div className="info-box">📚 Показаны материалы для твоего отдела{isClient?" и обучения клиентов":""}.</div>}
-        <div className="kb-grid">
-          {filtered.map(a=>(
-            <div key={a.id} className="kb-card" style={{borderColor:a.type==="youtube"?"#ef444425":undefined}} onClick={()=>setKbView(a.id)}>
-              <div style={{fontSize:26,marginBottom:8}}>{a.thumb}</div>
-              <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>{a.type==="youtube"?"▶ YouTube":a.type==="gdoc"?"🔗 Google Doc":"📄 SOP"}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:600,marginBottom:6}}>{a.title}</div>
-              <div style={{fontSize:12,color:"var(--mu)"}}>{a.desc||a.content?.slice(0,60)+"..."}</div>
+        <div className="stats" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+          {[
+            {l:t.totalPaid,   v:`$${paid.toLocaleString()}`,sub:t.allTime,    c:"var(--gr)"},
+            {l:t.totalPending,v:`$${pend.toLocaleString()}`,sub:t.toPay,      c:"var(--acc)"},
+            {l:t.totalRecords,v:pays.length,                sub:t.inHistory,  c:"var(--bl)"},
+          ].map((s,i)=>(
+            <div className="stat" key={i}>
+              <div className="stat-l">{s.l}</div>
+              <div className="stat-v" style={{color:s.c}}>{s.v}</div>
+              <div className="stat-s">{s.sub}</div>
             </div>
           ))}
-          {!filtered.length && (
-            <div style={{gridColumn:"1/-1",textAlign:"center",padding:48,color:"var(--mu)"}}>
-              <div style={{fontSize:32,marginBottom:8}}>📭</div>
-              <div>Нет материалов в этой категории</div>
-            </div>
-          )}
+        </div>
+        <div className="card">
+          <div className="card-hd">
+            <div className="card-t">💵 {t.salary}</div>
+            {canEdit&&<button className="btn btn-p btn-sm" onClick={()=>{setPaF(defPay);setModal("pay");}}>{t.addPayment}</button>}
+          </div>
+          <div className="tw">
+            <table>
+              <thead><tr><th>{t.name}</th><th>{t.amount}</th><th>{t.payDate}</th><th>{t.note}</th><th>{t.status}</th>{canEdit&&<th></th>}</tr></thead>
+              <tbody>
+                {pays.map(x=>{
+                  const emp=emps.find(e=>e.id===x.employeeId);
+                  return (
+                    <tr key={x.id}>
+                      <td><div className="flex-c"><Av name={emp?.name||"?"}/><span style={{fontWeight:500}}>{emp?.name||"—"}</span></div></td>
+                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(x.amount).toLocaleString()}</td>
+                      <td style={{color:"var(--mu)",fontSize:12}}>{x.date}</td>
+                      <td style={{color:"var(--mu)",fontSize:12}}>{x.note}</td>
+                      <td><Bdg cls={x.status==="paid"?"b-gr":"b-yw"}>{x.status==="paid"?t.paid:t.notPaid}</Bdg></td>
+                      {canEdit&&<td><button className="btn btn-g btn-sm" onClick={()=>togglePay(pid,x.id)}>{x.status==="paid"?t.unmarkPaid:t.markPaid}</button></td>}
+                    </tr>
+                  );
+                })}
+                {!pays.length&&<tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{t.noPayments}</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       </>
     );
   };
 
-  /* ──────────── NAV CONFIG ──────────── */
-  const pages = isClient
-    ? [
-        { key:"dashboard", icon:"🏠", label:"Главная", section:"Меню" },
-        { key:"kb",        icon:"📚", label:"Обучение", section:"Меню" },
-        { key:"chat",      icon:"💬", label:"Чат",     section:"Меню" },
-      ]
-    : [
-        { key:"dashboard",   icon:"🏠", label:"Главная",        section:"Главное" },
-        { key:"departments", icon:"🏢", label:"Отделы",         section:"Главное" },
-        { key:"branches",    icon:"📍", label:"Подразделения",   section:"Главное" },
-        { key:"clients",     icon:"🏆", label:"Клиенты NLS",    section:"Главное" },
-        { key:"tasks",       icon:"✅", label:"Задачи",          section:"Работа" },
-        { key:"schedule",    icon:"📅", label:"Расписание",      section:"Работа" },
-        { key:"salary",      icon:"💵", label:"Зарплаты",        section:"Работа" },
-        { key:"performance", icon:"📊", label:"Эффективность",   section:"Работа" },
-        { key:"chat",        icon:"💬", label:"Чат",             section:"Общение" },
-        { key:"kb",          icon:"📚", label:"База знаний",     section:"Общение" },
-      ];
+  /* ── PERFORMANCE ── */
+  const Performance = () => {
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{employees:[],tasks:[]}; const emps=p?.employees||[]; const tasks=p?.tasks||[];
+    return (
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:13}}>
+        {emps.map(emp=>{
+          const myT=tasks.filter(t=>t.assigneeId===emp.id);
+          const done=myT.filter(t=>t.status==="done").length;
+          const pct=myT.length?Math.round(done/myT.length*100):0;
+          return (
+            <div key={emp.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+              <div className="flex-c" style={{marginBottom:11}}>
+                <Av name={emp.name} size="av-lg"/>
+                <div><div style={{fontWeight:600,fontSize:14}}>{emp.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{emp.role}</div></div>
+                <div style={{marginLeft:"auto",textAlign:"right"}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:pct>=80?"var(--gr)":pct>=50?"var(--acc)":"var(--mu)"}}>{myT.length?`${pct}%`:"—"}</div>
+                  <div style={{fontSize:10,color:"var(--mu)"}}>{t.efficiency}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:10,fontSize:12}}>
+                <span style={{color:"var(--mu)"}}>{t.taskCount}: <b style={{color:"var(--tx)"}}>{myT.length}</b></span>
+                <span style={{color:"var(--mu)"}}>{t.done}: <b style={{color:"var(--gr)"}}>{done}</b></span>
+                <span style={{color:"var(--mu)"}}>{t.inProgress}: <b style={{color:"var(--acc)"}}>{myT.filter(x=>x.status==="in_progress").length}</b></span>
+              </div>
+            </div>
+          );
+        })}
+        {!emps.length&&<div style={{textAlign:"center",padding:48,color:"var(--mu)"}}><div style={{fontSize:36,marginBottom:8}}>📊</div><div>{t.noPerf}</div></div>}
+      </div>
+    );
+  };
 
-  const sections = [...new Set(pages.map(p=>p.section))];
-  const pendingT = visibleTasks.filter(t=>t.status!=="done").length;
-  const pageMap  = { dashboard:<Dashboard/>, departments:<Departments/>, branches:<Branches/>, clients:<Clients/>, tasks:<Tasks/>, schedule:<Schedule/>, salary:<Salary/>, performance:<Performance/>, chat:<Chat/>, kb:<KnowledgeBase/> };
-  const pageTitles = { dashboard:"Дашборд", departments:"Отделы", branches:"Подразделения", clients:"Клиенты NLS", tasks:"Задачи", schedule:"Расписание", salary:"Зарплаты", performance:"Эффективность", chat:"Чат", kb:"База знаний" };
+  /* ── CHAT ── */
+  const Chat = () => {
+    const pid = viewPartner?.id||(isSA?"nce_main":activeWS?.id||"sa");
+    const wsData = viewPartner
+      ? getPartner(viewPartner.id)
+      : isSA
+        ? (getPartner("nce_main")||{departments:[]})
+        : activeWS;
+    const depts = wsData?.departments||[];
+    const channels = [
+      {id:"general", label:t.general, icon:"📢"},
+      ...depts.map(d=>({id:d.id, label:d.name, icon:d.icon}))
+    ];
+    const key  = pid+"_"+chatChannel;
+    const msgs = chatMsgs[key]||[];
+
+    const fileRef    = useRef(null);
+    const [rec,setRec]       = useState(false);
+    const [mrec,setMrec]     = useState(null);
+    const chunks             = useRef([]);
+
+    function pushMsg(extra) {
+      const ts = new Date().toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"});
+      const m  = { id:"m_"+Date.now(), authorId:currentUser.id,
+                   authorName:currentUser.name||currentUser.companyName,
+                   type:"text", text:"", ts, ...extra };
+      setChatMsgs(prev=>({...prev,[key]:[...(prev[key]||[]),m]}));
+    }
+
+    function handleFile(e) {
+      const file=e.target.files?.[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const isImg=file.type.startsWith("image/");
+        pushMsg({type:isImg?"image":"file", content:ev.target.result, fileName:file.name});
+      };
+      reader.readAsDataURL(file);
+      e.target.value="";
+    }
+
+    async function startRec() {
+      try {
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        const mr=new MediaRecorder(stream);
+        chunks.current=[];
+        mr.ondataavailable=e=>chunks.current.push(e.data);
+        mr.onstop=()=>{
+          const blob=new Blob(chunks.current,{type:"audio/webm"});
+          pushMsg({type:"audio", content:URL.createObjectURL(blob)});
+          stream.getTracks().forEach(t=>t.stop());
+        };
+        mr.start(); setMrec(mr); setRec(true);
+      } catch { alert(lang==="ru"?"Нет доступа к микрофону":"No microphone access"); }
+    }
+
+    function stopRec(){mrec?.stop();setRec(false);setMrec(null);}
+
+    const curCh = channels.find(c=>c.id===chatChannel)||channels[0];
+
+    return (
+      <div className="chat-wrap" style={{height:"calc(100vh - 108px)"}}>
+
+        {/* LEFT: channel list */}
+        <div className="chat-sb">
+          <div style={{fontSize:10,color:"var(--mu2)",textTransform:"uppercase",letterSpacing:.8,padding:"8px 8px 4px",fontWeight:600}}>
+            {t.channels}
+          </div>
+          {channels.map(ch=>(
+            <div key={ch.id}
+              className={`chat-ch ${chatChannel===ch.id?"act":""}`}
+              onClick={()=>setChatChannel(ch.id)}>
+              <span style={{flexShrink:0}}>{ch.icon}</span>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{ch.label}</span>
+            </div>
+          ))}
+          {(isSA||isPartner)&&(
+            <button
+              className="btn btn-g btn-sm"
+              style={{width:"100%",marginTop:8,justifyContent:"center",fontSize:11}}
+              onClick={()=>{setDF({name:"",icon:"💬",color:"#3b82f6"});setModal("dept");}}>
+              + {lang==="ru"?"Новый канал":"New channel"}
+            </button>
+          )}
+          {depts.length===0&&(
+            <div style={{fontSize:11,color:"var(--mu2)",padding:"6px 8px 0",lineHeight:1.5}}>
+              {lang==="ru"
+                ? "Создайте канал для отдела"
+                : "Create a channel for a department"}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: messages */}
+        <div className="chat-main">
+          <div className="chat-hd">
+            {curCh?.icon} {curCh?.label}
+          </div>
+
+          <div className="chat-msgs">
+            {msgs.map(m=>{
+              const isMe=m.authorId===currentUser.id;
+              const color=isMe?"var(--acc)":avColor(m.authorName);
+              return (
+                <div key={m.id} style={{display:"flex",gap:9,flexDirection:isMe?"row-reverse":"row",alignItems:"flex-end"}}>
+                  <Av name={m.authorName} color={color}/>
+                  <div className="chat-bbl" style={{background:isMe?"#f0a50012":"var(--s2)",maxWidth:"68%"}}>
+                    <div style={{fontSize:11,fontWeight:600,color,marginBottom:4}}>{m.authorName}</div>
+                    {m.type==="image"&&(
+                      <img src={m.content} alt="" style={{maxWidth:200,maxHeight:180,borderRadius:8,display:"block",cursor:"pointer",marginBottom:4}} onClick={()=>window.open(m.content)}/>
+                    )}
+                    {m.type==="audio"&&(
+                      <audio controls src={m.content} style={{maxWidth:210,height:34,display:"block",marginBottom:4}}/>
+                    )}
+                    {m.type==="file"&&(
+                      <a href={m.content} download={m.fileName}
+                        style={{display:"flex",alignItems:"center",gap:6,background:"var(--s3)",borderRadius:7,padding:"6px 10px",fontSize:12,color:"var(--bl)",textDecoration:"none",marginBottom:4}}>
+                        📎 {m.fileName}
+                      </a>
+                    )}
+                    {m.text&&<div style={{fontSize:13,color:"#c8d3e0",lineHeight:1.5}}>{m.text}</div>}
+                    <div style={{fontSize:10,color:"var(--mu)",marginTop:3,textAlign:"right"}}>{m.ts}</div>
+                  </div>
+                </div>
+              );
+            })}
+            {!msgs.length&&(
+              <div style={{textAlign:"center",color:"var(--mu)",padding:40,fontSize:13}}>
+                <div style={{fontSize:30,marginBottom:8}}>💬</div>
+                {lang==="ru"?"Начните общение...":"Start the conversation..."}
+              </div>
+            )}
+            <div ref={chatEndRef}/>
+          </div>
+
+          {/* Input area */}
+          <div style={{flexShrink:0}}>
+            {rec&&(
+              <div style={{textAlign:"center",padding:"5px",fontSize:12,color:"var(--rd)",background:"#ef444410",borderTop:"1px solid #ef444420"}}>
+                🔴 {lang==="ru"?"Запись... Отпустите кнопку для отправки":"Recording... Release to send"}
+              </div>
+            )}
+            <div className="chat-ia" style={{alignItems:"center",gap:6}}>
+              {/* Attach file */}
+              <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx" style={{display:"none"}} onChange={handleFile}/>
+              <button title={lang==="ru"?"Прикрепить файл / фото":"Attach file / photo"}
+                className="btn btn-g btn-sm"
+                style={{padding:"7px 9px",flexShrink:0,fontSize:16,lineHeight:1}}
+                onClick={()=>fileRef.current?.click()}>
+                📎
+              </button>
+              {/* Voice — hold to record */}
+              <button title={lang==="ru"?"Удерживайте для записи голосового":"Hold to record voice message"}
+                className="btn btn-g btn-sm"
+                style={{padding:"7px 9px",flexShrink:0,fontSize:16,lineHeight:1,
+                  background:rec?"#ef444420":"",color:rec?"var(--rd)":""}}
+                onMouseDown={startRec} onMouseUp={stopRec}
+                onTouchStart={e=>{e.preventDefault();startRec();}}
+                onTouchEnd={e=>{e.preventDefault();stopRec();}}>
+                {rec?"⏹":"🎙"}
+              </button>
+              {/* Text input */}
+              <input className="chat-inp"
+                placeholder={t.typeMessage}
+                value={chatInput}
+                onChange={e=>setChatInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}}}
+                style={{flex:1}}/>
+              <button className="btn btn-p" style={{flexShrink:0}} onClick={sendChat}>→</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* ── KNOWLEDGE BASE ── */
+  const KnowledgeBase = () => {
+    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p=getPartner(pid)||{kb:[]}; const items=p?.kb||[];
+    const canEdit=isSA||isPartner;
+    const filtered=kbFilter==="all"?items:items.filter(a=>a.type===kbFilter);
+    if (kbView) {
+      const a=items.find(x=>x.id===kbView);
+      if (!a){setKbView(null);return null;}
+      return (
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:6,color:"var(--mu)",cursor:"pointer",fontSize:13,marginBottom:15}} onClick={()=>setKbView(null)}>{t.backToKb}</div>
+          <div style={{maxWidth:680}}>
+            <div style={{fontSize:28,marginBottom:8}}>{a.thumb}</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:700,marginBottom:4}}>{a.title}</div>
+            <div style={{fontSize:12,color:"var(--mu)",marginBottom:16}}><Bdg cls={a.type==="youtube"?"b-rd":a.type==="gdoc"?"b-bl":"b-pu"}>{a.type==="youtube"?t.ytType:a.type==="gdoc"?t.gdocType:t.sopType}</Bdg></div>
+            {a.type==="youtube"&&<div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:22,textAlign:"center"}}><div style={{fontSize:40,marginBottom:8}}>▶️</div><div style={{fontSize:14,marginBottom:12,color:"var(--mu)"}}>{a.desc}</div><a href={a.url} target="_blank" rel="noreferrer" className="btn btn-p" style={{textDecoration:"none"}}>{t.openYt}</a></div>}
+            {a.type==="gdoc"&&<div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:22}}><div style={{display:"flex",alignItems:"center",gap:11,marginBottom:13}}><span style={{fontSize:34}}>📄</span><div><div style={{fontWeight:600,marginBottom:3}}>{a.title}</div><div style={{fontSize:12,color:"var(--mu)"}}>{a.desc}</div></div></div><a href={a.url} target="_blank" rel="noreferrer" className="btn btn-p" style={{textDecoration:"none",marginRight:8}}>{t.openDoc}</a><span style={{fontSize:11,color:"var(--mu)"}}>{t.opensNewTab}</span><div style={{marginTop:11,background:"var(--s3)",borderRadius:8,padding:"7px 10px",fontSize:11,color:"var(--mu)",wordBreak:"break-all"}}>{a.url}</div></div>}
+            {a.type==="sop"&&<div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:20,whiteSpace:"pre-line",lineHeight:1.9,fontSize:14,color:"#bec8da"}}>{a.content}</div>}
+          </div>
+        </>
+      );
+    }
+    return (
+      <>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:15,flexWrap:"wrap",gap:10}}>
+          <div style={{display:"flex",gap:3,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:9,padding:3}}>
+            {[[" all",t.all],["sop",t.sop],["youtube",t.youtube],["gdoc",t.gdocs]].map(([v,l])=>(
+              <button key={v} onClick={()=>setKbFilter(v.trim())}
+                style={{padding:"5px 11px",borderRadius:7,border:"none",background:kbFilter===v.trim()?"var(--acc)":"none",color:kbFilter===v.trim()?"#000":"var(--mu)",fontSize:12,fontWeight:500}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {canEdit&&<button className="btn btn-p" onClick={()=>{setKF(defK);setModal("kb");}}>{t.addMaterial}</button>}
+        </div>
+        <div className="kb-grid">
+          {filtered.map(a=>(
+            <div key={a.id} className="kb-card" onClick={()=>setKbView(a.id)}>
+              <div style={{fontSize:26,marginBottom:7}}>{a.thumb}</div>
+              <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>{a.type==="youtube"?t.ytType:a.type==="gdoc"?t.gdocType:t.sopType}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:600,marginBottom:5}}>{a.title}</div>
+              <div style={{fontSize:12,color:"var(--mu)",lineHeight:1.4}}>{a.desc||a.content?.slice(0,65)+"..."}</div>
+            </div>
+          ))}
+          {!filtered.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:48,color:"var(--mu)"}}><div style={{fontSize:34,marginBottom:8}}>📭</div><div>{t.noKb}</div></div>}
+        </div>
+      </>
+    );
+  };
+
+  /* ════════ NAV ════════ */
+  const sectionLabels = {
+    dashboard:t.dashboard, departments:t.departments, branches:t.branches,
+    tasks:t.tasks, schedule:t.schedule, salary:t.salary,
+    performance:t.performance, chat:t.chat, kb:t.kb,
+  };
+
+  const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
+  const wsPages    = ALL_SECTIONS.filter(s=>myAccess.includes(s.id)).map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
+  const navPages   = viewPartner ? wsPages
+    : isSA ? [...allWsPages, {key:"partners",icon:"🤝",label:t.partners,sec:"Nova Launch System"}]
+    : wsPages;
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>};
+
+  const activePid = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+  const activePart= getPartner(activePid);
+  const pendingT  = (activePart?.tasks||[]).filter(x=>x.status!=="done").length;
+
+  const useBranding = viewPartner&&["Pro","VIP"].includes(viewPartner?.plan);
+  const brandName   = useBranding?viewPartner.companyName:"Nova Launch System";
+  const brandColor  = useBranding?(viewPartner.accentColor||"var(--acc)"):"var(--acc)";
 
   return (
-    <>
+    <LangCtx.Provider value={{lang,t,setLang}}>
       <style>{S}</style>
       <div className="app">
         {/* SIDEBAR */}
-        <div className="sidebar">
-          <div className="s-logo">
-            <div className="s-logo-txt">NOVA<span>.</span>TEAM</div>
-            <button className="btn btn-ghost btn-sm" onClick={()=>setCurrentUser(null)} title="Выйти">⏏</button>
+        <div className="sb">
+          <div className="sb-logo">
+            <div className="sb-logo-name">{brandName}<span style={{color:brandColor}}>.</span></div>
+            <div className="sb-logo-sub">{t.appSub}</div>
           </div>
-          <div className="s-user">
-            <Av name={currentUser.name} color={isClient?"#06b6d4":deptOf(departments,currentUser.dept)?.color}/>
+          <div className="sb-user">
+            <Av name={currentUser.name||currentUser.companyName||"?"} color={brandColor}/>
             <div style={{minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{currentUser.name?.split(' ')[0]}</div>
-              <div style={{fontSize:10,color:"var(--mu)"}}>{isClient?"Клиент NLS":currentUser.role}</div>
+              <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(currentUser.name||currentUser.companyName||"User").split(" ")[0]}</div>
+              <div style={{fontSize:10,color:"var(--mu)"}}>{isSA?t.superAdmin:isPartner?t.owner:currentUser.role||t.employee}</div>
             </div>
           </div>
-          <nav className="s-nav">
-            {sections.map(sec=>(
+          <nav className="sb-nav">
+            {[...new Set(navPages.map(p=>p.sec))].map(sec=>(
               <div key={sec}>
-                <div className="s-sec">{sec}</div>
-                {pages.filter(p=>p.section===sec).map(p=>(
-                  <button key={p.key} className={`nav-btn ${page===p.key?"active":""}`} onClick={()=>setPage(p.key)}>
+                <div className="sb-sec">{sec}</div>
+                {navPages.filter(p=>p.sec===sec).map(p=>(
+                  <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
                     <span className="ni">{p.icon}</span>{p.label}
-                    {p.key==="tasks"&&pendingT>0&&<span className="nbadge">{pendingT}</span>}
+                    {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
                   </button>
                 ))}
               </div>
             ))}
           </nav>
-          <div className="s-foot">{isAdmin&&"👑 Администратор · "}Natural Cleaning Experts</div>
+          <div className="sb-foot">
+            {/* Language toggle */}
+            <div className="lang-toggle" style={{marginBottom:8,width:"100%",justifyContent:"center",display:"flex"}}>
+              <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
+              <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
+            </div>
+            <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
+              onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");}}>
+              ⏏ {t.logout}
+            </button>
+          </div>
         </div>
 
         {/* MAIN */}
         <div className="main">
-          {page!=="chat" && (
+          {viewPartner&&(
+            <div className="imp-banner">
+              👁 {t.viewingPartner} <strong>{viewPartner.companyName}</strong>
+              <Bdg cls={planBdg(viewPartner.plan)}>{viewPartner.plan}</Bdg>
+              <button className="btn btn-g btn-sm" style={{marginLeft:"auto"}} onClick={()=>{setViewPartner(null);setPage("dashboard");}}>{t.exitCabinet}</button>
+            </div>
+          )}
+          {page!=="chat"&&(
             <div className="topbar">
               <div>
-                <div className="page-title">{pageTitles[page]||page}</div>
-                <div className="page-sub">{isClient?"Nova Launch System":isAdmin?"Полный доступ":deptOf(departments,myDept)?.name}</div>
+                <div className="pg-title">{sectionLabels[page]||(page==="partners"?t.partners:t.dashboard)}</div>
+                <div className="pg-sub">{viewPartner?viewPartner.companyName:isSA?"Nova Launch System — "+t.superAdmin:isPartner?(currentUser.companyName||""):currentUser.role||""}</div>
               </div>
             </div>
           )}
           <div className="content" style={page==="chat"?{padding:0,overflow:"hidden"}:{}}>
-            {pageMap[page]}
+            {pageMap[page]||<Dashboard/>}
           </div>
         </div>
 
-        {/* ── MODALS ── */}
+        {/* ══ MODALS ══ */}
 
-        {/* ADD EMPLOYEE */}
-        {modal==="emp" && (
+        {modal==="partner"&&(
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Новый сотрудник</div>
-              <div className="info-box">🔐 Логин и пароль создаёт администратор. Сотрудник не может их изменить.</div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Имя</label><input className="inp" value={empForm.name} onChange={e=>setEmpForm(p=>({...p,name:e.target.value}))} placeholder="Anna Smith"/></div>
-                <div className="form-g">
-                  <label className="lbl">Роль в компании</label>
-                  <select className="inp" value={empForm.roleId} onChange={e=>{
-                    const r = ROLES.find(x=>x.id===e.target.value);
-                    setEmpForm(p=>({...p, roleId:e.target.value, role:r?.id==="custom"?p.role:r?.label||"", dept:r?.dept||p.dept}));
-                  }}>
-                    {ROLES.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+              <div className="modal-t">{t.newPartner}</div>
+              <div className="info">{t.partnerInfo}</div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.companyName}</label><input className="inp" value={pF.companyName} onChange={e=>setPF(p=>({...p,companyName:e.target.value}))} placeholder="iRing Cleaning Service"/></div>
+                <div className="fg">
+                  <label className="lbl">{t.plan}</label>
+                  <select className="inp" value={pF.plan} onChange={e=>setPF(p=>({...p,plan:e.target.value}))}>
+                    <option value="Basic">{t.planBasic}</option>
+                    <option value="Pro">{t.planPro}</option>
+                    <option value="VIP">{t.planVIP}</option>
                   </select>
                 </div>
               </div>
-              {empForm.roleId==="custom" && (
-                <div className="form-g"><label className="lbl">Своя должность</label><input className="inp" value={empForm.role} onChange={e=>setEmpForm(p=>({...p,role:e.target.value}))} placeholder="Название должности"/></div>
-              )}
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Email (логин)</label><input className="inp" value={empForm.email} onChange={e=>setEmpForm(p=>({...p,email:e.target.value}))} placeholder="anna@nova.team"/></div>
-                <div className="form-g"><label className="lbl">Пароль</label><input className="inp" type="text" value={empForm.password} onChange={e=>setEmpForm(p=>({...p,password:e.target.value}))} placeholder="anna2025"/></div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.partnerEmail}</label><input className="inp" value={pF.email} onChange={e=>setPF(p=>({...p,email:e.target.value}))} placeholder="owner@company.com"/></div>
+                <div className="fg"><label className="lbl">{t.partnerPass}</label><input className="inp" type="text" value={pF.password} onChange={e=>setPF(p=>({...p,password:e.target.value}))} placeholder="Pass2025!"/></div>
               </div>
-              <div className="form-row">
-                <div className="form-g">
-                  <label className="lbl">Отдел</label>
-                  <select className="inp" value={empForm.dept} onChange={e=>setEmpForm(p=>({...p,dept:e.target.value}))}>
-                    {departments.map(d=><option key={d.id} value={d.id}>{d.icon} {d.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-g">
-                  <label className="lbl">Подразделение</label>
-                  <select className="inp" value={empForm.branch} onChange={e=>setEmpForm(p=>({...p,branch:e.target.value}))}>
-                    {BRANCHES.map(b=><option key={b.id} value={b.id}>{b.name}{b.isHQ?" (HQ)":""}</option>)}
-                  </select>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.logo}</label><input className="inp" value={pF.logo} onChange={e=>setPF(p=>({...p,logo:e.target.value}))} placeholder="💎"/></div>
+                <div className="fg">
+                  <label className="lbl">{t.brandColor}</label>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
+                    {["#f0a500","#3b82f6","#22c55e","#ef4444","#a855f7","#ec4899","#06b6d4","#f97316"].map(c=>(
+                      <div key={c} onClick={()=>setPF(p=>({...p,accentColor:c}))} style={{width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:pF.accentColor===c?"2px solid #fff":"2px solid transparent"}}/>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="form-row3">
-                <div className="form-g">
-                  <label className="lbl">Тип оплаты</label>
-                  <select className="inp" value={empForm.salaryType} onChange={e=>setEmpForm(p=>({...p,salaryType:e.target.value}))}>
-                    <option value="hourly">Почасовая (1099)</option>
-                    <option value="fixed">Фикс. зарплата</option>
-                  </select>
-                </div>
-                {empForm.salaryType==="hourly"
-                  ? <div className="form-g"><label className="lbl">Ставка $/час</label><input className="inp" type="number" value={empForm.rate} onChange={e=>setEmpForm(p=>({...p,rate:e.target.value}))}/></div>
-                  : <div className="form-g"><label className="lbl">Зарплата $/мес</label><input className="inp" type="number" value={empForm.salary} onChange={e=>setEmpForm(p=>({...p,salary:e.target.value}))}/></div>
-                }
-                <div className="form-g">
-                  <label className="lbl">Статус</label>
-                  <select className="inp" value={empForm.status} onChange={e=>setEmpForm(p=>({...p,status:e.target.value}))}>
-                    <option value="active">Активен</option><option value="inactive">Неактивен</option>
-                  </select>
-                </div>
-              </div>
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addEmployee}>Создать аккаунт</button>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createPartner}>{t.create}</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ADD CLIENT */}
-        {modal==="client" && (
+        {modal==="emp"&&(
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Новый клиент Nova Launch System</div>
-              <div className="info-box">🏢 Клиент получит доступ к обучению и чату клиентов. Пароль создаёт администратор.</div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Название компании</label><input className="inp" value={cliForm.name} onChange={e=>setCliForm(p=>({...p,name:e.target.value}))} placeholder="Startup Clean Co"/></div>
-                <div className="form-g"><label className="lbl">Контактное лицо</label><input className="inp" value={cliForm.contact} onChange={e=>setCliForm(p=>({...p,contact:e.target.value}))} placeholder="John Smith"/></div>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Email (логин)</label><input className="inp" value={cliForm.email} onChange={e=>setCliForm(p=>({...p,email:e.target.value}))} placeholder="john@company.com"/></div>
-                <div className="form-g"><label className="lbl">Пароль</label><input className="inp" type="text" value={cliForm.password} onChange={e=>setCliForm(p=>({...p,password:e.target.value}))} placeholder="john2025"/></div>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Город</label><input className="inp" value={cliForm.city} onChange={e=>setCliForm(p=>({...p,city:e.target.value}))} placeholder="Dallas"/></div>
-                <div className="form-g">
-                  <label className="lbl">Тариф</label>
-                  <select className="inp" value={cliForm.plan} onChange={e=>setCliForm(p=>({...p,plan:e.target.value}))}>
-                    <option>Basic</option><option>Pro</option><option>VIP</option>
+              <div className="modal-t">{t.addUser}</div>
+              <div className="info">{t.empInfo}</div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.name}</label><input className="inp" value={eF.name} onChange={e=>setEF(p=>({...p,name:e.target.value}))} placeholder="Anna Smith"/></div>
+                <div className="fg">
+                  <label className="lbl">{t.role}</label>
+                  <select className="inp" value={eF.role} onChange={e=>setEF(p=>({...p,role:e.target.value}))}>
+                    {roles.map(r=><option key={r}>{r}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addClient}>Создать аккаунт</button>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.emailLogin}</label><input className="inp" value={eF.email} onChange={e=>setEF(p=>({...p,email:e.target.value}))} placeholder="anna@company.com"/></div>
+                <div className="fg"><label className="lbl">{t.password}</label><input className="inp" type="text" value={eF.password} onChange={e=>setEF(p=>({...p,password:e.target.value}))} placeholder="Anna2025!"/></div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ADD DEPARTMENT */}
-        {modal==="dept" && (
-          <div className="ovl" onClick={()=>setModal(null)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Новый отдел</div>
-              <div className="form-g"><label className="lbl">Название отдела</label><input className="inp" value={deptForm.name} onChange={e=>setDeptForm(p=>({...p,name:e.target.value}))} placeholder="Отдел логистики"/></div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Иконка (эмодзи)</label><input className="inp" value={deptForm.icon} onChange={e=>setDeptForm(p=>({...p,icon:e.target.value}))} placeholder="🚚"/></div>
-                <div className="form-g">
-                  <label className="lbl">Цвет</label>
-                  <select className="inp" value={deptForm.color} onChange={e=>setDeptForm(p=>({...p,color:e.target.value}))}>
-                    {DEPT_COLORS.map(c=><option key={c} value={c} style={{background:c}}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-                {DEPT_COLORS.map(c=>(
-                  <div key={c} onClick={()=>setDeptForm(p=>({...p,color:c}))}
-                    style={{width:28,height:28,borderRadius:6,background:c,cursor:"pointer",border:deptForm.color===c?"2px solid white":"2px solid transparent"}}/>
-                ))}
-              </div>
-              <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:12,marginBottom:14}}>
-                <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>Предпросмотр:</div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:20}}>{deptForm.icon}</span>
-                  <span style={{fontWeight:600,color:deptForm.color}}>{deptForm.name||"Название отдела"}</span>
-                </div>
-              </div>
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addDept}>Создать отдел</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ADD TASK */}
-        {modal==="task" && (
-          <div className="ovl" onClick={()=>setModal(null)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Новая задача</div>
-              <div className="form-g"><label className="lbl">Название задачи</label><input className="inp" value={taskForm.title} onChange={e=>setTaskForm(p=>({...p,title:e.target.value}))} placeholder="Описание задачи..."/></div>
-              <div className="form-row">
-                <div className="form-g">
-                  <label className="lbl">Исполнитель</label>
-                  <select className="inp" value={taskForm.assignee} onChange={e=>setTaskForm(p=>({...p,assignee:e.target.value}))}>
-                    <option value="">Выберите...</option>
-                    {(isAdmin?employees:visibleEmps).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-g">
-                  <label className="lbl">Отдел</label>
-                  <select className="inp" value={taskForm.dept} onChange={e=>setTaskForm(p=>({...p,dept:e.target.value}))}>
-                    {(isAdmin?departments:departments.filter(d=>d.id===myDept)).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-g">
-                  <label className="lbl">Приоритет</label>
-                  <select className="inp" value={taskForm.priority} onChange={e=>setTaskForm(p=>({...p,priority:e.target.value}))}>
-                    <option value="high">🔴 Высокий</option><option value="medium">🟡 Средний</option><option value="low">🟢 Низкий</option>
-                  </select>
-                </div>
-                <div className="form-g"><label className="lbl">Срок</label><input className="inp" type="date" value={taskForm.due} onChange={e=>setTaskForm(p=>({...p,due:e.target.value}))}/></div>
-              </div>
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addTask}>Создать</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ADD SCHEDULE */}
-        {modal==="schedule" && (
-          <div className="ovl" onClick={()=>setModal(null)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Добавить смену</div>
-              <div className="form-g">
-                <label className="lbl">Сотрудник (клинер / супервайзер)</label>
-                <select className="inp" value={schedForm.employeeId} onChange={e=>setSchedForm(p=>({...p,employeeId:e.target.value}))}>
-                  <option value="">Выберите...</option>
-                  {employees.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
-                </select>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Дата</label><input className="inp" type="date" value={schedForm.date} onChange={e=>setSchedForm(p=>({...p,date:e.target.value}))}/></div>
-                <div className="form-g">
-                  <label className="lbl">Статус</label>
-                  <select className="inp" value={schedForm.status} onChange={e=>setSchedForm(p=>({...p,status:e.target.value}))}>
-                    <option value="confirmed">Подтверждено</option><option value="pending">Ожидание</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Начало</label><input className="inp" type="time" value={schedForm.startTime} onChange={e=>setSchedForm(p=>({...p,startTime:e.target.value}))}/></div>
-                <div className="form-g"><label className="lbl">Конец</label><input className="inp" type="time" value={schedForm.endTime} onChange={e=>setSchedForm(p=>({...p,endTime:e.target.value}))}/></div>
-              </div>
-              <div className="form-g"><label className="lbl">Адрес объекта</label><input className="inp" value={schedForm.address} onChange={e=>setSchedForm(p=>({...p,address:e.target.value}))} placeholder="123 Oak St, Austin TX"/></div>
-              <div className="form-g"><label className="lbl">Клиент</label><input className="inp" value={schedForm.client} onChange={e=>setSchedForm(p=>({...p,client:e.target.value}))} placeholder="Johnson Family"/></div>
-              <div className="form-g"><label className="lbl">Заметки</label><input className="inp" value={schedForm.notes} onChange={e=>setSchedForm(p=>({...p,notes:e.target.value}))} placeholder="Ключ под ковриком..."/></div>
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addSchedule}>Добавить смену</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ADD SALARY PAYMENT */}
-        {modal==="pay" && (
-          <div className="ovl" onClick={()=>setModal(null)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Добавить выплату зарплаты</div>
-              <div className="form-g">
-                <label className="lbl">Сотрудник</label>
-                <select className="inp" value={payForm.employeeId} onChange={e=>setPayForm(p=>({...p,employeeId:e.target.value}))}>
-                  <option value="">Выберите сотрудника...</option>
-                  {employees.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
-                </select>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Сумма $</label><input className="inp" type="number" value={payForm.amount} onChange={e=>setPayForm(p=>({...p,amount:e.target.value}))} placeholder="3500"/></div>
-                <div className="form-g"><label className="lbl">Дата выплаты</label><input className="inp" type="date" value={payForm.date} onChange={e=>setPayForm(p=>({...p,date:e.target.value}))}/></div>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Примечание</label><input className="inp" value={payForm.note} onChange={e=>setPayForm(p=>({...p,note:e.target.value}))} placeholder="Июнь 2025"/></div>
-                <div className="form-g">
-                  <label className="lbl">Статус</label>
-                  <select className="inp" value={payForm.status} onChange={e=>setPayForm(p=>({...p,status:e.target.value}))}>
-                    <option value="pending">⏳ Ожидает оплаты</option>
-                    <option value="paid">✓ Оплачено</option>
-                  </select>
-                </div>
-              </div>
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addSalaryPayment}>Добавить</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ADD KB ITEM */}
-        {modal==="kb" && (
-          <div className="ovl" onClick={()=>setModal(null)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">Добавить материал в базу знаний</div>
-              <div className="form-row">
-                <div className="form-g">
-                  <label className="lbl">Тип</label>
-                  <select className="inp" value={kbForm.type} onChange={e=>setKbForm(p=>({...p,type:e.target.value}))}>
-                    <option value="sop">📄 SOP Документ</option><option value="youtube">▶ YouTube Урок</option><option value="gdoc">🔗 Google Doc / Ссылка</option>
-                  </select>
-                </div>
-                <div className="form-g">
-                  <label className="lbl">Основной отдел</label>
-                  <select className="inp" value={kbForm.dept} onChange={e=>setKbForm(p=>({...p,dept:e.target.value}))}>
-                    {departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-g"><label className="lbl">Иконка</label><input className="inp" value={kbForm.thumb} onChange={e=>setKbForm(p=>({...p,thumb:e.target.value}))}/></div>
-                <div className="form-g"><label className="lbl">Название</label><input className="inp" value={kbForm.title} onChange={e=>setKbForm(p=>({...p,title:e.target.value}))} placeholder="Название материала"/></div>
-              </div>
-              <div className="form-g">
-                <label className="lbl">Видимость (кто видит этот материал)</label>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-                  {[...departments,{id:"clients",name:"Клиенты NLS",icon:"🏢"}].map(d=>{
-                    const checked = kbForm.visibleTo.includes(d.id);
+              <div className="fg">
+                <label className="lbl">{t.accessSections}</label>
+                <div className="warn">{t.accessWarn}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                  {ALL_SECTIONS.filter(s=>myAccess.includes(s.id)||isSA).map(s=>{
+                    const chk=(eF.sections||[]).includes(s.id);
                     return (
-                      <button key={d.id} onClick={()=>setKbForm(p=>({...p,visibleTo:checked?p.visibleTo.filter(v=>v!==d.id):[...p.visibleTo,d.id]}))}
-                        style={{padding:"4px 10px",borderRadius:20,border:"1px solid",borderColor:checked?"var(--acc)":"var(--bdr)",background:checked?"var(--acc)18":"none",color:checked?"var(--acc)":"var(--mu)",fontSize:11,cursor:"pointer"}}>
-                        {d.icon} {d.name.replace("Отдел ","")}
-                      </button>
+                      <label key={s.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 9px",background:chk?"var(--acc)10":"var(--s2)",border:`1px solid ${chk?"var(--acc)30":"var(--bdr)"}`,borderRadius:8,cursor:"pointer"}}>
+                        <input type="checkbox" checked={chk} style={{accentColor:"var(--acc)"}}
+                          onChange={()=>setEF(p=>({...p,sections:chk?p.sections.filter(x=>x!==s.id):[...p.sections,s.id]}))}/>
+                        <span style={{fontSize:14}}>{s.icon}</span>
+                        <span style={{fontSize:13,fontWeight:500}}>{sectionLabels[s.id]||s.id}</span>
+                      </label>
                     );
                   })}
                 </div>
               </div>
-              {kbForm.type==="youtube" && <>
-                <div className="form-g"><label className="lbl">Ссылка YouTube</label><input className="inp" value={kbForm.url} onChange={e=>setKbForm(p=>({...p,url:e.target.value}))} placeholder="https://youtube.com/watch?v=..."/></div>
-                <div className="form-g"><label className="lbl">Описание</label><input className="inp" value={kbForm.desc} onChange={e=>setKbForm(p=>({...p,desc:e.target.value}))}/></div>
-              </>}
-              {kbForm.type==="gdoc" && <>
-                <div className="form-g">
-                  <label className="lbl">Ссылка на Google Doc / внешний документ</label>
-                  <input className="inp" value={kbForm.url} onChange={e=>setKbForm(p=>({...p,url:e.target.value}))} placeholder="https://docs.google.com/document/d/..."/>
-                  <div style={{fontSize:11,color:"var(--mu)",marginTop:4}}>Вставьте ссылку на Google Docs, Notion, Dropbox Paper или любой другой документ</div>
+              <div className="fg">
+                <label className="lbl">{t.statusLabel}</label>
+                <select className="inp" value={eF.status} onChange={e=>setEF(p=>({...p,status:e.target.value}))}>
+                  <option value="active">{t.active}</option>
+                  <option value="inactive">{t.inactive}</option>
+                </select>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createEmployee}>{t.createAccount}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal==="dept"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.newDept}</div>
+              <div className="fg"><label className="lbl">{t.deptName}</label><input className="inp" value={dF.name} onChange={e=>setDF(p=>({...p,name:e.target.value}))} placeholder={lang==="ru"?"Отдел продаж":"Sales Department"}/></div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.deptIcon}</label><input className="inp" value={dF.icon} onChange={e=>setDF(p=>({...p,icon:e.target.value}))} placeholder="💼"/></div>
+                <div className="fg">
+                  <label className="lbl">{t.deptColor}</label>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>
+                    {["#f0a500","#3b82f6","#a855f7","#22c55e","#ec4899","#f97316","#06b6d4","#ef4444"].map(c=>(
+                      <div key={c} onClick={()=>setDF(p=>({...p,color:c}))} style={{width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:dF.color===c?"2px solid #fff":"2px solid transparent"}}/>
+                    ))}
+                  </div>
                 </div>
-                <div className="form-g"><label className="lbl">Описание</label><input className="inp" value={kbForm.desc} onChange={e=>setKbForm(p=>({...p,desc:e.target.value}))} placeholder="Краткое описание документа"/></div>
+              </div>
+              <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:9,padding:"10px 13px",marginBottom:13}}>
+                <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{t.preview}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{dF.icon}</span><span style={{fontWeight:600,color:dF.color}}>{dF.name||t.deptName}</span></div>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createDept}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal==="branch"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.newBranch}</div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.branchName}</label><input className="inp" value={brF.name} onChange={e=>setBrF(p=>({...p,name:e.target.value}))} placeholder="Austin HQ"/></div>
+                <div className="fg"><label className="lbl">{t.branchCity}</label><input className="inp" value={brF.city} onChange={e=>setBrF(p=>({...p,city:e.target.value}))} placeholder="Austin, TX"/></div>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createBranch}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal==="task"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.newTask}</div>
+              <div className="fg"><label className="lbl">{t.taskTitle}</label><input className="inp" value={tF.title} onChange={e=>setTF(p=>({...p,title:e.target.value}))} placeholder={lang==="ru"?"Описание задачи...":"Task description..."}/></div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">{t.assignee}</label>
+                  <select className="inp" value={tF.assigneeId} onChange={e=>setTF(p=>({...p,assigneeId:e.target.value}))}>
+                    <option value="">{t.selectAssignee}</option>
+                    {(activeWS?.employees||[]).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">{t.priority}</label>
+                  <select className="inp" value={tF.priority} onChange={e=>setTF(p=>({...p,priority:e.target.value}))}>
+                    <option value="high">🔴 {t.high}</option>
+                    <option value="medium">🟡 {t.medium}</option>
+                    <option value="low">🟢 {t.low}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="fg"><label className="lbl">{t.due}</label><input className="inp" type="date" value={tF.due} onChange={e=>setTF(p=>({...p,due:e.target.value}))}/></div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createTask}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal==="schedule"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.newShift}</div>
+              <div className="fg">
+                <label className="lbl">{t.shiftEmp}</label>
+                <select className="inp" value={scF.employeeId} onChange={e=>setScF(p=>({...p,employeeId:e.target.value}))}>
+                  <option value="">{t.selectAssignee}</option>
+                  {(activeWS?.employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                </select>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.due}</label><input className="inp" type="date" value={scF.date} onChange={e=>setScF(p=>({...p,date:e.target.value}))}/></div>
+                <div className="fg">
+                  <label className="lbl">{t.statusLabel}</label>
+                  <select className="inp" value={scF.status} onChange={e=>setScF(p=>({...p,status:e.target.value}))}>
+                    <option value="confirmed">{t.confirmed}</option>
+                    <option value="pending">{t.pending}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.startTime}</label><input className="inp" type="time" value={scF.startTime} onChange={e=>setScF(p=>({...p,startTime:e.target.value}))}/></div>
+                <div className="fg"><label className="lbl">{t.endTime}</label><input className="inp" type="time" value={scF.endTime} onChange={e=>setScF(p=>({...p,endTime:e.target.value}))}/></div>
+              </div>
+              <div className="fg"><label className="lbl">{t.address}</label><input className="inp" value={scF.address} onChange={e=>setScF(p=>({...p,address:e.target.value}))} placeholder="123 Oak St, Austin TX"/></div>
+              <div className="fg"><label className="lbl">{t.clientName}</label><input className="inp" value={scF.clientName} onChange={e=>setScF(p=>({...p,clientName:e.target.value}))} placeholder="Johnson Family"/></div>
+              <div className="fg"><label className="lbl">{t.notes}</label><input className="inp" value={scF.notes} onChange={e=>setScF(p=>({...p,notes:e.target.value}))}/></div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createSched}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal==="pay"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.newPayment}</div>
+              <div className="fg">
+                <label className="lbl">{t.assignee}</label>
+                <select className="inp" value={paF.employeeId} onChange={e=>setPaF(p=>({...p,employeeId:e.target.value}))}>
+                  <option value="">{t.selectAssignee}</option>
+                  {(activeWS?.employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                </select>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.amount}</label><input className="inp" type="number" value={paF.amount} onChange={e=>setPaF(p=>({...p,amount:e.target.value}))} placeholder="3500"/></div>
+                <div className="fg"><label className="lbl">{t.payDate}</label><input className="inp" type="date" value={paF.date} onChange={e=>setPaF(p=>({...p,date:e.target.value}))}/></div>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.note}</label><input className="inp" value={paF.note} onChange={e=>setPaF(p=>({...p,note:e.target.value}))} placeholder={lang==="ru"?"Июнь 2025":"June 2025"}/></div>
+                <div className="fg">
+                  <label className="lbl">{t.payStatus}</label>
+                  <select className="inp" value={paF.status} onChange={e=>setPaF(p=>({...p,status:e.target.value}))}>
+                    <option value="pending">⏳ {t.notPaid}</option>
+                    <option value="paid">✓ {t.paid}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createPayment}>{t.addPayment}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modal==="kb"&&(
+          <div className="ovl" onClick={()=>setModal(null)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.newKb}</div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">{t.kbType}</label>
+                  <select className="inp" value={kF.type} onChange={e=>setKF(p=>({...p,type:e.target.value}))}>
+                    <option value="sop">{t.sopType}</option>
+                    <option value="youtube">{t.ytType}</option>
+                    <option value="gdoc">{t.gdocType}</option>
+                  </select>
+                </div>
+                <div className="fg"><label className="lbl">{t.kbIcon}</label><input className="inp" value={kF.thumb} onChange={e=>setKF(p=>({...p,thumb:e.target.value}))}/></div>
+              </div>
+              <div className="fg"><label className="lbl">{t.kbTitle}</label><input className="inp" value={kF.title} onChange={e=>setKF(p=>({...p,title:e.target.value}))} placeholder={lang==="ru"?"Название материала":"Material title"}/></div>
+              {kF.type==="sop"&&<div className="fg"><label className="lbl">{t.kbContent}</label><textarea className="inp" value={kF.content} onChange={e=>setKF(p=>({...p,content:e.target.value}))} placeholder={lang==="ru"?"Пропишите шаги...":"Write steps..."}/></div>}
+              {kF.type==="youtube"&&<>
+                <div className="fg"><label className="lbl">{t.kbUrl}</label><input className="inp" value={kF.url} onChange={e=>setKF(p=>({...p,url:e.target.value}))} placeholder="https://youtube.com/watch?v=..."/></div>
+                <div className="fg"><label className="lbl">{t.kbDesc}</label><input className="inp" value={kF.desc} onChange={e=>setKF(p=>({...p,desc:e.target.value}))}/></div>
               </>}
-              {kbForm.type==="sop" && (
-                <div className="form-g"><label className="lbl">Содержание SOP</label><textarea className="inp" value={kbForm.content} onChange={e=>setKbForm(p=>({...p,content:e.target.value}))} placeholder="Пропишите шаги..."/></div>
-              )}
-              <div className="modal-act">
-                <button className="btn btn-ghost" onClick={()=>setModal(null)}>Отмена</button>
-                <button className="btn btn-prim" onClick={addKbItem}>Добавить</button>
+              {kF.type==="gdoc"&&<>
+                <div className="fg">
+                  <label className="lbl">{t.kbGdocUrl}</label>
+                  <input className="inp" value={kF.url} onChange={e=>setKF(p=>({...p,url:e.target.value}))} placeholder="https://docs.google.com/document/d/..."/>
+                  <div style={{fontSize:11,color:"var(--mu)",marginTop:4}}>{t.kbGdocHint}</div>
+                </div>
+                <div className="fg"><label className="lbl">{t.kbGdocDesc}</label><input className="inp" value={kF.desc} onChange={e=>setKF(p=>({...p,desc:e.target.value}))}/></div>
+              </>}
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={createKb}>{t.addMaterial}</button>
               </div>
             </div>
           </div>
         )}
       </div>
-    </>
+    </LangCtx.Provider>
   );
 }
