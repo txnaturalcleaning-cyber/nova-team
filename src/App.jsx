@@ -626,7 +626,7 @@ export default function App() {
   }
   function createTask() {
     if (!tF.title.trim()) return;
-    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const newItem = {...tF, id:"t_"+Date.now(), createdBy:currentUser.id};
     const existing = partners.find(p => p.id === pid);
     if (existing) {
@@ -644,7 +644,7 @@ export default function App() {
   }
   function createKb() {
     if (!kF.title.trim()) return;
-    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const newItem = {...kF, id:"k_"+Date.now()};
     const existing = partners.find(p => p.id === pid);
     if (existing) {
@@ -659,7 +659,7 @@ export default function App() {
   }
   function createSched() {
     if (!scF.employeeId||!scF.date) return;
-    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const newItem = {...scF, id:"sc_"+Date.now()};
     const existing = partners.find(p => p.id === pid);
     if (existing) {
@@ -674,7 +674,7 @@ export default function App() {
   }
   function createPayment() {
     if (!paF.employeeId||!paF.amount||!paF.date) return;
-    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const newItem = {...paF, id:"sp_"+Date.now(), amount:Number(paF.amount)};
     const existing = partners.find(p => p.id === pid);
     if (existing) {
@@ -875,7 +875,7 @@ export default function App() {
 
   /* ── EMPLOYEES + DEPARTMENTS ── */
   const Employees = () => {
-    const pid   = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid   = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p     = getPartner(pid)||{employees:[],departments:[],branches:[]};
     const emps  = p?.employees||[];
     const depts = p?.departments||[];
@@ -1001,7 +1001,7 @@ export default function App() {
 
   /* ── BRANCHES ── */
   const Branches = () => {
-    const pid   = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid   = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p     = getPartner(pid)||{branches:[],employees:[],departments:[]};
     const brs   = p?.branches||[];
     const emps  = p?.employees||[];
@@ -1132,7 +1132,7 @@ export default function App() {
 
   /* ── TASKS ── */
   const Tasks = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid=viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p=getPartner(pid)||{tasks:[],employees:[]}; const tasks=p?.tasks||[]; const emps=p?.employees||[];
     const canEdit=isSA||isPartner||isEmp;
     const cols=[["todo",t.todo,"var(--mu)"],["in_progress",t.inProgressCol,"var(--acc)"],["done",t.doneCol,"var(--gr)"]];
@@ -1176,7 +1176,7 @@ export default function App() {
 
   /* ── SCHEDULE ── */
   const Schedule = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid=viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p=getPartner(pid)||{schedule:[],employees:[]}; const sch=p?.schedule||[]; const emps=p?.employees||[];
     const canEdit=isSA||isPartner;
     const byDate={}; sch.forEach(s=>{if(!byDate[s.date])byDate[s.date]=[];byDate[s.date].push(s);});
@@ -1227,7 +1227,7 @@ export default function App() {
 
   /* ── SALARY ── */
   const Salary = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid=viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p=getPartner(pid)||{salaryPayments:[],employees:[]}; const pays=p?.salaryPayments||[]; const emps=p?.employees||[];
     const canEdit=isSA||isPartner;
     const paid=pays.filter(x=>x.status==="paid").reduce((s,x)=>s+x.amount,0);
@@ -1280,7 +1280,7 @@ export default function App() {
 
   /* ── PERFORMANCE ── */
   const Performance = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid=viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p=getPartner(pid)||{employees:[],tasks:[]}; const emps=p?.employees||[]; const tasks=p?.tasks||[];
     return (
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:13}}>
@@ -1320,10 +1320,14 @@ export default function App() {
         ? (getPartner("nce_main")||{departments:[]})
         : activeWS;
     const depts = wsData?.departments||[];
-    const channels = [
+    const allChannels = [
       {id:"general", label:t.general, icon:"📢"},
       ...depts.map(d=>({id:d.id, label:d.name, icon:d.icon}))
     ];
+    // Employees only see channels they have access to
+    const channels = isEmp
+      ? allChannels.filter(ch => (currentUser.chatChannels||["general"]).includes(ch.id))
+      : allChannels;
     const key  = pid+"_"+chatChannel;
     const msgs = chatMsgs[key]||[];
 
@@ -1498,7 +1502,7 @@ export default function App() {
 
   /* ── KNOWLEDGE BASE ── */
   const KnowledgeBase = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const pid=viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p=getPartner(pid)||{kb:[]}; const items=p?.kb||[];
     const canEdit=isSA||isPartner;
     const filtered=kbFilter==="all"?items:items.filter(a=>a.type===kbFilter);
@@ -1561,7 +1565,7 @@ export default function App() {
     : wsPages;
   const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>};
 
-  const activePid = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+  const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
   const pendingT  = (activePart?.tasks||[]).filter(x=>x.status!=="done").length;
 
