@@ -38,6 +38,7 @@ const T = {
     addDept: "+ Новый отдел", addBranch: "+ Добавить город",
     addTask: "+ Создать задачу", addShift: "+ Добавить смену",
     addPayment: "+ Добавить", addMaterial: "+ Добавить материал",
+    training: "Обучение", addLesson: "+ Урок", assignLesson: "Назначить", myLessons: "Мои уроки", allLessons: "Все уроки", assignees: "Назначения", progressTab: "Прогресс", lessonTitle: "Название урока", lessonType: "Тип контента", lessonDept: "Отдел", lessonBranch: "Город", lessonContent: "Контент (текст)", lessonUrl: "Ссылка (YouTube / PDF)", lessonDuration: "Длительность (мин)", notStarted: "Не начат", inProgress: "В процессе", completed: "Завершён", markComplete: "Отметить как выполнено", startLesson: "Начать урок", continueLesson: "Продолжить", quizQuestion: "Вопрос", quizAnswer: "Ответ", quizAddQ: "+ Вопрос", certificate: "Сертификат", completionRate: "Выполнено", assignTo: "Назначить сотруднику", noLessons: "Уроков пока нет", noAssignments: "Нет назначений",
     addPnl: "+ Добавить запись", pnlIncome: "Доходы", pnlExpense: "Расходы", pnlNet: "Чистая прибыль", pnlMargin: "Маржа", pnlCategory: "Категория", pnlAmount: "Сумма", pnlType: "Тип", pnlInc: "Доход", pnlExp: "Расход", pnlDate: "Дата", pnlNote: "Описание", pnlNoData: "Нет записей", pnlSummary: "Сводка за месяц",
     save: "Сохранить", cancel: "Отмена", delete: "Удалить", create: "Создать",
     createAccount: "Создать аккаунт",
@@ -230,6 +231,11 @@ const IC = {
   eye:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   plus:        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   trash:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  training:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>,
+  play:        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>,
+  check2:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  award:       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
+  assign:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>,
 };
 
 const ALL_SECTIONS = [
@@ -243,12 +249,13 @@ const ALL_SECTIONS = [
   { id:"chat",        icon:IC.chat },
   { id:"kb",          icon:IC.kb },
   { id:"pnl",         icon:IC.pnl },
+  { id:"training",    icon:IC.training },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb","pnl"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training"],
 };
 
 const PLAN_LIMITS = {
@@ -1528,6 +1535,555 @@ export default function App() {
   };
 
 
+  /* ══════════════════════════════════════════════════════
+     LMS — ОБУЧЕНИЕ (Training / Learning Management)
+  ══════════════════════════════════════════════════════ */
+  const Training = () => {
+    const pid      = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p        = getPartner(pid)||{lessons:[],assignments:[],employees:[],departments:[],branches:[]};
+    const lessons  = p?.lessons||[];
+    const assigns  = p?.assignments||[];
+    const emps     = p?.employees||[];
+    const depts    = p?.departments||[];
+    const brs      = p?.branches||[];
+    const isHR     = isEmp && (currentUser.role||"").toLowerCase().includes("hr");
+    const canAdmin = isSA||isPartner||isHR;
+
+    const [tab,     setTab]     = useState(isEmp&&!isHR ? "my" : "lessons");
+    const [lsnView, setLsnView] = useState(null);   // open lesson id
+    const [quizAns, setQuizAns] = useState({});     // {qIdx: answerIdx}
+    const [quizDone,setQuizDone]= useState(false);
+    const [lF, setLF] = useState({title:"",deptId:"",branchId:"",type:"video",url:"",content:"",duration:"",quiz:[]});
+    const [aF, setAF] = useState({lessonId:"",employeeId:""});
+    const [lModal, setLModal] = useState(false);
+    const [aModal, setAModal] = useState(false);
+    const [qF, setQF] = useState({question:"",options:["","","",""],correct:0});
+
+    // ── CRUD ──
+    function saveLesson() {
+      if (!lF.title.trim()) return;
+      const item = {...lF, id:"lsn_"+Date.now(), createdAt: new Date().toISOString().split("T")[0]};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,lessons:[...(x.lessons||[]),item]}:x));
+      setLF({title:"",deptId:"",branchId:"",type:"video",url:"",content:"",duration:"",quiz:[]});
+      setLModal(false);
+    }
+
+    function deleteLesson(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,
+        lessons:(x.lessons||[]).filter(l=>l.id!==id),
+        assignments:(x.assignments||[]).filter(a=>a.lessonId!==id)
+      }:x));
+    }
+
+    function assignLesson() {
+      if (!aF.lessonId||!aF.employeeId) return;
+      const exists = assigns.find(a=>a.lessonId===aF.lessonId&&a.employeeId===aF.employeeId);
+      if (exists) { setAModal(false); return; }
+      const item = {...aF, id:"asgn_"+Date.now(), status:"not_started", assignedAt:new Date().toISOString().split("T")[0], completedAt:null, quizScore:null};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,assignments:[...(x.assignments||[]),item]}:x));
+      setAF({lessonId:"",employeeId:""});
+      setAModal(false);
+    }
+
+    function updateAssign(id, patch) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,
+        assignments:(x.assignments||[]).map(a=>a.id===id?{...a,...patch}:a)
+      }:x));
+    }
+
+    function addQuizQ() {
+      if (!qF.question.trim()) return;
+      setLF(f=>({...f,quiz:[...(f.quiz||[]),{...qF,id:"q_"+Date.now()}]}));
+      setQF({question:"",options:["","","",""],correct:0});
+    }
+
+    // ── HELPERS ──
+    const myAssigns = assigns.filter(a=>a.employeeId===currentUser.id);
+    const getAssign = (lsnId,empId)=>assigns.find(a=>a.lessonId===lsnId&&a.employeeId===empId);
+
+    function statusBdg(st) {
+      if (st==="completed") return <Bdg cls="b-gr">{t.completed}</Bdg>;
+      if (st==="in_progress") return <Bdg cls="b-yw">{t.inProgress}</Bdg>;
+      return <Bdg cls="b-mu">{t.notStarted}</Bdg>;
+    }
+
+    function progressPct(empId) {
+      const myA = assigns.filter(a=>a.employeeId===empId);
+      if (!myA.length) return 0;
+      return Math.round((myA.filter(a=>a.status==="completed").length/myA.length)*100);
+    }
+
+    function CirclePct({pct,size=52,stroke=4,color="var(--acc)"}) {
+      const r=( size-stroke*2)/2, circ=2*Math.PI*r, off=circ-(pct/100)*circ;
+      return (
+        <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--bdr2)" strokeWidth={stroke}/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round"
+            style={{transition:"stroke-dashoffset .4s"}}/>
+          <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
+            style={{fill:"var(--tx)",fontSize:size*.22,fontWeight:700,transform:"rotate(90deg)",transformOrigin:"50% 50%"}}>
+            {pct}%
+          </text>
+        </svg>
+      );
+    }
+
+    // ── LESSON VIEWER ──
+    if (lsnView) {
+      const lsn = lessons.find(l=>l.id===lsnView);
+      if (!lsn) { setLsnView(null); return null; }
+      const assign = isEmp ? getAssign(lsnView,currentUser.id) : null;
+
+      function handleStart() {
+        if (assign && assign.status==="not_started")
+          updateAssign(assign.id,{status:"in_progress"});
+      }
+
+      function handleComplete() {
+        if (!assign) return;
+        if (lsn.type==="quiz") {
+          const score = (lsn.quiz||[]).reduce((s,q,i)=>(quizAns[i]===q.correct?s+1:s),0);
+          const pct   = Math.round((score/(lsn.quiz||[]).length)*100);
+          updateAssign(assign.id,{status:"completed",completedAt:new Date().toISOString().split("T")[0],quizScore:pct});
+          setQuizDone(true);
+        } else {
+          updateAssign(assign.id,{status:"completed",completedAt:new Date().toISOString().split("T")[0]});
+          setLsnView(null);
+        }
+      }
+
+      const dept   = depts.find(d=>d.id===lsn.deptId);
+      const branch = brs.find(b=>b.id===lsn.branchId);
+
+      return (
+        <div style={{maxWidth:820,margin:"0 auto"}}>
+          {/* Back */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18,cursor:"pointer",color:"var(--mu)",fontSize:13}}
+            onClick={()=>{setLsnView(null);setQuizAns({});setQuizDone(false);}}>
+            ← {lang==="ru"?"Назад к урокам":"Back to lessons"}
+          </div>
+
+          {/* Header */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,marginBottom:6}}>{lsn.title}</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                  {dept   && <span style={{fontSize:11,color:dept.color,background:dept.color+"18",borderRadius:5,padding:"2px 8px"}}>{dept.icon} {dept.name}</span>}
+                  {branch && <span style={{fontSize:11,color:"var(--mu)",background:"var(--s2)",borderRadius:5,padding:"2px 8px"}}>📍 {branch.name}</span>}
+                  <Bdg cls="b-bl">{lsn.type==="video"?"▶ Video":lsn.type==="quiz"?"📝 Quiz":lsn.type==="pdf"?"📄 PDF":"📖 Text"}</Bdg>
+                  {lsn.duration&&<Bdg cls="b-mu">⏱ {lsn.duration} {lang==="ru"?"мин":"min"}</Bdg>}
+                </div>
+              </div>
+              {assign&&(
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  <CirclePct pct={assign.status==="completed"?100:assign.status==="in_progress"?50:0}/>
+                  {statusBdg(assign.status)}
+                </div>
+              )}
+            </div>
+            {/* Action buttons */}
+            {assign&&!quizDone&&(
+              <div style={{display:"flex",gap:8,marginTop:12}}>
+                {assign.status==="not_started"&&(
+                  <button className="btn btn-p" onClick={handleStart}>{IC.play} {t.startLesson}</button>
+                )}
+                {assign.status==="in_progress"&&(
+                  <button className="btn btn-p" onClick={handleComplete}>{IC.check2} {t.markComplete}</button>
+                )}
+                {assign.status==="completed"&&(
+                  <div style={{display:"flex",alignItems:"center",gap:8,color:"var(--gr)",fontSize:13,fontWeight:600}}>
+                    {IC.check2} {t.completed}
+                    {assign.quizScore!=null&&<Bdg cls="b-gr">Score: {assign.quizScore}%</Bdg>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Quiz done screen */}
+          {quizDone&&(
+            <div style={{background:"var(--s1)",border:"1px solid var(--gr)30",borderRadius:14,padding:32,textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:48,marginBottom:12}}>{IC.award}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"var(--gr)",marginBottom:8}}>
+                {lang==="ru"?"Урок завершён!":"Lesson Complete!"}
+              </div>
+              <div style={{fontSize:14,color:"var(--mu)",marginBottom:16}}>
+                {lang==="ru"?"Результат теста:":"Quiz score:"} <strong style={{color:"var(--acc)"}}>{assigns.find(a=>a.lessonId===lsnView&&a.employeeId===currentUser.id)?.quizScore}%</strong>
+              </div>
+              <button className="btn btn-p" onClick={()=>{setLsnView(null);setQuizAns({});setQuizDone(false);}}>
+                {lang==="ru"?"← Вернуться к урокам":"← Back to lessons"}
+              </button>
+            </div>
+          )}
+
+          {/* Content */}
+          {!quizDone&&(
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20}}>
+              {/* VIDEO */}
+              {lsn.type==="video"&&lsn.url&&(()=>{
+                const ytId = lsn.url.match(/(?:v=|youtu\.be\/)([^&?\s]+)/)?.[1];
+                return ytId ? (
+                  <div style={{position:"relative",paddingBottom:"56.25%",height:0,borderRadius:10,overflow:"hidden"}}>
+                    <iframe src={`https://www.youtube.com/embed/${ytId}`} style={{position:"absolute",inset:0,width:"100%",height:"100%",border:"none"}} allowFullScreen title={lsn.title}/>
+                  </div>
+                ) : <a href={lsn.url} target="_blank" rel="noreferrer" className="btn btn-bl">{IC.play} {lang==="ru"?"Открыть видео":"Open video"}</a>;
+              })()}
+              {/* PDF */}
+              {lsn.type==="pdf"&&lsn.url&&(
+                <div>
+                  <a href={lsn.url} target="_blank" rel="noreferrer" className="btn btn-bl" style={{marginBottom:12}}>📄 {lang==="ru"?"Открыть документ":"Open document"}</a>
+                  {lsn.url.toLowerCase().includes(".pdf")&&(
+                    <iframe src={lsn.url} style={{width:"100%",height:600,borderRadius:10,border:"1px solid var(--bdr)"}} title={lsn.title}/>
+                  )}
+                </div>
+              )}
+              {/* TEXT */}
+              {(lsn.type==="text"||lsn.type==="video")&&lsn.content&&(
+                <div style={{fontSize:14,lineHeight:1.8,color:"var(--tx)",whiteSpace:"pre-wrap",marginTop:lsn.type==="video"?16:0}}>
+                  {lsn.content}
+                </div>
+              )}
+              {/* QUIZ */}
+              {lsn.type==="quiz"&&(
+                <div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:700,marginBottom:16}}>
+                    📝 {lang==="ru"?"Тест":"Quiz"} — {(lsn.quiz||[]).length} {lang==="ru"?"вопросов":"questions"}
+                  </div>
+                  {(lsn.quiz||[]).map((q,qi)=>(
+                    <div key={q.id||qi} style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:14,marginBottom:12}}>
+                      <div style={{fontWeight:600,marginBottom:10}}>{qi+1}. {q.question}</div>
+                      {(q.options||[]).filter(o=>o.trim()).map((opt,oi)=>(
+                        <label key={oi} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 10px",borderRadius:8,marginBottom:5,cursor:"pointer",
+                          background:quizAns[qi]===oi?"var(--acc)15":"transparent",
+                          border:`1px solid ${quizAns[qi]===oi?"var(--acc)40":"var(--bdr)"}`}}>
+                          <input type="radio" name={`q${qi}`} checked={quizAns[qi]===oi} onChange={()=>setQuizAns(a=>({...a,[qi]:oi}))} style={{accentColor:"var(--acc)"}}/>
+                          {opt}
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                  {assign?.status==="in_progress"&&(
+                    <button className="btn btn-p" onClick={handleComplete} style={{marginTop:8}}>
+                      {IC.check2} {lang==="ru"?"Отправить ответы":"Submit answers"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── TABS ──
+    const tabs = canAdmin
+      ? [{id:"lessons",label:t.allLessons},{id:"assign",label:t.assignees},{id:"progress",label:t.progressTab}]
+      : [{id:"my",label:t.myLessons}];
+
+    return (
+      <>
+        {/* Tab bar */}
+        <div style={{display:"flex",gap:6,marginBottom:18,borderBottom:"1px solid var(--bdr)",paddingBottom:10}}>
+          {tabs.map(tb=>(
+            <button key={tb.id} className={`btn ${tab===tb.id?"btn-p":"btn-g"}`}
+              style={{fontSize:12}} onClick={()=>setTab(tb.id)}>
+              {tb.label}
+            </button>
+          ))}
+          {canAdmin&&tab==="lessons"&&(
+            <button className="btn btn-p" style={{marginLeft:"auto",fontSize:12}}
+              onClick={()=>setLModal(true)}>{IC.plus} {t.addLesson}</button>
+          )}
+          {canAdmin&&tab==="assign"&&(
+            <button className="btn btn-p" style={{marginLeft:"auto",fontSize:12}}
+              onClick={()=>setAModal(true)}>{IC.assign} {t.assignLesson}</button>
+          )}
+        </div>
+
+        {/* ── TAB: ALL LESSONS ── */}
+        {tab==="lessons"&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+            {lessons.map(lsn=>{
+              const dept   = depts.find(d=>d.id===lsn.deptId);
+              const branch = brs.find(b=>b.id===lsn.branchId);
+              const aCount = assigns.filter(a=>a.lessonId===lsn.id).length;
+              const doneC  = assigns.filter(a=>a.lessonId===lsn.id&&a.status==="completed").length;
+              return (
+                <div key={lsn.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,cursor:"pointer",transition:"all .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <Bdg cls="b-bl" style={{fontSize:10}}>{lsn.type==="video"?"▶ Video":lsn.type==="quiz"?"📝 Quiz":lsn.type==="pdf"?"📄 PDF":"📖 Text"}</Bdg>
+                    {canAdmin&&<button className="btn btn-d btn-sm" style={{padding:"2px 7px"}} onClick={e=>{e.stopPropagation();deleteLesson(lsn.id);}}>{IC.trash}</button>}
+                  </div>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:5,lineHeight:1.3}} onClick={()=>setLsnView(lsn.id)}>{lsn.title}</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
+                    {dept  &&<span style={{fontSize:10,color:dept.color}}>{dept.icon} {dept.name}</span>}
+                    {branch&&<span style={{fontSize:10,color:"var(--mu)"}}>📍 {branch.name}</span>}
+                    {lsn.duration&&<span style={{fontSize:10,color:"var(--mu)"}}>⏱ {lsn.duration}{lang==="ru"?"м":"m"}</span>}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:11,color:"var(--mu)"}}>{aCount} {lang==="ru"?"назначений":"assigned"} · {doneC} {lang==="ru"?"завершили":"done"}</div>
+                    <button className="btn btn-p btn-sm" onClick={()=>setLsnView(lsn.id)}>{IC.play}</button>
+                  </div>
+                </div>
+              );
+            })}
+            {!lessons.length&&(
+              <div style={{gridColumn:"1/-1",textAlign:"center",padding:48,color:"var(--mu)"}}>
+                <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.training}</div>
+                <div>{t.noLessons}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB: ASSIGNMENTS ── */}
+        {tab==="assign"&&(
+          <div className="card">
+            <div className="tw">
+              <table>
+                <thead><tr>
+                  <th>{lang==="ru"?"Сотрудник":"Employee"}</th>
+                  <th>{lang==="ru"?"Урок":"Lesson"}</th>
+                  <th>{lang==="ru"?"Статус":"Status"}</th>
+                  <th>{lang==="ru"?"Назначен":"Assigned"}</th>
+                  <th>{lang==="ru"?"Завершён":"Completed"}</th>
+                  <th>{lang==="ru"?"Балл":"Score"}</th>
+                </tr></thead>
+                <tbody>
+                  {assigns.map(a=>{
+                    const emp = emps.find(e=>e.id===a.employeeId);
+                    const lsn = lessons.find(l=>l.id===a.lessonId);
+                    return (
+                      <tr key={a.id}>
+                        <td><div className="flex-c"><Av name={emp?.name}/><span>{emp?.name||"—"}</span></div></td>
+                        <td style={{fontSize:12}}>{lsn?.title||"—"}</td>
+                        <td>{statusBdg(a.status)}</td>
+                        <td style={{fontSize:11,color:"var(--mu)"}}>{a.assignedAt}</td>
+                        <td style={{fontSize:11,color:"var(--mu)"}}>{a.completedAt||"—"}</td>
+                        <td>{a.quizScore!=null?<Bdg cls={a.quizScore>=70?"b-gr":"b-rd"}>{a.quizScore}%</Bdg>:"—"}</td>
+                      </tr>
+                    );
+                  })}
+                  {!assigns.length&&<tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{t.noAssignments}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB: PROGRESS ── */}
+        {tab==="progress"&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+            {emps.map(emp=>{
+              const myA   = assigns.filter(a=>a.employeeId===emp.id);
+              const done  = myA.filter(a=>a.status==="completed").length;
+              const prog  = myA.filter(a=>a.status==="in_progress").length;
+              const pct   = progressPct(emp.id);
+              const dept  = depts.find(d=>d.id===emp.deptId);
+              return (
+                <div key={emp.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                    <Av name={emp.name} color={dept?.color} size="av-lg"/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{emp.role}</div>
+                      {dept&&<div style={{fontSize:10,color:dept.color,marginTop:1}}>{dept.icon} {dept.name}</div>}
+                    </div>
+                    <CirclePct pct={pct} size={52} color={pct===100?"var(--gr)":"var(--acc)"}/>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{height:4,background:"var(--s3)",borderRadius:2,marginBottom:8}}>
+                    <div style={{height:"100%",width:pct+"%",background:pct===100?"var(--gr)":"var(--acc)",borderRadius:2,transition:"width .4s"}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--mu)"}}>
+                    <span>{done} {lang==="ru"?"из":"of"} {myA.length} {lang==="ru"?"уроков":"lessons"}</span>
+                    {prog>0&&<span style={{color:"var(--acc)"}}>{prog} {lang==="ru"?"в процессе":"in progress"}</span>}
+                    {pct===100&&myA.length>0&&<span style={{color:"var(--gr)",display:"flex",alignItems:"center",gap:4}}>{IC.award} {t.certificate}</span>}
+                  </div>
+                </div>
+              );
+            })}
+            {!emps.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>{lang==="ru"?"Нет сотрудников":"No employees"}</div>}
+          </div>
+        )}
+
+        {/* ── TAB: MY LESSONS (employee view) ── */}
+        {tab==="my"&&(
+          <>
+            {/* My progress summary */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginBottom:18,display:"flex",alignItems:"center",gap:20}}>
+              <CirclePct pct={progressPct(currentUser.id)} size={64} color={progressPct(currentUser.id)===100?"var(--gr)":"var(--acc)"}/>
+              <div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:700}}>{lang==="ru"?"Мой прогресс":"My Progress"}</div>
+                <div style={{fontSize:12,color:"var(--mu)",marginTop:3}}>
+                  {myAssigns.filter(a=>a.status==="completed").length} / {myAssigns.length} {lang==="ru"?"уроков завершено":"lessons completed"}
+                </div>
+                {progressPct(currentUser.id)===100&&myAssigns.length>0&&(
+                  <div style={{display:"flex",alignItems:"center",gap:5,color:"var(--gr)",fontSize:12,marginTop:4,fontWeight:600}}>
+                    {IC.award} {lang==="ru"?"Все уроки пройдены!":"All lessons completed!"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lesson cards */}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {myAssigns.map(a=>{
+                const lsn  = lessons.find(l=>l.id===a.lessonId);
+                if (!lsn) return null;
+                const dept = depts.find(d=>d.id===lsn.deptId);
+                return (
+                  <div key={a.id} style={{background:"var(--s1)",border:`1px solid ${a.status==="completed"?"var(--gr)30":"var(--bdr)"}`,borderRadius:11,padding:14,display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{width:42,height:42,borderRadius:10,background:a.status==="completed"?"var(--gr)15":"var(--s2)",border:`1px solid ${a.status==="completed"?"var(--gr)30":"var(--bdr)"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:a.status==="completed"?"var(--gr)":"var(--mu)"}}>
+                      {a.status==="completed" ? IC.check2 : IC.play}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:14,marginBottom:3}}>{lsn.title}</div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        {dept&&<span style={{fontSize:10,color:dept.color}}>{dept.icon} {dept.name}</span>}
+                        <Bdg cls="b-mu" style={{fontSize:10}}>{lsn.type==="video"?"▶":lsn.type==="quiz"?"📝":lsn.type==="pdf"?"📄":"📖"} {lsn.type}</Bdg>
+                        {lsn.duration&&<span style={{fontSize:10,color:"var(--mu)"}}>⏱ {lsn.duration}{lang==="ru"?"м":"m"}</span>}
+                        {a.quizScore!=null&&<Bdg cls={a.quizScore>=70?"b-gr":"b-rd"}>{a.quizScore}%</Bdg>}
+                      </div>
+                    </div>
+                    {statusBdg(a.status)}
+                    <button className={`btn ${a.status==="completed"?"btn-g":"btn-p"} btn-sm`}
+                      onClick={()=>{setLsnView(lsn.id);if(a.status==="not_started")updateAssign(a.id,{status:"in_progress"});}}>
+                      {a.status==="completed" ? (lang==="ru"?"Повторить":"Review") : a.status==="in_progress" ? t.continueLesson : t.startLesson}
+                    </button>
+                  </div>
+                );
+              })}
+              {!myAssigns.length&&(
+                <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+                  <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.training}</div>
+                  <div>{lang==="ru"?"Вам пока не назначено ни одного урока":"No lessons assigned to you yet"}</div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── LESSON CREATE MODAL ── */}
+        {lModal&&(
+          <div className="ovl" onClick={()=>setLModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.addLesson}</div>
+              <div className="fg">
+                <label className="lbl">{t.lessonTitle}</label>
+                <input className="inp" value={lF.title} onChange={e=>setLF(f=>({...f,title:e.target.value}))} placeholder={lang==="ru"?"Стандарты уборки офиса":"Office Cleaning Standards"}/>
+              </div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">{t.lessonType}</label>
+                  <select className="inp" value={lF.type} onChange={e=>setLF(f=>({...f,type:e.target.value}))}>
+                    <option value="video">▶ Video (YouTube)</option>
+                    <option value="text">📖 {lang==="ru"?"Текст / Стандарт":"Text / Standard"}</option>
+                    <option value="pdf">📄 PDF / Документ</option>
+                    <option value="quiz">📝 {lang==="ru"?"Тест":"Quiz"}</option>
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">⏱ {t.lessonDuration}</label>
+                  <input type="number" className="inp" value={lF.duration} onChange={e=>setLF(f=>({...f,duration:e.target.value}))} placeholder="15"/>
+                </div>
+              </div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">🏢 {t.lessonDept}</label>
+                  <select className="inp" value={lF.deptId} onChange={e=>setLF(f=>({...f,deptId:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Не указан —":"— Not set —"}</option>
+                    {depts.map(d=><option key={d.id} value={d.id}>{d.icon} {d.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">📍 {t.lessonBranch}</label>
+                  <select className="inp" value={lF.branchId} onChange={e=>setLF(f=>({...f,branchId:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Не указан —":"— Not set —"}</option>
+                    {brs.map(b=><option key={b.id} value={b.id}>🏙️ {b.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              {(lF.type==="video"||lF.type==="pdf")&&(
+                <div className="fg">
+                  <label className="lbl">{t.lessonUrl}</label>
+                  <input className="inp" value={lF.url} onChange={e=>setLF(f=>({...f,url:e.target.value}))} placeholder={lF.type==="video"?"https://youtube.com/watch?v=...":"https://..."}/>
+                </div>
+              )}
+              {(lF.type==="text"||lF.type==="video")&&(
+                <div className="fg">
+                  <label className="lbl">{t.lessonContent}</label>
+                  <textarea className="inp" value={lF.content} onChange={e=>setLF(f=>({...f,content:e.target.value}))} style={{minHeight:100}} placeholder={lang==="ru"?"Введите текст урока или стандарты...":"Enter lesson text or standards..."}/>
+                </div>
+              )}
+              {lF.type==="quiz"&&(
+                <div className="fg">
+                  <label className="lbl">📝 {lang==="ru"?"Вопросы теста":"Quiz questions"}</label>
+                  {(lF.quiz||[]).map((q,i)=>(
+                    <div key={q.id} style={{background:"var(--s2)",borderRadius:8,padding:10,marginBottom:8,fontSize:12}}>
+                      <div style={{fontWeight:600,marginBottom:4}}>{i+1}. {q.question}</div>
+                      {q.options.filter(o=>o).map((o,j)=>(
+                        <div key={j} style={{color:j===q.correct?"var(--gr)":"var(--mu)",fontSize:11}}>
+                          {j===q.correct?"✓":"·"} {o}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:8,padding:12}}>
+                    <input className="inp" value={qF.question} onChange={e=>setQF(f=>({...f,question:e.target.value}))} placeholder={lang==="ru"?"Вопрос...":"Question..."} style={{marginBottom:8}}/>
+                    {qF.options.map((opt,i)=>(
+                      <div key={i} style={{display:"flex",gap:6,marginBottom:5,alignItems:"center"}}>
+                        <input type="radio" name="correct" checked={qF.correct===i} onChange={()=>setQF(f=>({...f,correct:i}))} style={{accentColor:"var(--gr)",flexShrink:0}}/>
+                        <input className="inp" value={opt} onChange={e=>setQF(f=>{const o=[...f.options];o[i]=e.target.value;return{...f,options:o};})} placeholder={`${lang==="ru"?"Вариант":"Option"} ${i+1}`} style={{padding:"5px 8px",fontSize:12}}/>
+                      </div>
+                    ))}
+                    <button className="btn btn-g btn-sm" onClick={addQuizQ}>{IC.plus} {t.quizAddQ}</button>
+                  </div>
+                </div>
+              )}
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setLModal(false)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={saveLesson}>{t.create}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ASSIGN MODAL ── */}
+        {aModal&&(
+          <div className="ovl" onClick={()=>setAModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">{t.assignLesson}</div>
+              <div className="fg">
+                <label className="lbl">{lang==="ru"?"Урок":"Lesson"}</label>
+                <select className="inp" value={aF.lessonId} onChange={e=>setAF(f=>({...f,lessonId:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Выберите урок —":"— Select lesson —"}</option>
+                  {lessons.map(l=><option key={l.id} value={l.id}>{l.title}</option>)}
+                </select>
+              </div>
+              <div className="fg">
+                <label className="lbl">{t.assignTo}</label>
+                <select className="inp" value={aF.employeeId} onChange={e=>setAF(f=>({...f,employeeId:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Выберите сотрудника —":"— Select employee —"}</option>
+                  {emps.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                </select>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setAModal(false)}>{t.cancel}</button>
+                <button className="btn btn-p" onClick={assignLesson}>{t.assignLesson}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+
   /* ══════════════════════════════════════
      P&L — ФИНАНСЫ
   ══════════════════════════════════════ */
@@ -1779,7 +2335,7 @@ export default function App() {
   const sectionLabels = {
     dashboard:t.dashboard, departments:t.departments, branches:t.branches,
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
-    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl,
+    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training,
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
@@ -1787,7 +2343,7 @@ export default function App() {
   const navPages   = viewPartner ? wsPages
     : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
