@@ -483,12 +483,12 @@ export default function App() {
 
   // Forms
   const defP   = { companyName:"", email:"", password:"", plan:"Basic", status:"active", logo:"", accentColor:"#f0a500" };
-  const defE   = { name:"", email:"", password:"", role:roles[0], sections:["dashboard","tasks","chat"], status:"active" };
-  const defD   = { name:"", icon:"🏢", color:"#3b82f6" };
+  const defE   = { name:"", email:"", password:"", role:roles[0], sections:["dashboard","tasks","chat"], chatChannels:["general"], deptId:"", branchId:"", status:"active" };
+  const defD   = { name:"", icon:"🏢", color:"#3b82f6", branchId:"" };
   const defBr  = { name:"", city:"" };
   const defT   = { title:"", assigneeId:"", priority:"medium", due:"", status:"todo" };
   const defK   = { type:"sop", title:"", thumb:"📄", url:"", content:"", desc:"" };
-  const defSc  = { employeeId:"", date:"", startTime:"09:00", endTime:"13:00", address:"", clientName:"", notes:"", status:"confirmed" };
+  const defSc  = { employeeId:"", date:"", startTime:"09:00", endTime:"17:00", notes:"", status:"confirmed" };
   const defPay = { employeeId:"", amount:"", date:"", note:"", status:"pending" };
 
   const [pF,  setPF]  = useState(defP);
@@ -818,45 +818,117 @@ export default function App() {
     );
   };
 
-  /* ── EMPLOYEES ── */
+  /* ── EMPLOYEES + DEPARTMENTS ── */
   const Employees = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
-    const p=getPartner(pid)||{employees:[],departments:[]}; const emps=p?.employees||[]; const depts=p?.departments||[];
-    const canEdit=isSA||isPartner; const lim=PLAN_LIMITS[p?.plan]?.employees||10;
+    const pid   = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p     = getPartner(pid)||{employees:[],departments:[],branches:[]};
+    const emps  = p?.employees||[];
+    const depts = p?.departments||[];
+    const brs   = p?.branches||[];
+    const canEdit = isSA||isPartner;
+    const lim   = PLAN_LIMITS[p?.plan]?.employees||10;
+    const [selDept, setSelDept] = useState(null); // clicked dept id
+
+    if (selDept) {
+      const dept    = depts.find(d=>d.id===selDept);
+      const branch  = brs.find(b=>b.id===dept?.branchId);
+      const members = emps.filter(e=>e.deptId===selDept);
+      return (
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",color:"var(--mu)",fontSize:13}} onClick={()=>setSelDept(null)}>
+            ← {lang==="ru"?"Все отделы":"All departments"}
+          </div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:18,marginBottom:18}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{fontSize:36}}>{dept?.icon}</div>
+              <div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:dept?.color}}>{dept?.name}</div>
+                {branch&&<div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>📍 {branch.name}{branch.city?`, ${branch.city}`:""}</div>}
+              </div>
+              <div style={{marginLeft:"auto",textAlign:"right"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"var(--acc)"}}>{members.length}</div>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
+              </div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+            {members.map(e=>(
+              <div key={e.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:11,padding:14,display:"flex",alignItems:"center",gap:12}}>
+                <Av name={e.name} color={dept?.color} size="av-lg"/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:14}}>{e.name}</div>
+                  <div style={{fontSize:12,color:"var(--mu)"}}>{e.role}</div>
+                  <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{e.email}</div>
+                </div>
+                <Bdg cls={e.status==="active"?"b-gr":"b-rd"}>{e.status==="active"?t.active:t.inactive}</Bdg>
+              </div>
+            ))}
+            {!members.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:32,color:"var(--mu)"}}>
+              <div style={{fontSize:28,marginBottom:8}}>👤</div>
+              <div>{lang==="ru"?"В отделе нет сотрудников":"No employees in this department"}</div>
+            </div>}
+          </div>
+        </>
+      );
+    }
+
     return (
       <>
         {canEdit&&(
           <div style={{display:"flex",gap:8,marginBottom:15,flexWrap:"wrap",alignItems:"center"}}>
             <button className="btn btn-p" onClick={()=>{setEF({...defE,role:roles[0]});setModal("emp");}}>{t.addEmployee}</button>
-            <button className="btn btn-g" onClick={()=>{setDF(defD);setModal("dept");}}>{t.addDept}</button>
+            <button className="btn btn-g" onClick={()=>{setDF({...defD,branchId:""});setModal("dept");}}>{t.addDept}</button>
             <span style={{marginLeft:"auto",fontSize:12,color:"var(--mu)"}}>{t.empCount} {emps.length}/{lim}</span>
           </div>
         )}
         {depts.length>0&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:10,marginBottom:18}}>
-            {depts.map(d=>(
-              <div key={d.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"13px 14px"}}>
-                <div style={{fontSize:22,marginBottom:6}}>{d.icon}</div>
-                <div style={{fontWeight:600,fontSize:13,marginBottom:2}}>{d.name}</div>
-                <div style={{fontSize:11,color:"var(--mu)"}}>{emps.filter(e=>e.deptId===d.id).length} {t.employees.toLowerCase()}</div>
-                <div style={{height:2,borderRadius:1,background:d.color,marginTop:9,opacity:.7}}/>
-              </div>
-            ))}
-          </div>
+          <>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
+              {lang==="ru"?"Отделы (нажмите чтобы открыть)":"Departments (click to open)"}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:20}}>
+              {depts.map(d=>{
+                const branch = brs.find(b=>b.id===d.branchId);
+                const count  = emps.filter(e=>e.deptId===d.id).length;
+                return (
+                  <div key={d.id} onClick={()=>setSelDept(d.id)}
+                    style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"14px",cursor:"pointer",transition:"all .15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                      <div style={{fontSize:24}}>{d.icon}</div>
+                      <Bdg cls="b-mu">{count} {lang==="ru"?"чел.":"ppl"}</Bdg>
+                    </div>
+                    <div style={{fontWeight:600,fontSize:13,marginBottom:3,color:d.color}}>{d.name}</div>
+                    {branch
+                      ? <div style={{fontSize:11,color:"var(--mu)"}}>📍 {branch.name}</div>
+                      : <div style={{fontSize:11,color:"var(--mu2)"}}>{lang==="ru"?"Город не указан":"No city assigned"}</div>
+                    }
+                    <div style={{height:2,borderRadius:1,background:d.color,marginTop:10,opacity:.6}}/>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
         <div className="card">
           <div className="card-hd"><div className="card-t">{t.employees}</div><Bdg cls="b-mu">{emps.length}</Bdg></div>
           <div className="tw">
             <table>
-              <thead><tr><th>{t.name}</th><th>{t.role}</th><th>{t.email}</th><th>{t.accessSections}</th><th>{t.status}</th>{canEdit&&<th></th>}</tr></thead>
+              <thead><tr><th>{t.name}</th><th>{t.role}</th><th>{lang==="ru"?"Отдел / Город":"Dept / City"}</th><th>{t.accessSections}</th><th>{t.status}</th>{canEdit&&<th></th>}</tr></thead>
               <tbody>
                 {emps.map(e=>{
-                  const d=depts.find(x=>x.id===e.deptId);
+                  const d = depts.find(x=>x.id===e.deptId);
+                  const b = brs.find(x=>x.id===e.branchId);
                   return (
                     <tr key={e.id}>
-                      <td><div className="flex-c"><Av name={e.name} color={d?.color}/><div><div style={{fontWeight:500}}>{e.name}</div>{d&&<div style={{fontSize:10,color:d.color}}>{d.icon} {d.name}</div>}</div></div></td>
-                      <td style={{color:"var(--mu)",fontSize:12}}>{e.role}</td>
-                      <td style={{fontSize:11,color:"var(--mu)"}}>{e.email}</td>
+                      <td><div className="flex-c"><Av name={e.name} color={d?.color}/><div><div style={{fontWeight:500}}>{e.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{e.role}</div></div></div></td>
+                      <td style={{color:"var(--mu)",fontSize:11}}>{e.email}</td>
+                      <td>
+                        {d&&<div style={{fontSize:12}}><span style={{color:d.color}}>{d.icon} {d.name}</span></div>}
+                        {b&&<div style={{fontSize:11,color:"var(--mu)"}}>📍 {b.name}</div>}
+                        {!d&&!b&&<span style={{color:"var(--mu2)",fontSize:11}}>—</span>}
+                      </td>
                       <td><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(e.sections||[]).slice(0,3).map(s=><Bdg key={s} cls="b-mu">{ALL_SECTIONS.find(x=>x.id===s)?.icon}</Bdg>)}{(e.sections||[]).length>3&&<Bdg cls="b-mu">+{(e.sections||[]).length-3}</Bdg>}</div></td>
                       <td><Bdg cls={e.status==="active"?"b-gr":"b-rd"}>{e.status==="active"?t.active:t.inactive}</Bdg></td>
                       {canEdit&&<td><button className="btn btn-d btn-sm" onClick={()=>deleteEmployee(pid,e.id)}>×</button></td>}
@@ -874,22 +946,129 @@ export default function App() {
 
   /* ── BRANCHES ── */
   const Branches = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
-    const p=getPartner(pid)||{branches:[],employees:[]}; const brs=p?.branches||[]; const emps=p?.employees||[];
-    const canEdit=isSA||isPartner; const lim=PLAN_LIMITS[p?.plan]?.branches||1;
+    const pid   = viewPartner?.id||(isSA?"nce_main":currentUser?.id||currentUser?.partnerId);
+    const p     = getPartner(pid)||{branches:[],employees:[],departments:[]};
+    const brs   = p?.branches||[];
+    const emps  = p?.employees||[];
+    const depts = p?.departments||[];
+    const canEdit = isSA||isPartner;
+    const lim   = PLAN_LIMITS[p?.plan]?.branches||1;
+    const [selBr, setSelBr] = useState(null);
+
+    if (selBr) {
+      const branch     = brs.find(b=>b.id===selBr);
+      const brDepts    = depts.filter(d=>d.branchId===selBr);
+      const brEmps     = emps.filter(e=>e.branchId===selBr);
+      return (
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",color:"var(--mu)",fontSize:13}} onClick={()=>setSelBr(null)}>
+            ← {lang==="ru"?"Все города":"All cities"}
+          </div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:18,marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{fontSize:36}}>🏙️</div>
+              <div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:700}}>{branch?.name}</div>
+                {branch?.city&&<div style={{fontSize:13,color:"var(--mu)",marginTop:2}}>📍 {branch.city}</div>}
+              </div>
+              <div style={{marginLeft:"auto",display:"flex",gap:18,textAlign:"center"}}>
+                <div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"var(--acc)"}}>{brEmps.length}</div>
+                  <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"var(--bl)"}}>{brDepts.length}</div>
+                  <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"отделов":"departments"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {brDepts.length>0&&(
+            <>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
+                {lang==="ru"?"Отделы в этом городе":"Departments in this city"}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:20}}>
+                {brDepts.map(d=>{
+                  const cnt=emps.filter(e=>e.deptId===d.id).length;
+                  return (
+                    <div key={d.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:14}}>
+                      <div style={{fontSize:22,marginBottom:6}}>{d.icon}</div>
+                      <div style={{fontWeight:600,fontSize:13,color:d.color,marginBottom:3}}>{d.name}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{cnt} {lang==="ru"?"сотрудников":"employees"}</div>
+                      <div style={{height:2,borderRadius:1,background:d.color,marginTop:9,opacity:.6}}/>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {brEmps.length>0&&(
+            <>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
+                {lang==="ru"?"Сотрудники":"Employees"}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
+                {brEmps.map(e=>{
+                  const d=depts.find(x=>x.id===e.deptId);
+                  return (
+                    <div key={e.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:11,padding:13,display:"flex",alignItems:"center",gap:11}}>
+                      <Av name={e.name} color={d?.color} size="av-lg"/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:600}}>{e.name}</div>
+                        <div style={{fontSize:12,color:"var(--mu)"}}>{e.role}</div>
+                        {d&&<div style={{fontSize:11,color:d.color,marginTop:2}}>{d.icon} {d.name}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {!brDepts.length&&!brEmps.length&&(
+            <div style={{textAlign:"center",padding:40,color:"var(--mu)"}}>
+              <div style={{fontSize:32,marginBottom:8}}>🏙️</div>
+              <div>{lang==="ru"?"В этом городе ещё нет отделов и сотрудников":"No departments or employees in this city yet"}</div>
+            </div>
+          )}
+        </>
+      );
+    }
+
     return (
       <>
-        {canEdit&&<div style={{marginBottom:14,display:"flex",gap:8,alignItems:"center"}}><button className="btn btn-p" onClick={()=>{setBrF(defBr);setModal("branch");}}>{t.addBranch}</button><span style={{fontSize:12,color:"var(--mu)"}}>{t.branches}: {brs.length}/{lim}</span></div>}
+        {canEdit&&<div style={{marginBottom:14,display:"flex",gap:8,alignItems:"center"}}>
+          <button className="btn btn-p" onClick={()=>{setBrF(defBr);setModal("branch");}}>{t.addBranch}</button>
+          <span style={{fontSize:12,color:"var(--mu)"}}>{t.branches}: {brs.length}/{lim}</span>
+        </div>}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
-          {brs.map(b=>(
-            <div key={b.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
-              <div style={{fontSize:26,marginBottom:6}}>🏙️</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16}}>{b.name}</div>
-              <div style={{fontSize:12,color:"var(--mu)",marginBottom:9}}>{b.city}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:700,color:"var(--acc)"}}>{emps.filter(e=>e.branchId===b.id).length}</div>
-              <div style={{fontSize:11,color:"var(--mu)"}}>{t.employees.toLowerCase()}</div>
-            </div>
-          ))}
+          {brs.map(b=>{
+            const cnt  = emps.filter(e=>e.branchId===b.id).length;
+            const dcnt = depts.filter(d=>d.branchId===b.id).length;
+            return (
+              <div key={b.id} onClick={()=>setSelBr(b.id)}
+                style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,cursor:"pointer",transition:"all .15s"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                <div style={{fontSize:28,marginBottom:8}}>🏙️</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:2}}>{b.name}</div>
+                <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>{b.city}</div>
+                <div style={{display:"flex",gap:16}}>
+                  <div>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:"var(--acc)"}}>{cnt}</div>
+                    <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
+                  </div>
+                  <div>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:"var(--bl)"}}>{dcnt}</div>
+                    <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"отделов":"departments"}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
           {!brs.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}><div style={{fontSize:36,marginBottom:8}}>📍</div><div>{t.noBranches}</div></div>}
         </div>
       </>
@@ -961,14 +1140,25 @@ export default function App() {
                 return (
                   <div key={s.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:13}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      {emp&&<Av name={emp.name}/>}
-                      <div><div style={{fontWeight:500,fontSize:13}}>{emp?.name||"—"}</div><div style={{fontSize:11,color:"var(--mu)"}}>{emp?.role}</div></div>
+                      {emp&&<Av name={emp.name} color={p?.departments?.find(d=>d.id===emp?.deptId)?.color}/>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:13}}>{emp?.name||"—"}</div>
+                        <div style={{fontSize:11,color:"var(--mu)"}}>{emp?.role}</div>
+                      </div>
                       <Bdg cls={s.status==="confirmed"?"b-gr":"b-yw"}>{s.status==="confirmed"?t.confirmed:t.pending}</Bdg>
                     </div>
-                    <div style={{fontWeight:600,fontSize:13,marginBottom:3}}>🕐 {s.startTime} – {s.endTime}</div>
-                    <div style={{fontSize:12,color:"var(--mu)"}}>📍 {s.address}</div>
-                    <div style={{fontSize:12}}>👤 {s.clientName}</div>
-                    {s.notes&&<div style={{fontSize:11,color:"var(--mu)",marginTop:5,fontStyle:"italic"}}>💬 {s.notes}</div>}
+                    <div style={{fontWeight:600,fontSize:13,marginBottom:5}}>🕐 {s.startTime} – {s.endTime}</div>
+                    {(()=>{
+                      const dept   = p?.departments?.find(d=>d.id===emp?.deptId);
+                      const branch = p?.branches?.find(b=>b.id===emp?.branchId);
+                      return (
+                        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                          {dept   && <span style={{fontSize:11,color:dept.color,background:dept.color+"18",borderRadius:5,padding:"2px 7px"}}>{dept.icon} {dept.name}</span>}
+                          {branch && <span style={{fontSize:11,color:"var(--mu)",background:"var(--s2)",borderRadius:5,padding:"2px 7px"}}>📍 {branch.name}</span>}
+                        </div>
+                      );
+                    })()}
+                    {s.notes&&<div style={{fontSize:11,color:"var(--mu)",marginTop:6,fontStyle:"italic"}}>💬 {s.notes}</div>}
                   </div>
                 );
               })}
@@ -1470,7 +1660,13 @@ export default function App() {
           </div>
         )}
 
-        {modal==="emp"&&(
+        {modal==="emp"&&(()=>{
+          const pid2  = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+          const p2    = getPartner(pid2)||{departments:[],branches:[]};
+          const depts2= p2.departments||[];
+          const brs2  = p2.branches||[];
+          const allChannels = [{id:"general",label:lang==="ru"?"Общий":"General",icon:"📢"},...depts2.map(d=>({id:d.id,label:d.name,icon:d.icon}))];
+          return (
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
               <div className="modal-t">{t.addUser}</div>
@@ -1487,6 +1683,22 @@ export default function App() {
               <div className="fr">
                 <div className="fg"><label className="lbl">{t.emailLogin}</label><input className="inp" value={eF.email} onChange={e=>setEF(p=>({...p,email:e.target.value}))} placeholder="anna@company.com"/></div>
                 <div className="fg"><label className="lbl">{t.password}</label><input className="inp" type="text" value={eF.password} onChange={e=>setEF(p=>({...p,password:e.target.value}))} placeholder="Anna2025!"/></div>
+              </div>
+              <div className="fr">
+                <div className="fg">
+                  <label className="lbl">🏢 {lang==="ru"?"Отдел":"Department"}</label>
+                  <select className="inp" value={eF.deptId} onChange={e=>setEF(p=>({...p,deptId:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Не указан —":"— Not assigned —"}</option>
+                    {depts2.map(d=><option key={d.id} value={d.id}>{d.icon} {d.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label className="lbl">📍 {lang==="ru"?"Город":"City"}</label>
+                  <select className="inp" value={eF.branchId} onChange={e=>setEF(p=>({...p,branchId:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Не указан —":"— Not assigned —"}</option>
+                    {brs2.map(b=><option key={b.id} value={b.id}>🏙️ {b.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="fg">
                 <label className="lbl">{t.accessSections}</label>
@@ -1506,6 +1718,22 @@ export default function App() {
                 </div>
               </div>
               <div className="fg">
+                <label className="lbl">💬 {lang==="ru"?"Доступ к каналам чата":"Chat channel access"}</label>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {allChannels.map(ch=>{
+                    const chk=(eF.chatChannels||["general"]).includes(ch.id);
+                    return (
+                      <label key={ch.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:chk?"#3b82f615":"var(--s2)",border:`1px solid ${chk?"#3b82f630":"var(--bdr)"}`,borderRadius:8,cursor:"pointer"}}>
+                        <input type="checkbox" checked={chk} style={{accentColor:"var(--bl)"}}
+                          onChange={()=>setEF(p=>({...p,chatChannels:chk?(p.chatChannels||[]).filter(x=>x!==ch.id):[...(p.chatChannels||[]),ch.id]}))}/>
+                        <span style={{fontSize:14}}>{ch.icon}</span>
+                        <span style={{fontSize:13,fontWeight:500}}>{ch.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="fg">
                 <label className="lbl">{t.statusLabel}</label>
                 <select className="inp" value={eF.status} onChange={e=>setEF(p=>({...p,status:e.target.value}))}>
                   <option value="active">{t.active}</option>
@@ -1518,13 +1746,26 @@ export default function App() {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
-        {modal==="dept"&&(
+        {modal==="dept"&&(()=>{
+          const pid2 = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+          const brs2 = getPartner(pid2)?.branches||[];
+          return (
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
               <div className="modal-t">{t.newDept}</div>
-              <div className="fg"><label className="lbl">{t.deptName}</label><input className="inp" value={dF.name} onChange={e=>setDF(p=>({...p,name:e.target.value}))} placeholder={lang==="ru"?"Отдел продаж":"Sales Department"}/></div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{t.deptName}</label><input className="inp" value={dF.name} onChange={e=>setDF(p=>({...p,name:e.target.value}))} placeholder={lang==="ru"?"Отдел продаж":"Sales Department"}/></div>
+                <div className="fg">
+                  <label className="lbl">📍 {lang==="ru"?"Город / офис":"City / office"}</label>
+                  <select className="inp" value={dF.branchId} onChange={e=>setDF(p=>({...p,branchId:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Не привязан —":"— Not assigned —"}</option>
+                    {brs2.map(b=><option key={b.id} value={b.id}>🏙️ {b.name}</option>)}
+                  </select>
+                </div>
+              </div>
               <div className="fr">
                 <div className="fg"><label className="lbl">{t.deptIcon}</label><input className="inp" value={dF.icon} onChange={e=>setDF(p=>({...p,icon:e.target.value}))} placeholder="💼"/></div>
                 <div className="fg">
@@ -1538,7 +1779,11 @@ export default function App() {
               </div>
               <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:9,padding:"10px 13px",marginBottom:13}}>
                 <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{t.preview}</div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{dF.icon}</span><span style={{fontWeight:600,color:dF.color}}>{dF.name||t.deptName}</span></div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:20}}>{dF.icon}</span>
+                  <span style={{fontWeight:600,color:dF.color}}>{dF.name||t.deptName}</span>
+                  {dF.branchId&&brs2.find(b=>b.id===dF.branchId)&&<span style={{fontSize:11,color:"var(--mu)"}}>· 📍 {brs2.find(b=>b.id===dF.branchId)?.name}</span>}
+                </div>
               </div>
               <div className="ma">
                 <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
@@ -1546,7 +1791,8 @@ export default function App() {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {modal==="branch"&&(
           <div className="ovl" onClick={()=>setModal(null)}>
@@ -1595,7 +1841,13 @@ export default function App() {
           </div>
         )}
 
-        {modal==="schedule"&&(
+        {modal==="schedule"&&(()=>{
+          const pid2   = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+          const p2     = getPartner(pid2)||{employees:[],departments:[],branches:[]};
+          const selEmp = p2.employees?.find(e=>e.id===scF.employeeId);
+          const selDept= p2.departments?.find(d=>d.id===selEmp?.deptId);
+          const selBr  = p2.branches?.find(b=>b.id===selEmp?.branchId);
+          return (
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
               <div className="modal-t">{t.newShift}</div>
@@ -1603,9 +1855,16 @@ export default function App() {
                 <label className="lbl">{t.shiftEmp}</label>
                 <select className="inp" value={scF.employeeId} onChange={e=>setScF(p=>({...p,employeeId:e.target.value}))}>
                   <option value="">{t.selectAssignee}</option>
-                  {(activeWS?.employees||[]).map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                  {p2.employees.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
                 </select>
               </div>
+              {selEmp&&(
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                  {selDept&&<span style={{fontSize:12,color:selDept.color,background:selDept.color+"18",borderRadius:6,padding:"3px 9px"}}>{selDept.icon} {selDept.name}</span>}
+                  {selBr  &&<span style={{fontSize:12,color:"var(--mu)",background:"var(--s2)",borderRadius:6,padding:"3px 9px"}}>📍 {selBr.name}{selBr.city?`, ${selBr.city}`:""}</span>}
+                  {!selDept&&!selBr&&<span style={{fontSize:11,color:"var(--mu2)"}}>{lang==="ru"?"Отдел и город не указаны":"No dept or city assigned"}</span>}
+                </div>
+              )}
               <div className="fr">
                 <div className="fg"><label className="lbl">{t.due}</label><input className="inp" type="date" value={scF.date} onChange={e=>setScF(p=>({...p,date:e.target.value}))}/></div>
                 <div className="fg">
@@ -1620,16 +1879,15 @@ export default function App() {
                 <div className="fg"><label className="lbl">{t.startTime}</label><input className="inp" type="time" value={scF.startTime} onChange={e=>setScF(p=>({...p,startTime:e.target.value}))}/></div>
                 <div className="fg"><label className="lbl">{t.endTime}</label><input className="inp" type="time" value={scF.endTime} onChange={e=>setScF(p=>({...p,endTime:e.target.value}))}/></div>
               </div>
-              <div className="fg"><label className="lbl">{t.address}</label><input className="inp" value={scF.address} onChange={e=>setScF(p=>({...p,address:e.target.value}))} placeholder="123 Oak St, Austin TX"/></div>
-              <div className="fg"><label className="lbl">{t.clientName}</label><input className="inp" value={scF.clientName} onChange={e=>setScF(p=>({...p,clientName:e.target.value}))} placeholder="Johnson Family"/></div>
-              <div className="fg"><label className="lbl">{t.notes}</label><input className="inp" value={scF.notes} onChange={e=>setScF(p=>({...p,notes:e.target.value}))}/></div>
+              <div className="fg"><label className="lbl">{t.notes}</label><input className="inp" value={scF.notes} onChange={e=>setScF(p=>({...p,notes:e.target.value}))} placeholder={lang==="ru"?"Заметка о смене...":"Shift note..."}/></div>
               <div className="ma">
                 <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
                 <button className="btn btn-p" onClick={createSched}>{t.create}</button>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {modal==="pay"&&(
           <div className="ovl" onClick={()=>setModal(null)}>
