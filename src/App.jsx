@@ -272,41 +272,41 @@ const ROLES_EN = ["CEO / Founder","Operations Manager","Sales Manager","Bookkeep
 const S = `
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-html.light-mode{background:#f0f4fb;} :root{--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
-.light-mode{--bg:#f0f4fb;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#00000010;--bdr2:#00000020;--tx:#111827;--mu:#6b7280;--mu2:#9ca3af;}
-.light-mode body{background:#f0f4fb;color:#111827;}
-.light-mode .sb{background:#fff;box-shadow:2px 0 16px #0000000f;border-right-color:#0000001a;}
-.light-mode .topbar{background:#fff;box-shadow:0 2px 8px #00000008;border-bottom-color:#0000001a;}
-.light-mode .inp,.light-mode .chat-inp{background:#f4f6fb;border-color:#0000001a;color:#111827;}
-.light-mode .inp:focus,.light-mode .chat-inp:focus{border-color:#0000003a;}
-.light-mode .btn-g{background:#f4f6fb;color:#111827;border-color:#0000001a;}
-.light-mode .btn-g:hover{background:#e8ecf4;}
-.light-mode .nb{color:#374151;}
-.light-mode .nb:hover{background:#f4f6fb;}
-.light-mode .nb.act{color:var(--acc);}
-.light-mode .sb-logo-name{color:#111827;}
-.light-mode .sb-logo-sub{color:#6b7280;}
-.light-mode .card{background:#fff;border-color:#0000001a;}
-.light-mode .stat{background:#fff;border-color:#0000001a;}
-.light-mode .modal{background:#fff;border-color:#00000020;}
-.light-mode .ovl{background:rgba(0,0,0,0.35);}
-.light-mode .task-col{background:#fff;border-color:#0000001a;}
-.light-mode .task-item{background:#f4f6fb;border-color:#0000001a;}
-.light-mode .partner-card{background:#fff;border-color:#0000001a;}
-.light-mode .kb-card{background:#fff;border-color:#0000001a;}
-.light-mode .chat-wrap,.light-mode .chat-sb{background:#fff;border-color:#0000001a;}
-.light-mode .chat-msg-wrap .bubble{background:#e8ecf4;color:#111827;}
-.light-mode .lang-toggle{background:#f4f6fb;border-color:#0000001a;}
-.light-mode .lang-btn{color:#6b7280;}
+:root{--bg:#07090f;--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
+html.light-mode{--bg:#f0f4fb;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#00000012;--bdr2:#00000022;--tx:#1a2030;--mu:#4b5563;--mu2:#9ca3af;}
+html.light-mode body{background:#f0f4fb;color:#111827;}
+html.light-mode .sb{background:#fff;box-shadow:2px 0 16px #0000000f;border-right-color:#0000001a;}
+html.light-mode .topbar{background:#fff;box-shadow:0 2px 8px #00000008;border-bottom-color:#0000001a;}
+html.light-mode .inp,html.light-mode .chat-inp{background:#f4f6fb;border-color:#0000001a;color:#111827;}
+html.light-mode .inp:focus,html.light-mode .chat-inp:focus{border-color:#0000003a;}
+html.light-mode .btn-g{background:#f4f6fb;color:#111827;border-color:#0000001a;}
+html.light-mode .btn-g:hover{background:#e8ecf4;}
+html.light-mode .nb{color:#374151;}
+html.light-mode .nb:hover{background:#f4f6fb;}
+html.light-mode .nb.act{color:var(--acc);}
+html.light-mode .sb-logo-name{color:#111827;}
+html.light-mode .sb-logo-sub{color:#6b7280;}
+html.light-mode .card{background:#fff;border-color:#0000001a;}
+html.light-mode .stat{background:#fff;border-color:#0000001a;}
+html.light-mode .modal{background:#fff;border-color:#00000020;}
+html.light-mode .ovl{background:rgba(0,0,0,0.35);}
+html.light-mode .task-col{background:#fff;border-color:#0000001a;}
+html.light-mode .task-item{background:#f4f6fb;border-color:#0000001a;}
+html.light-mode .partner-card{background:#fff;border-color:#0000001a;}
+html.light-mode .kb-card{background:#fff;border-color:#0000001a;}
+html.light-mode .chat-wrap,html.light-mode .chat-sb{background:#fff;border-color:#0000001a;}
+html.light-mode .chat-msg-wrap .bubble{background:#e8ecf4;color:#111827;}
+html.light-mode .lang-toggle{background:#f4f6fb;border-color:#0000001a;}
+html.light-mode .lang-btn{color:#6b7280;}
 .light-mode select option{background:#fff;color:#111827;}
-.light-mode .tw table{color:#111827;}
-.light-mode .tw thead tr{background:#f4f6fb;}
-.light-mode .tw tbody tr:hover{background:#f8faff;}
-body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;}
+html.light-mode .tw table{color:#111827;}
+html.light-mode .tw thead tr{background:#f4f6fb;}
+html.light-mode .tw tbody tr:hover{background:#f8faff;}
+body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;transition:background .2s,color .2s;}
 button,input,select,textarea{font-family:'DM Sans',sans-serif;cursor:pointer;}
 input,select,textarea{cursor:text;}
 .app{display:flex;height:100vh;overflow:hidden;}
-.sb{width:232px;min-width:232px;background:var(--s1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;}
+.sb{width:232px;min-width:232px;background:var(--s1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;transition:background .2s,border-color .2s;}
 .sb-logo{padding:16px 14px 12px;border-bottom:1px solid var(--bdr);}
 .sb-logo-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.3px;line-height:1.2;}
 .sb-logo-sub{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-top:2px;}
@@ -524,9 +524,15 @@ export default function App() {
   const [lang, setLang]           = useState("ru");
   const [theme, setTheme]         = useState("dark");
   useEffect(()=>{
-    document.documentElement.classList.toggle("light-mode", theme==="light");
-    document.body.style.background = theme==="light" ? "#f0f2f7" : "#07090f";
-    document.body.style.color = theme==="light" ? "#111827" : "#e6eaf4";
+    const html = document.documentElement;
+    const body = document.body;
+    if (theme==="light") {
+      html.classList.add("light-mode");
+      body.style.cssText = "background:#f0f4fb!important;color:#1a2030!important;";
+    } else {
+      html.classList.remove("light-mode");
+      body.style.cssText = "background:#07090f!important;color:#e6eaf4!important;";
+    }
   }, [theme]);
   const t = T[lang];
   const roles = lang==="ru" ? ROLES_RU : ROLES_EN;
@@ -2704,7 +2710,7 @@ export default function App() {
   return (
     <LangCtx.Provider value={{lang,t,setLang}}>
       <style>{S}</style>
-      <div className={`app${theme==="light"?" light-mode":""}`}>
+      <div className="app">
         {/* SIDEBAR */}
         <div className="sb">
           <div className="sb-logo">
