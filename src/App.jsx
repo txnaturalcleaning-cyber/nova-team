@@ -3264,7 +3264,8 @@ export default function App() {
     // including recurrences from bookings with frequency != "once"
     function getDayBks(dateStr) {
       const result = [];
-      const target = new Date(dateStr+"T12:00");
+      const [ty,tm,td] = dateStr.split("-").map(Number);
+      const targetMs = Date.UTC(ty, tm-1, td);
       for (const b of bookings) {
         if (cleanerFilter!==""&&b.cleanerId!==cleanerFilter) continue;
         if (!b.date) continue;
@@ -3272,11 +3273,17 @@ export default function App() {
           if (b.date===dateStr) result.push(b);
           continue;
         }
-        const start = new Date(b.date+"T12:00");
-        if (target < start) continue;
-        const diffDays = Math.round((target-start)/(1000*60*60*24));
+        // recurring — check if dateStr falls on the pattern
+        if (b.date===dateStr) {
+          result.push({...b, _recurring:true});
+          continue;
+        }
+        const [sy,sm,sd] = b.date.split("-").map(Number);
+        const startMs = Date.UTC(sy, sm-1, sd);
+        if (targetMs < startMs) continue;
+        const diffDays = Math.round((targetMs - startMs) / 86400000);
         const interval = b.frequency==="weekly"?7:b.frequency==="biweekly"?14:28;
-        if (diffDays%interval===0) result.push({...b, date:dateStr, _recurring:true});
+        if (diffDays % interval === 0) result.push({...b, date:dateStr, _recurring:true});
       }
       return result;
     }
@@ -3447,42 +3454,46 @@ export default function App() {
                 })}
               </div>
               {/* Price + Duration — editable overrides */}
-              <div style={{display:"flex",alignItems:"flex-end",gap:10,paddingTop:10,borderTop:"1px solid var(--bdr)"}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}>
-                    <span style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{lang==="ru"?"Стоимость":"Price"}</span>
-                    {bkF.priceOverride!=null&&<span style={{fontSize:9,color:"var(--acc)",background:"var(--acc)15",padding:"1px 5px",borderRadius:3}}>✎ {lang==="ru"?"вручную":"manual"}</span>}
+              <div style={{paddingTop:10,borderTop:"1px solid var(--bdr)"}}>
+                <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:6}}>
+                  {/* Price */}
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                      <span style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{lang==="ru"?"Стоимость уборки":"Cleaning price"}</span>
+                      {bkF.priceOverride!=null&&<span style={{fontSize:9,color:"var(--acc)",background:"var(--acc)15",padding:"1px 5px",borderRadius:3}}>✎ {lang==="ru"?"вручную":"manual"}</span>}
+                    </div>
+                    <div style={{display:"flex",width:"fit-content"}}>
+                      <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"7px 0 0 7px",fontSize:13,color:"var(--mu)",flexShrink:0}}>$</span>
+                      <input type="number" min="0" value={bkF.priceOverride!=null?bkF.priceOverride:autoPrice}
+                        onChange={e=>setBkF(f=>({...f,priceOverride:+e.target.value}))}
+                        className="inp" style={{borderRadius:"0 7px 7px 0",borderLeft:"none",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)",width:90,textAlign:"center"}}/>
+                    </div>
+                    {bkF.priceOverride!=null&&<button onClick={()=>setBkF(f=>({...f,priceOverride:null}))}
+                      style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:3,padding:0}}>
+                      ↺ {lang==="ru"?"авто $":"auto $"}{autoPrice}
+                    </button>}
                   </div>
-                  <div style={{display:"flex"}}>
-                    <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"7px 0 0 7px",fontSize:13,color:"var(--mu)"}}>$</span>
-                    <input type="number" min="0" value={bkF.priceOverride!=null?bkF.priceOverride:autoPrice}
-                      onChange={e=>setBkF(f=>({...f,priceOverride:+e.target.value}))}
-                      className="inp" style={{borderRadius:"0 7px 7px 0",borderLeft:"none",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)",width:90,textAlign:"center"}}/>
+                  <div style={{width:1,alignSelf:"stretch",background:"var(--bdr)",flexShrink:0,margin:"0 2px"}}/>
+                  {/* Duration */}
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                      <span style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{lang==="ru"?"Длительность":"Duration"}</span>
+                      {bkF.durOverride!=null&&<span style={{fontSize:9,color:"var(--bl)",background:"var(--bl)15",padding:"1px 5px",borderRadius:3}}>✎ {lang==="ru"?"вручную":"manual"}</span>}
+                    </div>
+                    <div style={{display:"flex",width:"fit-content"}}>
+                      <input type="number" min="0.5" max="24" step="0.5"
+                        value={bkF.durOverride!=null?bkF.durOverride:autoDur}
+                        onChange={e=>setBkF(f=>({...f,durOverride:+e.target.value}))}
+                        className="inp" style={{borderRadius:"7px 0 0 7px",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:20,color:"var(--bl)",width:72,textAlign:"center"}}/>
+                      <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"0 7px 7px 0",fontSize:13,color:"var(--mu)",borderLeft:"none",flexShrink:0}}>{lang==="ru"?"ч":"h"}</span>
+                    </div>
+                    {bkF.durOverride!=null&&<button onClick={()=>setBkF(f=>({...f,durOverride:null}))}
+                      style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:3,padding:0}}>
+                      ↺ {lang==="ru"?"авто":"auto"} {autoDur}{lang==="ru"?"ч":"h"}
+                    </button>}
                   </div>
-                  {bkF.priceOverride!=null&&<button onClick={()=>setBkF(f=>({...f,priceOverride:null}))}
-                    style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:2,padding:0}}>
-                    ↺ {lang==="ru"?"авто $":"auto $"}{autoPrice}
-                  </button>}
                 </div>
-                <div style={{width:1,height:52,background:"var(--bdr)",flexShrink:0}}/>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}>
-                    <span style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{lang==="ru"?"Длит.":"Duration"}</span>
-                    {bkF.durOverride!=null&&<span style={{fontSize:9,color:"var(--bl)",background:"var(--bl)15",padding:"1px 5px",borderRadius:3}}>✎ {lang==="ru"?"вручную":"manual"}</span>}
-                  </div>
-                  <div style={{display:"flex"}}>
-                    <input type="number" min="0.5" max="24" step="0.5"
-                      value={bkF.durOverride!=null?bkF.durOverride:autoDur}
-                      onChange={e=>setBkF(f=>({...f,durOverride:+e.target.value}))}
-                      className="inp" style={{borderRadius:"7px 0 0 7px",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:"var(--bl)",width:70,textAlign:"center"}}/>
-                    <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"0 7px 7px 0",fontSize:13,color:"var(--mu)",borderLeft:"none"}}>{lang==="ru"?"ч":"h"}</span>
-                  </div>
-                  {bkF.durOverride!=null&&<button onClick={()=>setBkF(f=>({...f,durOverride:null}))}
-                    style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:2,padding:0}}>
-                    ↺ {lang==="ru"?"авто":"auto"} {autoDur}{lang==="ru"?"ч":"h"}
-                  </button>}
-                </div>
-                <div style={{fontSize:10,color:"var(--mu)",paddingBottom:6,textAlign:"right"}}>
+                <div style={{fontSize:10,color:"var(--mu)"}}>
                   {lang==="ru"?"База":"Base"}: ${calcPrice(bkF.beds,bkF.baths,bkF.cleanType,[])} × {(bkSettings.cleanTypes||[]).find(x=>x.id===bkF.cleanType)?.mult||1}
                 </div>
               </div>
@@ -3710,11 +3721,11 @@ export default function App() {
                         const cl=bkClients.find(c=>c.id===bk.clientId);
                         const cc=cleanerColor(bk.cleanerId);
                         return (
-                          <div key={bk.id} onClick={e=>{e.stopPropagation();setPopupBk(bk);}}
+                          <div key={bk.id+ds} onClick={e=>{e.stopPropagation();setPopupBk(bk);}}
                             style={{fontSize:9,padding:"2px 4px",borderRadius:4,background:cc+"22",
                               color:cc,border:`1px solid ${cc}40`,marginBottom:2,cursor:"pointer",
                               whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",lineHeight:1.4}}>
-                            {bk.time} {cl?.name||"?"}
+                            {bk._recurring?"🔄 ":""}{bk.time} {cl?.name||"?"}
                           </div>
                         );
                       })}
