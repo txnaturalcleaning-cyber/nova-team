@@ -1760,6 +1760,39 @@ export default function App() {
       {id:"lost",       label:t.stageLost,        color:"var(--rd)"},
     ];
 
+    // HR Pipeline — pre-built tag system
+    const HR_PIPELINE = {
+      cleaner: [
+        {tag: lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8", dept:"hr",   hired:false},
+        {tag: lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",       color:"#f0a500", dept:"hr",   hired:false},
+        {tag: lang==="ru"?"Клинер-стажер":"Cleaner-Intern",        color:"#3b82f6", dept:"ops",  hired:false},
+        {tag: lang==="ru"?"Клинер-активный":"Cleaner-Active",      color:"#22c55e", dept:"ops",  hired:true},
+      ],
+      manager: [
+        {tag: lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8", dept:"hr",   hired:false},
+        {tag: lang==="ru"?"Менеджер-ученик":"Manager-Trainee",     color:"#f0a500", dept:"hr",   hired:false},
+        {tag: lang==="ru"?"Менеджер-стажер":"Manager-Intern",      color:"#3b82f6", dept:"ops",  hired:false},
+        {tag: lang==="ru"?"Менеджер-активный":"Manager-Active",    color:"#22c55e", dept:"ops",  hired:true},
+      ],
+    };
+    const ALL_HR_TAGS = [...HR_PIPELINE.cleaner, ...HR_PIPELINE.manager];
+    const HIRED_TAGS  = ALL_HR_TAGS.filter(t=>t.hired).map(t=>t.tag);
+
+    // Check if contact is "hired" (semi-transparent in HR view)
+    function isHired(c) {
+      return (c.tags||[]).some(tag=>HIRED_TAGS.includes(tag));
+    }
+
+    // Get HR pipeline stage info for a contact
+    function getHRStage(c) {
+      const tags = c.tags||[];
+      // Find the most advanced HR tag
+      for (let i=ALL_HR_TAGS.length-1; i>=0; i--) {
+        if (tags.includes(ALL_HR_TAGS[i].tag)) return ALL_HR_TAGS[i];
+      }
+      return null;
+    }
+
     const TAG_COLORS = ["#f0a500","#3b82f6","#22c55e","#ef4444","#a855f7","#ec4899","#06b6d4","#f97316","#84cc16","#14b8a6"];
 
     const [cTab,     setCTab]     = useState("contacts");
@@ -1771,7 +1804,7 @@ export default function App() {
     const [noteText, setNoteText] = useState("");
     const [tagMgr,   setTagMgr]   = useState(false);
     const [newTag,   setNewTag]   = useState({name:"",color:"#f0a500"});
-    const [aF, setAF] = useState({triggerTag:"",delayHours:"1",msgTemplate:"",name:""});
+    const [aF, setAF] = useState({triggerTag:"",delayHours:"1",msgTemplate:"",name:"",routeToDept:"",routeType:"copy"});
     const [aModal,   setAModal]   = useState(false);
     const [smsModal, setSmsModal] = useState(null); // contactId
     const [smsText,  setSmsText]  = useState("");
@@ -1904,7 +1937,7 @@ export default function App() {
     // ── CRUD contacts ──
     function saveContact() {
       if (!cF.name.trim()) return;
-      const item = {...cF, id:"c_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], history:[]};
+      const item = {...cF, id:"c_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], history:[], deptIds: cF.deptId?[cF.deptId]:[]};
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),item]}:x));
       setCF({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
       setCModal(false);
@@ -1938,11 +1971,30 @@ export default function App() {
       if (!tags.includes(tag)) {
         const triggered = automations.filter(a=>a.triggerTag===tag&&a.active);
         triggered.forEach(a=>{
-          const delay = parseInt(a.delayHours||0)*3600*1000;
-          setTimeout(()=>{
-            const msg = a.msgTemplate.replace("{name}", c?.name||"").replace("{phone}", c?.phone||"");
-            addHistoryEntry(contactId, `🤖 Auto SMS: ${msg}`);
-          }, delay);
+          // SMS automation
+          if (a.msgTemplate) {
+            const delay = parseInt(a.delayHours||0)*3600*1000;
+            setTimeout(()=>{
+              const msg = a.msgTemplate.replace("{name}", c?.name||"").replace("{phone}", c?.phone||"");
+              addHistoryEntry(contactId, `🤖 Auto SMS: ${msg}`);
+            }, delay);
+          }
+          // Department routing automation
+          if (a.routeToDept) {
+            const dept = p?.departments?.find(d=>d.id===a.routeToDept);
+            if (a.routeType==="move") {
+              updateContact(contactId, {deptId: a.routeToDept});
+              addHistoryEntry(contactId, `🔀 ${lang==="ru"?"Передано в отдел":"Routed to dept"}: ${dept?.name||a.routeToDept}`);
+            } else {
+              // copy — add dept to deptIds array
+              const c2 = contacts.find(x=>x.id===contactId);
+              const deptIds = c2?.deptIds||[];
+              if (!deptIds.includes(a.routeToDept)) {
+                updateContact(contactId, {deptIds:[...deptIds, a.routeToDept]});
+                addHistoryEntry(contactId, `📋 ${lang==="ru"?"Добавлен в отдел":"Added to dept"}: ${dept?.name||a.routeToDept}`);
+              }
+            }
+          }
         });
       }
     }
@@ -1981,7 +2033,19 @@ export default function App() {
     }
 
     // ── Filtered contacts ──
-    const filtered = contacts.filter(c=>{
+    // Dept-based visibility
+    const myDeptId = isEmp ? currentUser.deptId : null;
+    const myDept   = myDeptId ? p?.departments?.find(d=>d.id===myDeptId) : null;
+    const isHR     = myDept?.name?.toLowerCase().includes("hr") || myDept?.name?.toLowerCase().includes("кадр") || myDept?.name?.toLowerCase().includes("персонал");
+    const canSeeAll= isSA || isPartner || isHR;
+
+    const deptContacts = canSeeAll ? contacts : contacts.filter(c=>{
+      if (c.deptId===myDeptId) return true;
+      if ((c.deptIds||[]).includes(myDeptId)) return true;
+      return false;
+    });
+
+    const filtered = deptContacts.filter(c=>{
       const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone||"").includes(search) || (c.email||"").toLowerCase().includes(search.toLowerCase());
       const matchTag    = !tagFilter || (c.tags||[]).includes(tagFilter);
       return matchSearch && matchTag;
@@ -2010,6 +2074,15 @@ export default function App() {
               <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15}}>{openContact.name}</div>
               {openContact.phone&&<div style={{fontSize:12,color:"var(--mu)"}}>{openContact.phone}</div>}
               {openContact.email&&<div style={{fontSize:11,color:"var(--mu2)",wordBreak:"break-all"}}>{openContact.email}</div>}
+              {/* Dept badges */}
+              {((openContact.deptIds||[]).length>0||(openContact.deptId))&&(
+                <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:4}}>
+                  {[...(openContact.deptIds||[]), ...(openContact.deptId&&!(openContact.deptIds||[]).includes(openContact.deptId)?[openContact.deptId]:[])].map(did=>{
+                    const dept=p?.departments?.find(d=>d.id===did);
+                    return dept?<span key={did} style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:"var(--bl)15",color:"var(--bl)",border:"1px solid var(--bl)25"}}>{dept.name}</span>:null;
+                  })}
+                </div>
+              )}
               <div style={{fontSize:10,color:"var(--mu2)"}}>📅 {openContact.createdAt}</div>
             </div>
 
@@ -2037,6 +2110,27 @@ export default function App() {
                   return <span key={tag} style={{fontSize:10,padding:"2px 7px",borderRadius:5,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)",cursor:"pointer",border:`1px solid ${td?.color||"var(--acc)"}30`}}
                     onClick={()=>toggleTag(openContact.id,tag)}>{tag} ×</span>;
                 })}
+              </div>
+              {/* HR Pipeline quick-set */}
+              <div style={{marginBottom:8}}>
+                <div style={{fontSize:9,color:"var(--mu2)",marginBottom:5,textTransform:"uppercase",letterSpacing:.5}}>HR Pipeline</div>
+                <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                  {ALL_HR_TAGS.map(ht=>{
+                    const active=(openContact.tags||[]).includes(ht.tag);
+                    return (
+                      <button key={ht.tag} onClick={()=>toggleTag(openContact.id,ht.tag)}
+                        style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${active?ht.color:"var(--bdr)"}`,
+                          background:active?ht.color+"22":"transparent",
+                          color:active?ht.color:"var(--mu2)",fontSize:10,cursor:"pointer",
+                          textAlign:"left",display:"flex",alignItems:"center",gap:5,
+                          fontWeight:active?700:400}}>
+                        <span style={{width:6,height:6,borderRadius:"50%",background:ht.color,flexShrink:0,opacity:active?1:.4}}/>
+                        {ht.tag}
+                        {ht.hired&&<span style={{marginLeft:"auto",fontSize:8,background:"#22c55e20",color:"#22c55e",padding:"1px 4px",borderRadius:3}}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <select style={{width:"100%",fontSize:11,padding:"4px 6px",borderRadius:6,background:"var(--s2)",border:"1px solid var(--bdr)",color:"var(--mu)",cursor:"pointer"}}
                 value="" onChange={e=>{if(e.target.value)toggleTag(openContact.id,e.target.value);}}>
@@ -2194,10 +2288,35 @@ export default function App() {
                 {crmTags.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
               </select>
             </div>
-            {/* Stats row */}
+            {/* HR Pipeline stats */}
+            {canSeeAll&&(
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"10px 14px",marginBottom:12}}>
+                <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>HR Pipeline</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {ALL_HR_TAGS.map(ht=>{
+                    const cnt=contacts.filter(c=>(c.tags||[]).includes(ht.tag)).length;
+                    return (
+                      <div key={ht.tag} onClick={()=>setTagFilter(ht.tag===tagFilter?"":ht.tag)}
+                        style={{padding:"5px 10px",borderRadius:7,cursor:"pointer",
+                          border:`1px solid ${ht.tag===tagFilter?ht.color:"var(--bdr)"}`,
+                          background:ht.tag===tagFilter?ht.color+"18":"var(--s2)",
+                          transition:"all .15s"}}>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:ht.color}}>{cnt}</div>
+                        <div style={{fontSize:9,color:ht.tag===tagFilter?ht.color:"var(--mu)",whiteSpace:"nowrap"}}>{ht.tag}</div>
+                      </div>
+                    );
+                  })}
+                  <div style={{padding:"5px 10px",borderRadius:7,border:"1px solid #22c55e30",background:"#22c55e08",marginLeft:"auto"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:"#22c55e"}}>{contacts.filter(c=>isHired(c)).length}</div>
+                    <div style={{fontSize:9,color:"#22c55e"}}>{lang==="ru"?"✓ Нанято":"✓ Hired"}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Funnel stages row */}
             <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
               {STAGES.map(s=>{
-                const cnt = contacts.filter(c=>c.stage===s.id).length;
+                const cnt = filtered.filter(c=>c.stage===s.id).length;
                 return (
                   <div key={s.id} style={{background:"var(--s1)",border:`1px solid ${cnt>0?s.color+"30":"var(--bdr)"}`,borderRadius:9,padding:"7px 14px",cursor:"pointer",transition:"all .15s"}}
                     onClick={()=>setSearch("")}>
@@ -2212,10 +2331,13 @@ export default function App() {
               {filtered.map(c=>{
                 const stage = STAGES.find(s=>s.id===c.stage)||STAGES[0];
                 return (
-                  <div key={c.id} style={{background:"var(--s1)",border:`1px solid var(--bdr)`,borderRadius:11,padding:"12px 16px",
-                    display:"flex",alignItems:"center",gap:14,cursor:"pointer",transition:"border-color .15s"}}
-                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
-                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                  <div key={c.id} style={{background:isHired(c)&&canSeeAll?"var(--s1)":"var(--s1)",
+                    border:`1px solid ${isHired(c)&&canSeeAll?"#22c55e30":"var(--bdr)"}`,
+                    borderRadius:11,padding:"12px 16px",opacity:isHired(c)&&canSeeAll?.75:1,
+                    display:"flex",alignItems:"center",gap:14,cursor:"pointer",
+                    transition:"all .15s",position:"relative",overflow:"hidden"}}
+                    onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=isHired(c)&&canSeeAll?"#22c55e50":"var(--bdr2)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.opacity=isHired(c)&&canSeeAll?".75":"1";e.currentTarget.style.borderColor=isHired(c)&&canSeeAll?"#22c55e30":"var(--bdr)"}}>
                     <div onClick={()=>setOpenId(c.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}>
                       <Av name={c.name} color={stage.color}/>
                       <div style={{flex:1,minWidth:0}}>
@@ -2368,9 +2490,15 @@ export default function App() {
                         ⏱ {a.delayHours}h
                       </div>
                       <span style={{color:"var(--mu)"}}>→</span>
-                      <div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:180}}>
-                        {IC.sms} <span style={{color:"var(--mu)"}}>{a.msgTemplate}</span>
-                      </div>
+                      {a.msgTemplate&&<div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:120}}>
+                        💬 <span style={{color:"var(--mu)",fontSize:11}}>{a.msgTemplate.slice(0,40)}{a.msgTemplate.length>40?"...":""}</span>
+                      </div>}
+                      {a.routeToDept&&(()=>{
+                        const dept=p?.departments?.find(d=>d.id===a.routeToDept);
+                        return <div style={{background:"var(--bl)12",border:"1px solid var(--bl)25",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:5,fontSize:11}}>
+                          🔀 <span style={{color:"var(--bl)"}}>{a.routeType==="move"?"→":"📋"} {dept?.name||a.routeToDept}</span>
+                        </div>;
+                      })()}
                     </div>
                   </div>
                 );
@@ -2402,6 +2530,13 @@ export default function App() {
                     {STAGES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className="fg">
+                <label className="lbl">{lang==="ru"?"Отдел (назначить)":"Assign to dept"}</label>
+                <select className="inp" value={cF.deptId||""} onChange={e=>setCF(f=>({...f,deptId:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
+                  {(p?.departments||[]).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
               </div>
               <div className="fg">
                 <label className="lbl">{t.contactTags}</label>
@@ -2503,10 +2638,29 @@ export default function App() {
                   <input type="number" className="inp" value={aF.delayHours} onChange={e=>setAF(f=>({...f,delayHours:e.target.value}))} min="0" placeholder="1"/>
                 </div>
               </div>
+              <div style={{background:"var(--s2)",borderRadius:10,padding:12,marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>🔀 {lang==="ru"?"Маршрутизация в отдел":"Route to department"}</div>
+                <div className="fr">
+                  <div className="fg">
+                    <label className="lbl">{lang==="ru"?"Назначить в отдел":"Assign to dept"}</label>
+                    <select className="inp" value={aF.routeToDept} onChange={e=>setAF(f=>({...f,routeToDept:e.target.value}))}>
+                      <option value="">{lang==="ru"?"— Не назначать —":"— Don't route —"}</option>
+                      {(p?.departments||[]).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg">
+                    <label className="lbl">{lang==="ru"?"Тип":"Type"}</label>
+                    <select className="inp" value={aF.routeType} onChange={e=>setAF(f=>({...f,routeType:e.target.value}))}>
+                      <option value="copy">{lang==="ru"?"Копировать (виден в обоих)":"Copy (visible in both)"}</option>
+                      <option value="move">{lang==="ru"?"Перенести (только новый отдел)":"Move (new dept only)"}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
               <div className="fg">
-                <label className="lbl">{t.msgTemplate}</label>
-                <textarea className="inp" value={aF.msgTemplate} onChange={e=>setAF(f=>({...f,msgTemplate:e.target.value}))} style={{minHeight:80}}
-                  placeholder={lang==="ru"?"Привет, {name}! Благодарим за интерес к нашим услугам уборки. Позвоните нам: +1 512...":"Hi {name}! Thanks for your interest in our cleaning services. Call us: +1 512..."}/>
+                <label className="lbl">{lang==="ru"?"SMS шаблон (опционально)":"SMS template (optional)"}</label>
+                <textarea className="inp" value={aF.msgTemplate} onChange={e=>setAF(f=>({...f,msgTemplate:e.target.value}))} style={{minHeight:60}}
+                  placeholder={lang==="ru"?"Привет, {name}! Благодарим за интерес...":"Hi {name}! Thanks for your interest..."}/>
                 <div style={{fontSize:10,color:"var(--mu)",marginTop:3}}>{"{name}"} = {lang==="ru"?"имя контакта":"contact name"}, {"{phone}"} = {lang==="ru"?"телефон":"phone"}</div>
               </div>
               <div className="ma">
