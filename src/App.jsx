@@ -312,6 +312,19 @@ html.light-mode .lang-btn{color:#6b7280;}
 html.light-mode .tw table{color:#111827;}
 html.light-mode .tw thead tr{background:#f4f6fb;}
 html.light-mode .tw tbody tr:hover{background:#f8faff;}
+html.light-mode .content{background:#f0f4fb;}
+html.light-mode .pg-title{color:#111827;}
+html.light-mode .pg-sub{color:#6b7280;}
+html.light-mode .modal-t{color:#111827;}
+html.light-mode .lbl{color:#6b7280;}
+html.light-mode .card-t{color:#111827;}
+html.light-mode .stat-v{color:#111827;}
+html.light-mode .sb-sec{color:#9ca3af;}
+html.light-mode .sb-user{color:#111827;}
+html.light-mode select,html.light-mode textarea{background:#f4f6fb;border-color:#0000001a;color:#111827;}
+html.light-mode .task-col .card-t{color:#111827;}
+html.light-mode .partner-card *:not([style*="color"]){color:#111827;}
+html.light-mode [class*="recharts"] text{fill:#4b5563;}
 body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;transition:background .2s,color .2s;}
 button,input,select,textarea{font-family:'DM Sans',sans-serif;cursor:pointer;}
 input,select,textarea{cursor:text;}
@@ -536,7 +549,16 @@ export default function App() {
 
   // ── Persist preferences to localStorage ──
   useEffect(()=>{ localStorage.setItem("nls_lang",  lang);  }, [lang]);
-  useEffect(()=>{ localStorage.setItem("nls_theme", theme); }, [theme]);
+  useEffect(()=>{
+    localStorage.setItem("nls_theme", theme);
+    if (theme==="light") document.documentElement.classList.add("light-mode");
+    else document.documentElement.classList.remove("light-mode");
+  }, [theme]);
+  useEffect(()=>{
+    const saved = localStorage.getItem("nls_theme");
+    if (saved==="light") document.documentElement.classList.add("light-mode");
+    else document.documentElement.classList.remove("light-mode");
+  }, []);
   useEffect(()=>{
     const html = document.documentElement;
     const body = document.body;
@@ -654,7 +676,7 @@ export default function App() {
   const defE   = { name:"", email:"", password:"", role:roles[0], sections:["dashboard","tasks","chat"], chatChannels:["general"], deptId:"", branchId:"", status:"active" };
   const defD   = { name:"", icon:"🏢", color:"#3b82f6", branchId:"" };
   const defBr  = { name:"", city:"" };
-  const defT   = { title:"", assigneeId:"", priority:"medium", due:"", status:"todo" };
+  const defT   = { title:"", assigneeId:"", deptId:"", priority:"medium", due:"", status:"todo", description:"" };
   const defK   = { type:"sop", title:"", thumb:"📄", url:"", content:"", desc:"" };
   const defSc  = { employeeId:"", date:"", startTime:"09:00", endTime:"17:00", notes:"", status:"confirmed" };
   const defPay = { employeeId:"", amount:"", date:"", note:"", status:"pending" };
@@ -768,8 +790,14 @@ export default function App() {
   }
   function createTask() {
     if (!tF.title.trim()) return;
+    // Auto-fill deptId from assignee if not set
+    const pid0 = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    const p0 = partners.find(x=>x.id===pid0)||{};
+    const assigneeEmp = (p0.employees||[]).find(e=>e.id===tF.assigneeId);
+    const taskData = (!tF.deptId && assigneeEmp?.deptId) ? {...tF, deptId:assigneeEmp.deptId} : {...tF};
+    if (!taskData.deptId && isEmp && currentUser.deptId) taskData.deptId = currentUser.deptId;
     const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
-    const newItem = {...tF, id:"t_"+Date.now(), createdBy:currentUser.id};
+    const newItem = {...taskData, id:"t_"+Date.now(), createdBy:currentUser.id};
     const existing = partners.find(p => p.id === pid);
     if (existing) {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, tasks:[...(x.tasks||[]), newItem]} : x));
@@ -1410,44 +1438,137 @@ export default function App() {
 
   /* ── TASKS ── */
   const Tasks = () => {
-    const pid=viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
-    const p=getPartner(pid)||{tasks:[],employees:[]}; const tasks=p?.tasks||[]; const emps=p?.employees||[];
-    const canEdit=isSA||isPartner||isEmp;
-    const cols=[["todo",t.todo,"var(--mu)"],["in_progress",t.inProgressCol,"var(--acc)"],["done",t.doneCol,"var(--gr)"]];
+    const pid  = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p    = getPartner(pid)||{tasks:[],employees:[],departments:[]};
+    const allTasks = p?.tasks||[];
+    const emps = p?.employees||[];
+    const depts= p?.departments||[];
+
+    // ── Dept filter for employee isolation ──
+    const myDeptId = isEmp ? currentUser.deptId : null;
+
+    // Employee sees only: tasks assigned to them OR tasks in their dept (if no assignee)
+    const visibleTasks = isEmp
+      ? allTasks.filter(tk =>
+          tk.assigneeId === currentUser.id ||
+          (!tk.assigneeId && tk.deptId === myDeptId) ||
+          (tk.createdBy === currentUser.id)
+        )
+      : allTasks;
+
+    // SA/Partner can filter by dept
+    const [deptFilter, setDeptFilter] = useState("");
+    const filteredTasks = (!isEmp && deptFilter)
+      ? visibleTasks.filter(tk => tk.deptId === deptFilter || (!tk.deptId && !deptFilter))
+      : visibleTasks;
+
+    const canEdit = isSA||isPartner||isEmp;
+    const canDelete = isSA||isPartner;
+    const cols = [["todo",t.todo,"var(--mu)"],["in_progress",t.inProgressCol,"var(--acc)"],["done",t.doneCol,"var(--gr)"]];
+
+    // Dept tabs for SA/Partner
+    const deptTaskCounts = depts.map(d=>({...d, cnt: allTasks.filter(tk=>tk.deptId===d.id).length}));
+
     return (
       <>
-        {canEdit&&<div style={{marginBottom:13}}><button className="btn btn-p" onClick={()=>{setTF({...defT,assigneeId:isEmp?currentUser.id:""});setModal("task");}}>{t.addTask}</button></div>}
+        {/* Header row */}
+        <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+          {canEdit&&(
+            <button className="btn btn-p" onClick={()=>{
+              setTF({...defT,
+                assigneeId: isEmp?currentUser.id:"",
+                deptId: myDeptId||(deptFilter||"")
+              });
+              setModal("task");
+            }}>{t.addTask}</button>
+          )}
+
+          {/* Dept filter tabs — only for SA/Partner */}
+          {!isEmp&&depts.length>0&&(
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginLeft:"auto"}}>
+              <button onClick={()=>setDeptFilter("")}
+                style={{padding:"4px 10px",borderRadius:7,fontSize:11,cursor:"pointer",
+                  border:`1px solid ${!deptFilter?"var(--acc)":"var(--bdr)"}`,
+                  background:!deptFilter?"var(--acc)18":"transparent",
+                  color:!deptFilter?"var(--acc)":"var(--mu)"}}>
+                {lang==="ru"?"Все":"All"} <span style={{opacity:.7}}>({allTasks.length})</span>
+              </button>
+              {deptTaskCounts.filter(d=>d.cnt>0||true).map(d=>(
+                <button key={d.id} onClick={()=>setDeptFilter(deptFilter===d.id?"":d.id)}
+                  style={{padding:"4px 10px",borderRadius:7,fontSize:11,cursor:"pointer",
+                    border:`1px solid ${deptFilter===d.id?d.color:"var(--bdr)"}`,
+                    background:deptFilter===d.id?d.color+"18":"transparent",
+                    color:deptFilter===d.id?d.color:"var(--mu)"}}>
+                  {d.icon} {d.name} <span style={{opacity:.7}}>({d.cnt})</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Employee sees their dept label */}
+          {isEmp&&myDeptId&&(()=>{
+            const myD = depts.find(d=>d.id===myDeptId);
+            return myD ? (
+              <span style={{marginLeft:"auto",fontSize:11,color:myD.color,padding:"4px 10px",borderRadius:7,
+                background:myD.color+"15",border:`1px solid ${myD.color}30`}}>
+                {myD.icon} {myD.name}
+              </span>
+            ) : null;
+          })()}
+        </div>
+
+        {/* Kanban board */}
         <div className="task-cols">
           {cols.map(([col,label,color])=>{
-            const colT=tasks.filter(x=>x.status===col);
+            const colT = filteredTasks.filter(x=>x.status===col);
             return (
               <div key={col} className="task-col">
                 <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
-                  {label}<span style={{marginLeft:"auto",background:"var(--s3)",color:"var(--mu)",fontSize:10,padding:"2px 7px",borderRadius:10}}>{colT.length}</span>
+                  {label}
+                  <span style={{marginLeft:"auto",background:"var(--s3)",color:"var(--mu)",fontSize:10,padding:"2px 7px",borderRadius:10}}>{colT.length}</span>
                 </div>
                 {colT.map(task=>{
-                  const emp=emps.find(e=>e.id===task.assigneeId);
+                  const emp  = emps.find(e=>e.id===task.assigneeId);
+                  const dept = depts.find(d=>d.id===task.deptId);
+                  const isOwn = task.assigneeId===currentUser?.id || task.createdBy===currentUser?.id;
                   return (
-                    <div key={task.id} className="task-item">
-                      <div style={{fontSize:13,fontWeight:500,marginBottom:7,lineHeight:1.4}}>{task.title}</div>
-                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:7}}>
-                        {emp&&<div className="flex-c" style={{gap:5}}><Av name={emp.name}/><span style={{fontSize:11,color:"var(--mu)"}}>{emp.name.split(" ")[0]}</span></div>}
+                    <div key={task.id} className="task-item" style={{opacity: isEmp&&!isOwn?.7:1}}>
+                      {/* Dept badge */}
+                      {dept&&!isEmp&&(
+                        <div style={{fontSize:9,color:dept.color,marginBottom:5,display:"flex",alignItems:"center",gap:3}}>
+                          <span style={{width:5,height:5,borderRadius:"50%",background:dept.color,display:"inline-block"}}/>
+                          {dept.name}
+                        </div>
+                      )}
+                      <div style={{fontSize:13,fontWeight:500,marginBottom:6,lineHeight:1.4}}>{task.title}</div>
+                      {task.description&&<div style={{fontSize:11,color:"var(--mu)",marginBottom:6,lineHeight:1.4}}>{task.description}</div>}
+                      <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:7,alignItems:"center"}}>
+                        {emp&&<div className="flex-c" style={{gap:4}}>
+                          <Av name={emp.name} style={{width:18,height:18,fontSize:9}}/>
+                          <span style={{fontSize:11,color:"var(--mu)"}}>{emp.name.split(" ")[0]}</span>
+                        </div>}
                         <Bdg cls={task.priority==="high"?"b-rd":task.priority==="medium"?"b-yw":"b-gr"}>{t[task.priority]||task.priority}</Bdg>
                         {task.due&&<span style={{fontSize:10,color:"var(--mu)"}}>📅 {task.due}</span>}
                       </div>
-                      {canEdit&&<div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
                         {col!=="todo"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"todo"})}>{t.back}</button>}
                         {col==="todo"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"in_progress"})}>{t.forward}</button>}
                         {col==="in_progress"&&<button className="btn btn-g btn-sm" onClick={()=>updateTask(pid,task.id,{status:"done"})}>{t.markDone}</button>}
-                        {isSA&&<button className="btn btn-d btn-sm" style={{marginLeft:"auto"}} title={lang==="ru"?"Удалить задачу":"Delete task"}
-                          onClick={()=>setPartners(ps=>ps.map(x=>x.id===pid?{...x,tasks:(x.tasks||[]).filter(tk=>tk.id!==task.id)}:x))}>
-                          {IC.trash}
-                        </button>}
-                      </div>}
+                        {canDelete&&(
+                          <button className="btn btn-d btn-sm" style={{marginLeft:"auto"}} title={lang==="ru"?"Удалить":"Delete"}
+                            onClick={()=>setPartners(ps=>ps.map(x=>x.id===pid?{...x,tasks:(x.tasks||[]).filter(tk=>tk.id!==task.id)}:x))}>
+                            {IC.trash}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
-                {!colT.length&&<div style={{textAlign:"center",color:"var(--mu)",fontSize:12,padding:"18px 0"}}>{t.noTasks}</div>}
+                {!colT.length&&(
+                  <div style={{textAlign:"center",color:"var(--mu)",fontSize:12,padding:"18px 0"}}>
+                    {t.noTasks}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1733,7 +1854,7 @@ export default function App() {
                         📎 {m.fileName}
                       </a>
                     )}
-                    {m.text&&<div style={{fontSize:13,color:"#c8d3e0",lineHeight:1.5}}>{m.text}</div>}
+                    {m.text&&<div style={{fontSize:13,color:"var(--tx)",lineHeight:1.5}}>{m.text}</div>}
                     <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,marginTop:3}}>
                       <span style={{fontSize:10,color:"var(--mu)"}}>{m.ts}</span>
                       {isSA&&<button onClick={()=>setChatMsgs(prev=>({...prev,[key]:(prev[key]||[]).filter(x=>x.id!==m.id)}))}
@@ -1816,19 +1937,19 @@ export default function App() {
       {id:"lost",       label:t.stageLost,        color:"var(--rd)"},
     ];
 
-    // HR Pipeline — pre-built tag system
+    // HR Pipeline — fixed English keys, bilingual labels
     const HR_PIPELINE = {
       cleaner: [
-        {tag: lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8", dept:"hr",   hired:false},
-        {tag: lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",       color:"#f0a500", dept:"hr",   hired:false},
-        {tag: lang==="ru"?"Клинер-стажер":"Cleaner-Intern",        color:"#3b82f6", dept:"ops",  hired:false},
-        {tag: lang==="ru"?"Клинер-активный":"Cleaner-Active",      color:"#22c55e", dept:"ops",  hired:true},
+        {tag:"Cleaner-Candidate",  label:lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8", dept:"hr",  hired:false},
+        {tag:"Cleaner-Trainee",    label:lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",        color:"#f0a500", dept:"hr",  hired:false},
+        {tag:"Cleaner-Intern",     label:lang==="ru"?"Клинер-стажер":"Cleaner-Intern",         color:"#3b82f6", dept:"ops", hired:false},
+        {tag:"Cleaner-Active",     label:lang==="ru"?"Клинер-активный":"Cleaner-Active",       color:"#22c55e", dept:"ops", hired:true},
       ],
       manager: [
-        {tag: lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8", dept:"hr",   hired:false},
-        {tag: lang==="ru"?"Менеджер-ученик":"Manager-Trainee",     color:"#f0a500", dept:"hr",   hired:false},
-        {tag: lang==="ru"?"Менеджер-стажер":"Manager-Intern",      color:"#3b82f6", dept:"ops",  hired:false},
-        {tag: lang==="ru"?"Менеджер-активный":"Manager-Active",    color:"#22c55e", dept:"ops",  hired:true},
+        {tag:"Manager-Candidate",  label:lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8", dept:"hr",  hired:false},
+        {tag:"Manager-Trainee",    label:lang==="ru"?"Менеджер-ученик":"Manager-Trainee",      color:"#f0a500", dept:"hr",  hired:false},
+        {tag:"Manager-Intern",     label:lang==="ru"?"Менеджер-стажер":"Manager-Intern",       color:"#3b82f6", dept:"ops", hired:false},
+        {tag:"Manager-Active",     label:lang==="ru"?"Менеджер-активный":"Manager-Active",     color:"#22c55e", dept:"ops", hired:true},
       ],
     };
     const ALL_HR_TAGS = [...HR_PIPELINE.cleaner, ...HR_PIPELINE.manager];
@@ -2181,7 +2302,7 @@ export default function App() {
                           textAlign:"left",display:"flex",alignItems:"center",gap:5,
                           fontWeight:active?700:400}}>
                         <span style={{width:6,height:6,borderRadius:"50%",background:ht.color,flexShrink:0,opacity:active?1:.4}}/>
-                        {ht.tag}
+                        {ht.label||ht.tag}
                         {ht.hired&&<span style={{marginLeft:"auto",fontSize:8,background:"#22c55e20",color:"#22c55e",padding:"1px 4px",borderRadius:3}}>✓</span>}
                       </button>
                     );
@@ -2358,7 +2479,7 @@ export default function App() {
                           background:ht.tag===tagFilter?ht.color+"18":"var(--s2)",
                           transition:"all .15s"}}>
                         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:ht.color}}>{cnt}</div>
-                        <div style={{fontSize:9,color:ht.tag===tagFilter?ht.color:"var(--mu)",whiteSpace:"nowrap"}}>{ht.tag}</div>
+                        <div style={{fontSize:9,color:ht.tag===tagFilter?ht.color:"var(--mu)",whiteSpace:"nowrap"}}>{ht.label||ht.tag}</div>
                       </div>
                     );
                   })}
@@ -2745,16 +2866,16 @@ export default function App() {
     const depts   = p?.departments||[];
 
     const HR_TAGS_LIST = [
-      {tag:lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8"},
-      {tag:lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",       color:"#f0a500"},
-      {tag:lang==="ru"?"Клинер-стажер":"Cleaner-Intern",        color:"#3b82f6"},
-      {tag:lang==="ru"?"Клинер-активный":"Cleaner-Active",      color:"#22c55e"},
-      {tag:lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8"},
-      {tag:lang==="ru"?"Менеджер-ученик":"Manager-Trainee",     color:"#f0a500"},
-      {tag:lang==="ru"?"Менеджер-стажер":"Manager-Intern",      color:"#3b82f6"},
-      {tag:lang==="ru"?"Менеджер-активный":"Manager-Active",    color:"#22c55e"},
+      {tag:"Cleaner-Candidate",  label:lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8"},
+      {tag:"Cleaner-Trainee",    label:lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",        color:"#f0a500"},
+      {tag:"Cleaner-Intern",     label:lang==="ru"?"Клинер-стажер":"Cleaner-Intern",         color:"#3b82f6"},
+      {tag:"Cleaner-Active",     label:lang==="ru"?"Клинер-активный":"Cleaner-Active",       color:"#22c55e"},
+      {tag:"Manager-Candidate",  label:lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8"},
+      {tag:"Manager-Trainee",    label:lang==="ru"?"Менеджер-ученик":"Manager-Trainee",      color:"#f0a500"},
+      {tag:"Manager-Intern",     label:lang==="ru"?"Менеджер-стажер":"Manager-Intern",       color:"#3b82f6"},
+      {tag:"Manager-Active",     label:lang==="ru"?"Менеджер-активный":"Manager-Active",     color:"#22c55e"},
     ];
-    const HIRED = ["Cleaner-Active","Клинер-активный","Manager-Active","Менеджер-активный"];
+    const HIRED = ["Cleaner-Active","Manager-Active"];
 
     const [cards,    setCards]    = useState(hrCards);
     const [openCard, setOpenCard] = useState(null);
@@ -2854,7 +2975,7 @@ export default function App() {
                       background:openC.tag===ht.tag?ht.color+"20":"transparent",
                       color:openC.tag===ht.tag?ht.color:"var(--mu)",
                       fontSize:11,cursor:"pointer",fontWeight:openC.tag===ht.tag?700:400}}>
-                    {ht.tag}
+                    {ht.label||ht.tag}
                   </button>
                 ))}
               </div>
@@ -2933,7 +3054,7 @@ export default function App() {
                 <label className="lbl">{lang==="ru"?"Тег (статус)":"Tag (status)"}</label>
                 <select className="inp" value={form.tag} onChange={e=>setForm(f=>({...f,tag:e.target.value}))}>
                   <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
-                  {HR_TAGS_LIST.map(ht=><option key={ht.tag} value={ht.tag}>{ht.tag}</option>)}
+                  {HR_TAGS_LIST.map(ht=><option key={ht.tag} value={ht.tag}>{ht.label||ht.tag}</option>)}
                 </select>
               </div>
               <div className="fg">
@@ -2988,7 +3109,7 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  {ti&&<span style={{fontSize:11,padding:"3px 9px",borderRadius:6,background:ti.color+"20",color:ti.color,border:`1px solid ${ti.color}30`,fontWeight:600,whiteSpace:"nowrap"}}>{ti.tag}</span>}
+                  {ti&&<span style={{fontSize:11,padding:"3px 9px",borderRadius:6,background:ti.color+"20",color:ti.color,border:`1px solid ${ti.color}30`,fontWeight:600,whiteSpace:"nowrap"}}>{ti.label||ti.tag}</span>}
                   {c.branchId&&p?.branches?.find(b=>b.id===c.branchId)&&(
                     <span style={{fontSize:10,color:"var(--mu)",padding:"2px 6px",borderRadius:5,background:"var(--s2)",whiteSpace:"nowrap"}}>
                       📍 {p.branches.find(b=>b.id===c.branchId)?.name}
@@ -3410,7 +3531,7 @@ export default function App() {
                         interval={4}/>
                       <YAxis tick={{fill:"#576070",fontSize:10}} axisLine={false} tickLine={false} allowDecimals={false} width={20}/>
                       <Tooltip
-                        contentStyle={{background:"#0d1119",border:"1px solid #ffffff14",borderRadius:9,fontSize:12}}
+                        contentStyle={{background:"var(--s2)",border:"1px solid var(--bdr2)",borderRadius:9,fontSize:12,color:"var(--tx)"}}
                         labelFormatter={(_,p)=>p?.[0]?.payload?.date||""}
                         formatter={(v,n)=>[v, n==="completed"?(lang==="ru"?"Завершили":"Completed"):(lang==="ru"?"Назначено":"Assigned")]}/>
                       <Bar dataKey="completed" fill="var(--gr)" radius={[3,3,0,0]} maxBarSize={18}/>
@@ -3803,7 +3924,7 @@ export default function App() {
               <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08"/>
               <XAxis dataKey="name" tick={{fill:"#576070",fontSize:11}} axisLine={false} tickLine={false}/>
               <YAxis tick={{fill:"#576070",fontSize:10}} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`$${v/1000}k`:`$${v}`}/>
-              <Tooltip contentStyle={{background:"#0d1119",border:"1px solid #ffffff14",borderRadius:9,fontSize:12}}
+              <Tooltip contentStyle={{background:"var(--s2)",border:"1px solid var(--bdr2)",borderRadius:9,fontSize:12,color:"var(--tx)"}}
                 formatter={(v,n)=>[fmt(v), n==="income"?(lang==="ru"?"Доходы":"Revenue"):n==="expense"?(lang==="ru"?"Расходы":"Expenses"):(lang==="ru"?"Прибыль":"Profit")]}/>
               <Bar dataKey="income"  fill="#22c55e" radius={[4,4,0,0]} maxBarSize={32}/>
               <Bar dataKey="expense" fill="#ef4444" radius={[4,4,0,0]} maxBarSize={32}/>
@@ -4325,19 +4446,46 @@ export default function App() {
           </div>
         )}
 
-        {modal==="task"&&(
+        {modal==="task"&&(()=>{
+          const pid2 = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+          const p2   = getPartner(pid2)||{employees:[],departments:[]};
+          const depts2 = p2.departments||[];
+          // Filter employees by selected dept
+          const deptEmps = tF.deptId
+            ? (p2.employees||[]).filter(e=>e.deptId===tF.deptId&&e.status!=="fired")
+            : (p2.employees||[]).filter(e=>e.status!=="fired");
+          return (
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
               <div className="modal-t">{t.newTask}</div>
-              <div className="fg"><label className="lbl">{t.taskTitle}</label><input className="inp" value={tF.title} onChange={e=>setTF(p=>({...p,title:e.target.value}))} placeholder={lang==="ru"?"Описание задачи...":"Task description..."}/></div>
+              <div className="fg">
+                <label className="lbl">{t.taskTitle} *</label>
+                <input className="inp" value={tF.title} onChange={e=>setTF(p=>({...p,title:e.target.value}))} placeholder={lang==="ru"?"Название задачи...":"Task title..."}/>
+              </div>
+              <div className="fg">
+                <label className="lbl">{lang==="ru"?"Описание (необязательно)":"Description (optional)"}</label>
+                <input className="inp" value={tF.description||""} onChange={e=>setTF(p=>({...p,description:e.target.value}))} placeholder={lang==="ru"?"Детали задачи...":"Task details..."}/>
+              </div>
               <div className="fr">
                 <div className="fg">
-                  <label className="lbl">{t.assignee}</label>
-                  <select className="inp" value={tF.assigneeId} onChange={e=>setTF(p=>({...p,assigneeId:e.target.value}))}>
-                    <option value="">{t.selectAssignee}</option>
-                    {(activeWS?.employees||[]).map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                  <label className="lbl">🏢 {lang==="ru"?"Отдел":"Department"}</label>
+                  <select className="inp" value={tF.deptId} onChange={e=>setTF(p=>({...p,deptId:e.target.value,assigneeId:""}))}>
+                    <option value="">{lang==="ru"?"— Все отделы —":"— All departments —"}</option>
+                    {depts2.map(d=><option key={d.id} value={d.id}>{d.icon} {d.name}</option>)}
                   </select>
                 </div>
+                <div className="fg">
+                  <label className="lbl">{t.assignee}</label>
+                  <select className="inp" value={tF.assigneeId} onChange={e=>{
+                    const emp = (p2.employees||[]).find(x=>x.id===e.target.value);
+                    setTF(p=>({...p,assigneeId:e.target.value,deptId:p.deptId||(emp?.deptId||"")}));
+                  }}>
+                    <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
+                    {deptEmps.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="fr">
                 <div className="fg">
                   <label className="lbl">{t.priority}</label>
                   <select className="inp" value={tF.priority} onChange={e=>setTF(p=>({...p,priority:e.target.value}))}>
@@ -4346,15 +4494,19 @@ export default function App() {
                     <option value="low">🟢 {t.low}</option>
                   </select>
                 </div>
+                <div className="fg">
+                  <label className="lbl">{t.due}</label>
+                  <input className="inp" type="date" value={tF.due} onChange={e=>setTF(p=>({...p,due:e.target.value}))}/>
+                </div>
               </div>
-              <div className="fg"><label className="lbl">{t.due}</label><input className="inp" type="date" value={tF.due} onChange={e=>setTF(p=>({...p,due:e.target.value}))}/></div>
               <div className="ma">
                 <button className="btn btn-g" onClick={()=>setModal(null)}>{t.cancel}</button>
                 <button className="btn btn-p" onClick={createTask}>{t.create}</button>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {modal==="schedule"&&(()=>{
           const pid2   = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
