@@ -589,6 +589,8 @@ export default function App() {
   const [chatMsgs,    setChatMsgs]    = useState({});
   const [kbView,      setKbView]      = useState(null);
   const [kbFilter,    setKbFilter]    = useState("all");
+  const [bookingTab,  setBookingTab]  = useState("calendar");
+  const [bkExpanded,  setBkExpanded]  = useState(false);
   const chatEndRef = useRef(null);
 
   const isSA      = currentUser?.type==="superadmin";
@@ -3197,7 +3199,8 @@ export default function App() {
     }
 
     // ── State ──
-    const [tab,         setTab]       = useState("calendar");
+    const tab    = bookingTab;
+    const setTab = setBookingTab;
     const [calView,     setCalView]   = useState("week"); // "month" | "week"
     const [viewDate,    setViewDate]  = useState(new Date());
     const [popupBk,     setPopupBk]   = useState(null);  // quick-view popup
@@ -3713,6 +3716,165 @@ export default function App() {
       );
     };
 
+    // ── Cleaners tab (full profiles) ──
+    const CleanersTab = () => {
+      const monthStr2 = `${yr}-${String(mo+1).padStart(2,"0")}`;
+      const [showForm, setShowForm] = useState(false);
+      const [editId,   setEditId]   = useState(null);
+      const [search,   setSearch]   = useState("");
+      const defCl = {name:"",phone:"",email:"",address:"",city:"",notes:"",status:"active",daysOff:[],workStart:"08:00",workEnd:"18:00"};
+      const [clF2, setClF2] = useState(defCl);
+
+      // Cleaners = employees (stored in partner.employees)
+      const cleaners = emps.filter(e=>e.status!=="fired");
+      const filtered = cleaners.filter(c=>{
+        const q=search.toLowerCase();
+        return !q||(c.name||"").toLowerCase().includes(q)||(c.email||"").toLowerCase().includes(q)||(c.phone||"").includes(q);
+      });
+
+      function saveCleaner(data) {
+        const exists = emps.find(e=>e.id===data.id);
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,
+          employees:exists?(x.employees||[]).map(e=>e.id===data.id?{...e,...data}:e):[...(x.employees||[]),data]
+        }:x));
+      }
+
+      const DAYS = lang==="ru"
+        ?["Вс","Пн","Вт","Ср","Чт","Пт","Сб"]
+        :["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+      return (
+        <>
+          {showForm&&(
+            <div className="ovl" onClick={()=>{setShowForm(false);setEditId(null);}}>
+              <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
+                <div className="modal-t">{editId?(lang==="ru"?"✏️ Профиль клинера":"✏️ Cleaner Profile"):(lang==="ru"?"+ Новый клинер":"+ New Cleaner")}</div>
+                <div className="fr">
+                  <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label>
+                    <input className="inp" value={clF2.name} onChange={e=>setClF2(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/>
+                  </div>
+                  <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label>
+                    <input className="inp" value={clF2.phone||""} onChange={e=>setClF2(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/>
+                  </div>
+                </div>
+                <div className="fr">
+                  <div className="fg"><label className="lbl">Email</label>
+                    <input className="inp" value={clF2.email||""} onChange={e=>setClF2(f=>({...f,email:e.target.value}))} placeholder="jane@email.com"/>
+                  </div>
+                  <div className="fg"><label className="lbl">{lang==="ru"?"Город":"City"}</label>
+                    <input className="inp" value={clF2.city||""} onChange={e=>setClF2(f=>({...f,city:e.target.value}))} placeholder="Austin"/>
+                  </div>
+                </div>
+                <div className="fg"><label className="lbl">📍 {lang==="ru"?"Адрес":"Address"}</label>
+                  <input className="inp" value={clF2.address||""} onChange={e=>setClF2(f=>({...f,address:e.target.value}))} placeholder="123 Main St"/>
+                </div>
+                <div className="fr">
+                  <div className="fg"><label className="lbl">🕐 {lang==="ru"?"Нач. работы":"Work Start"}</label>
+                    <input className="inp" type="time" value={clF2.workStart||"08:00"} onChange={e=>setClF2(f=>({...f,workStart:e.target.value}))}/>
+                  </div>
+                  <div className="fg"><label className="lbl">🕐 {lang==="ru"?"Конец работы":"Work End"}</label>
+                    <input className="inp" type="time" value={clF2.workEnd||"18:00"} onChange={e=>setClF2(f=>({...f,workEnd:e.target.value}))}/>
+                  </div>
+                  <div className="fg"><label className="lbl">{lang==="ru"?"Статус":"Status"}</label>
+                    <select className="inp" value={clF2.status||"active"} onChange={e=>setClF2(f=>({...f,status:e.target.value}))}>
+                      <option value="active">{lang==="ru"?"Активен":"Active"}</option>
+                      <option value="inactive">{lang==="ru"?"Неактивен":"Inactive"}</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="fg">
+                  <label className="lbl">{lang==="ru"?"Выходные дни":"Days Off"}</label>
+                  <div style={{display:"flex",gap:5,marginTop:4}}>
+                    {DAYS.map((d,i)=>{
+                      const on=(clF2.daysOff||[]).includes(i);
+                      return (
+                        <button key={i} onClick={()=>setClF2(f=>({...f,daysOff:on?(f.daysOff||[]).filter(x=>x!==i):[...(f.daysOff||[]),i]}))}
+                          style={{padding:"4px 8px",borderRadius:6,fontSize:11,cursor:"pointer",
+                            border:`1px solid ${on?"var(--acc)":"var(--bdr)"}`,
+                            background:on?"var(--acc)18":"transparent",
+                            color:on?"var(--acc)":"var(--mu)"}}>
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Заметки":"Notes"}</label>
+                  <input className="inp" value={clF2.notes||""} onChange={e=>setClF2(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Особенности, навыки...":"Skills, notes..."}/>
+                </div>
+                <div className="ma">
+                  <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditId(null);}}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                  <button className="btn btn-p" onClick={()=>{
+                    if(!clF2.name.trim()) return;
+                    saveCleaner({...clF2,id:editId||"emp_"+Date.now(),type:"employee",partnerId:pid,sections:["booking","tasks","schedule"],role:lang==="ru"?"Клинер":"Cleaner",createdAt:new Date().toISOString().split("T")[0]});
+                    setShowForm(false);setEditId(null);
+                  }}>{lang==="ru"?"Сохранить":"Save"}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
+            <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder={lang==="ru"?"Поиск клинеров...":"Search cleaners..."} style={{flex:1}}/>
+            <button className="btn btn-p" onClick={()=>{setClF2(defCl);setEditId(null);setShowForm(true);}}>
+              + {lang==="ru"?"Клинер":"Cleaner"}
+            </button>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+            {!filtered.length&&<div style={{gridColumn:"1/-1",textAlign:"center",color:"var(--mu)",padding:40}}>🧹 {lang==="ru"?"Клинеров нет":"No cleaners"}</div>}
+            {filtered.map(c=>{
+              const cc = cleanerColor(c.id);
+              const cBks = bookings.filter(b=>b.cleanerId===c.id&&b.date?.startsWith(monthStr2));
+              const monthEarn = cBks.reduce((s,b)=>s+(b.price||0),0);
+              const todayBks2 = bookings.filter(b=>b.cleanerId===c.id&&b.date===today);
+              const daysOffStr = (c.daysOff||[]).sort((a,b)=>a-b).map(i=>DAYS[i]).join(", ");
+              return (
+                <div key={c.id} style={{background:"var(--s1)",border:`1px solid ${cc}20`,borderLeft:`3px solid ${cc}`,borderRadius:10,padding:16}}>
+                  <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12}}>
+                    <Av name={c.name} color={cc} style={{width:44,height:44,fontSize:17,flexShrink:0}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6}}>
+                        {c.name}
+                        <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,
+                          background:c.status==="active"?"var(--gr)20":"var(--mu)15",
+                          color:c.status==="active"?"var(--gr)":"var(--mu)"}}>
+                          {c.status==="active"?(lang==="ru"?"Активен":"Active"):(lang==="ru"?"Неактивен":"Inactive")}
+                        </span>
+                      </div>
+                      {c.phone&&<div style={{fontSize:11,color:"var(--mu)"}}>{c.phone}</div>}
+                      {c.email&&<div style={{fontSize:11,color:"var(--mu)"}}>{c.email}</div>}
+                    </div>
+                    <button className="btn btn-g btn-sm" onClick={()=>{
+                      setClF2({name:c.name,phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||"",status:c.status||"active",daysOff:c.daysOff||[],workStart:c.workStart||"08:00",workEnd:c.workEnd||"18:00"});
+                      setEditId(c.id);setShowForm(true);
+                    }}>✏️</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
+                    {[
+                      {l:lang==="ru"?"Сегодня":"Today",  v:todayBks2.length, c:"var(--acc)"},
+                      {l:lang==="ru"?"Месяц":"Month",    v:cBks.length,      c:"var(--bl)"},
+                      {l:lang==="ru"?"Выручка":"Revenue",v:`$${monthEarn}`,  c:"var(--gr)"},
+                    ].map(s=>(
+                      <div key={s.l} style={{background:"var(--s2)",borderRadius:7,padding:"6px 8px",textAlign:"center"}}>
+                        <div style={{fontSize:8,color:"var(--mu)",textTransform:"uppercase"}}>{s.l}</div>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:s.c}}>{s.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {c.workStart&&<span>🕐 {c.workStart}–{c.workEnd}</span>}
+                    {daysOffStr&&<span>🗓 {lang==="ru"?"Выходные:":"Off:"} {daysOffStr}</span>}
+                    {c.city&&<span>📍 {c.city}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      );
+    };
+
     // ── Clients tab ──
     const ClientsTab = () => {
       const [editId,setEditId]=useState(null);
@@ -3819,17 +3981,13 @@ export default function App() {
           ))}
         </div>
 
-        {/* Tabs */}
-        <div style={{display:"flex",gap:5,marginBottom:14,borderBottom:"1px solid var(--bdr)",paddingBottom:10}}>
-          {[["calendar","📅 "+(lang==="ru"?"Календарь":"Calendar")],
-            ["clients","👤 "+(lang==="ru"?"Клиенты":"Clients")],
-            ["reports","📊 "+(lang==="ru"?"Отчёты":"Reports")],
-            ["settings","⚙️ "+(lang==="ru"?"Настройки":"Settings")]].map(([k,v])=>(
-            <button key={k} onClick={()=>setTab(k)} style={{padding:"5px 13px",borderRadius:7,fontSize:12,cursor:"pointer",fontWeight:tab===k?600:400,
-              border:`1px solid ${tab===k?"var(--acc)":"transparent"}`,background:tab===k?"var(--acc)15":"transparent",color:tab===k?"var(--acc)":"var(--mu)"}}>
-              {v}
-            </button>
-          ))}
+        {/* Page title from sidebar sub-nav */}
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+          {tab==="calendar"&&<>📅 {lang==="ru"?"Календарь":"Calendar"}</>}
+          {tab==="cleaners"&&<>🧹 {lang==="ru"?"Клинеры":"Cleaners"}</>}
+          {tab==="clients"&&<>👤 {lang==="ru"?"Клиенты":"Clients"}</>}
+          {tab==="reports"&&<>📊 {lang==="ru"?"Отчёты":"Reports"}</>}
+          {tab==="settings"&&<>⚙️ {lang==="ru"?"Настройки":"Settings"}</>}
         </div>
 
         {tab==="calendar"&&(
@@ -3889,6 +4047,7 @@ export default function App() {
             </div>
           </div>
         )}
+        {tab==="cleaners"&&<CleanersTab/>}
         {tab==="clients"&&<ClientsTab/>}
         {tab==="reports"&&<Reports/>}
         {tab==="settings"&&<SettingsPanel/>}
@@ -4930,12 +5089,50 @@ export default function App() {
             {[...new Set(navPages.map(p=>p.sec))].map(sec=>(
               <div key={sec}>
                 <div className="sb-sec">{sec}</div>
-                {navPages.filter(p=>p.sec===sec).map(p=>(
-                  <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
-                    <span className="ni">{p.icon}</span>{p.label}
-                    {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
-                  </button>
-                ))}
+                {navPages.filter(p=>p.sec===sec).map(p=>{
+                  if (p.key==="booking") {
+                    const BK_SUBS = [
+                      {k:"calendar",  ico:"📅", l:lang==="ru"?"Календарь":"Calendar"},
+                      {k:"cleaners",  ico:"🧹", l:lang==="ru"?"Клинеры":"Cleaners"},
+                      {k:"clients",   ico:"👤", l:lang==="ru"?"Клиенты":"Clients"},
+                      {k:"reports",   ico:"📊", l:lang==="ru"?"Отчёты":"Reports"},
+                      {k:"settings",  ico:"⚙️", l:lang==="ru"?"Настройки":"Settings"},
+                    ];
+                    const isActive = page==="booking";
+                    return (
+                      <div key={p.key}>
+                        <button className={`nb ${isActive?"act":""}`} onClick={()=>{
+                          if (!isActive) { setPage("booking"); setBkExpanded(true); }
+                          else setBkExpanded(x=>!x);
+                          setKbView(null);
+                        }}>
+                          <span className="ni">{p.icon}</span>{p.label}
+                          <span style={{marginLeft:"auto",fontSize:10,color:"var(--mu)",transition:"transform .2s",
+                            display:"inline-block",transform:bkExpanded&&isActive?"rotate(180deg)":"rotate(0deg)"}}>▾</span>
+                        </button>
+                        {isActive&&bkExpanded&&(
+                          <div style={{marginLeft:12,borderLeft:"2px solid var(--bdr)",paddingLeft:4,marginBottom:4}}>
+                            {BK_SUBS.map(s=>(
+                              <button key={s.k} onClick={()=>{setBookingTab(s.k);}}
+                                style={{display:"flex",alignItems:"center",gap:7,width:"100%",padding:"5px 10px",borderRadius:6,
+                                  fontSize:12,cursor:"pointer",border:"none",textAlign:"left",
+                                  background:bookingTab===s.k?"var(--acc)15":"transparent",
+                                  color:bookingTab===s.k?"var(--acc)":"var(--mu)",fontWeight:bookingTab===s.k?600:400}}>
+                                <span style={{fontSize:13}}>{s.ico}</span>{s.l}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
+                      <span className="ni">{p.icon}</span>{p.label}
+                      {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
+                    </button>
+                  );
+                })}
               </div>
             ))}
           </nav>
