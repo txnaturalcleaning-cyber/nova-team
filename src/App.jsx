@@ -38,6 +38,7 @@ const T = {
     addDept: "+ Новый отдел", addBranch: "+ Добавить город",
     addTask: "+ Создать задачу", addShift: "+ Добавить смену",
     addPayment: "+ Добавить", addMaterial: "+ Добавить материал",
+    hrcards: "HR Картотека", hrCardsTitle: "Картотека сотрудников",
     crm: "CRM / Контакты", crmContacts: "Контакты", crmPipeline: "Воронка", crmTags: "Теги", addContact: "+ Контакт", contactName: "Имя", contactPhone: "Телефон", contactEmail: "Email", contactTags: "Теги", contactStatus: "Статус", contactNote: "Заметка", contactHistory: "История", addNote: "+ Заметка", noContacts: "Контактов пока нет", searchContacts: "Поиск по имени, телефону...", filterByTag: "Фильтр по тегу", crmStage: "Стадия воронки", stageLead: "Лид", stageContact: "Контакт", stageNegotiation: "Переговоры", stageClient: "Клиент", stageLost: "Потерян", addTag: "+ Тег", manageTagsTitle: "Управление тегами", automations: "Автоматизации", addAutomation: "+ Автоматизация", triggerTag: "Триггер: тег добавлен", actionSms: "Действие: отправить SMS", delayHours: "Задержка (часов)", msgTemplate: "Шаблон сообщения",
     training: "Обучение", addLesson: "+ Урок", assignLesson: "Назначить", myLessons: "Мои уроки", allLessons: "Все уроки", assignees: "Назначения", progressTab: "Прогресс", lessonTitle: "Название урока", lessonType: "Тип контента", lessonDept: "Отдел", lessonBranch: "Город", lessonContent: "Контент (текст)", lessonUrl: "Ссылка (YouTube / PDF)", lessonDuration: "Длительность (мин)", notStarted: "Не начат", inProgress: "В процессе", completed: "Завершён", markComplete: "Отметить как выполнено", startLesson: "Начать урок", continueLesson: "Продолжить", quizQuestion: "Вопрос", quizAnswer: "Ответ", quizAddQ: "+ Вопрос", certificate: "Сертификат", completionRate: "Выполнено", assignTo: "Назначить сотруднику", noLessons: "Уроков пока нет", noAssignments: "Нет назначений",
     addPnl: "+ Добавить запись", pnlIncome: "Доходы", pnlExpense: "Расходы", pnlNet: "Чистая прибыль", pnlMargin: "Маржа", pnlCategory: "Категория", pnlAmount: "Сумма", pnlType: "Тип", pnlInc: "Доход", pnlExp: "Расход", pnlDate: "Дата", pnlNote: "Описание", pnlNoData: "Нет записей", pnlSummary: "Сводка за месяц",
@@ -233,6 +234,7 @@ const IC = {
   eye:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   plus:        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   trash:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  hrcards:     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M14 8h4"/><path d="M14 12h4"/><path d="M4 20v-1a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v1"/></svg>,
   crm:         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-4-4h0"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
   phone:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
   sms:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
@@ -258,12 +260,13 @@ const ALL_SECTIONS = [
   { id:"pnl",         icon:IC.pnl },
   { id:"training",    icon:IC.training },
   { id:"crm",         icon:IC.crm },
+  { id:"hrcards",     icon:IC.hrcards },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","hrcards"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","hrcards"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","hrcards"],
 };
 
 const PLAN_LIMITS = {
@@ -710,6 +713,11 @@ export default function App() {
     if (!dF.name.trim()) return;
     const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
     const existing = partners.find(p => p.id === pid);
+    // Edit mode
+    if (dF._editId) {
+      updateDept(dF._editId, {name:dF.name, icon:dF.icon, color:dF.color, branchId:dF.branchId});
+      setDF(defD); setModal(null); return;
+    }
     const newDept  = {...dF, id:"d_"+Date.now()};
     if (existing) {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, departments:[...(x.departments||[]), newDept]} : x));
@@ -720,6 +728,16 @@ export default function App() {
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
     setDF(defD); setModal(null);
+  }
+
+  function updateDept(deptId, patch) {
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    setPartners(ps=>ps.map(x=>x.id===pid?{...x,departments:(x.departments||[]).map(d=>d.id===deptId?{...d,...patch}:d)}:x));
+  }
+
+  function deleteDept(deptId) {
+    const pid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+    setPartners(ps=>ps.map(x=>x.id===pid?{...x,departments:(x.departments||[]).filter(d=>d.id!==deptId)}:x));
   }
 
   function createBranch() {
@@ -1119,7 +1137,15 @@ export default function App() {
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               <div style={{fontSize:36}}>{dept?.icon}</div>
               <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:dept?.color}}>{dept?.name}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:dept?.color}}>{dept?.name}</div>
+                  <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+                    <button className="btn btn-g btn-sm" style={{padding:"3px 7px",fontSize:11}} title={t.edit}
+                      onClick={e=>{e.stopPropagation();setDF({name:dept.name,icon:dept.icon,color:dept.color,branchId:dept.branchId||"",_editId:dept.id});setModal("dept");}}>✏️</button>
+                    <button className="btn btn-d btn-sm" style={{padding:"3px 7px",fontSize:11}} title={t.delete}
+                      onClick={e=>{e.stopPropagation();if(window.confirm(lang==="ru"?`Удалить отдел "${dept.name}"?`:`Delete department "${dept.name}"?`))deleteDept(dept.id);}}>×</button>
+                  </div>
+                </div>
                 {branch&&<div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>📍 {branch.name}{branch.city?`, ${branch.city}`:""}</div>}
               </div>
               <div style={{marginLeft:"auto",textAlign:"right"}}>
@@ -1154,7 +1180,29 @@ export default function App() {
         {canEdit&&(
           <div style={{display:"flex",gap:8,marginBottom:15,flexWrap:"wrap",alignItems:"center"}}>
             <button className="btn btn-p" onClick={()=>{setEF({...defE,role:roles[0]});setModal("emp");}}>{t.addEmployee}</button>
-            <button className="btn btn-g" onClick={()=>{setDF({...defD,branchId:""});setModal("dept");}}>{t.addDept}</button>
+            <button className="btn btn-g" onClick={()=>{setDF({...defD,branchId:"",_editId:null});setModal("dept");}}>{t.addDept}</button>
+            <button className="btn btn-g" onClick={()=>{
+              // Create standard departments if none exist
+              const stdDepts = [
+                {name:lang==="ru"?"HR / Кадры":"HR / Recruiting",         icon:"👥", color:"#a855f7"},
+                {name:lang==="ru"?"Операционный":"Operations Manager",    icon:"⚙️", color:"#3b82f6"},
+                {name:lang==="ru"?"Продажи":"Sales",                      icon:"💰", color:"#22c55e"},
+                {name:lang==="ru"?"Маркетинг":"Marketing",                icon:"📣", color:"#f0a500"},
+                {name:lang==="ru"?"SMM":"SMM",                            icon:"📱", color:"#ec4899"},
+                {name:lang==="ru"?"Финансы":"Finance",                    icon:"📊", color:"#06b6d4"},
+                {name:lang==="ru"?"Супервайзеры":"Supervisors",           icon:"🎯", color:"#ef4444"},
+                {name:lang==="ru"?"Представители":"Representatives",      icon:"🤝", color:"#84cc16"},
+              ];
+              const pid2 = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
+              const existing2 = partners.find(p=>p.id===pid2);
+              const currentDepts = existing2?.departments||[];
+              const toAdd = stdDepts.filter(s=>!currentDepts.some(d=>d.name===s.name));
+              if (!toAdd.length) { alert(lang==="ru"?"Все стандартные отделы уже созданы":"All standard departments already exist"); return; }
+              const newDepts = toAdd.map(d=>({...d,id:"d_"+Date.now()+Math.random().toString(36).slice(2)}));
+              setPartners(ps=>ps.map(x=>x.id===pid2?{...x,departments:[...currentDepts,...newDepts]}:x));
+            }} title={lang==="ru"?"Создать стандартные отделы":"Create standard departments"}>
+              ✦ {lang==="ru"?"Стандартные отделы":"Standard depts"}
+            </button>
             <span style={{marginLeft:"auto",fontSize:12,color:"var(--mu)"}}>{t.empCount} {emps.length}/{lim}</span>
           </div>
         )}
@@ -2678,6 +2726,259 @@ export default function App() {
   /* ══════════════════════════════════════════════════════
      LMS — ОБУЧЕНИЕ (Training / Learning Management)
   ══════════════════════════════════════════════════════ */
+
+  /* ══════════════════════════════════════════════════════
+     HR STAFF CARDS — карточки кандидатов/сотрудников
+  ══════════════════════════════════════════════════════ */
+  const HRCards = () => {
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p   = getPartner(pid)||{};
+    const hrCards = p?.hrCards||[];
+    const depts   = p?.departments||[];
+
+    const HR_TAGS_LIST = [
+      {tag:lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8"},
+      {tag:lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",       color:"#f0a500"},
+      {tag:lang==="ru"?"Клинер-стажер":"Cleaner-Intern",        color:"#3b82f6"},
+      {tag:lang==="ru"?"Клинер-активный":"Cleaner-Active",      color:"#22c55e"},
+      {tag:lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8"},
+      {tag:lang==="ru"?"Менеджер-ученик":"Manager-Trainee",     color:"#f0a500"},
+      {tag:lang==="ru"?"Менеджер-стажер":"Manager-Intern",      color:"#3b82f6"},
+      {tag:lang==="ru"?"Менеджер-активный":"Manager-Active",    color:"#22c55e"},
+    ];
+    const HIRED = ["Cleaner-Active","Клинер-активный","Manager-Active","Менеджер-активный"];
+
+    const [cards,    setCards]    = useState(hrCards);
+    const [openCard, setOpenCard] = useState(null);
+    const [search,   setSearch]   = useState("");
+    const [tagF,     setTagF]     = useState("");
+    const [showForm, setShowForm] = useState(false);
+    const [editId,   setEditId]   = useState(null);
+    const [form, setForm] = useState({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",comment:"",status:"active"});
+
+    // Sync with Firebase partner data
+    useEffect(()=>{ setCards(p?.hrCards||[]); },[p?.hrCards]);
+
+    function saveCard() {
+      if (!form.firstName.trim()) return;
+      const item = editId
+        ? (p?.hrCards||[]).map(c=>c.id===editId?{...c,...form,updatedAt:new Date().toISOString().split("T")[0]}:c)
+        : [...(p?.hrCards||[]), {...form, id:"hr_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], notes:[]}];
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:item}:x));
+      setShowForm(false); setEditId(null);
+      setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",comment:"",status:"active"});
+    }
+
+    function deleteCard(id) {
+      if (!window.confirm(lang==="ru"?"Удалить карточку?":"Delete card?")) return;
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).filter(c=>c.id!==id)}:x));
+    }
+
+    function addNote(cardId, text) {
+      if (!text.trim()) return;
+      const note = {id:"n_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), author:currentUser?.name||"HR"};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===cardId?{...c,notes:[...(c.notes||[]),note]}:c)}:x));
+    }
+
+    function updateTag(cardId, tag) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===cardId?{...c,tag,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
+      // Trigger CRM automations if contact exists
+      const hrC = (p?.hrCards||[]).find(c=>c.id===cardId);
+      const crmContact = (p?.contacts||[]).find(c=>c.email===hrC?.email||c.phone===hrC?.phone);
+      if (crmContact) {
+        // sync tag to CRM contact
+        const cTags = crmContact.tags||[];
+        if (!cTags.includes(tag)) {
+          setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===crmContact.id?{...c,tags:[...cTags,tag]}:c)}:x));
+        }
+      }
+    }
+
+    const [noteInputs, setNoteInputs] = useState({});
+    const filtered = (p?.hrCards||[]).filter(c=>{
+      const q = search.toLowerCase();
+      const matchS = !q||(c.firstName+" "+c.lastName).toLowerCase().includes(q)||(c.phone||"").includes(q)||(c.email||"").toLowerCase().includes(q);
+      const matchT = !tagF||c.tag===tagF;
+      return matchS&&matchT;
+    });
+
+    const openC = openCard ? (p?.hrCards||[]).find(c=>c.id===openCard) : null;
+    const tagInfo = t => HR_TAGS_LIST.find(h=>h.tag===t);
+
+    if (openC) {
+      const ti = tagInfo(openC.tag);
+      const hired = HIRED.includes(openC.tag);
+      return (
+        <div style={{maxWidth:700,margin:"0 auto"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",color:"var(--mu)",fontSize:12}} onClick={()=>setOpenCard(null)}>
+            ← {lang==="ru"?"Назад к списку":"Back to list"}
+          </div>
+          <div style={{background:"var(--s1)",border:`1px solid ${hired?"#22c55e30":"var(--bdr)"}`,borderRadius:14,padding:20,marginBottom:14,opacity:hired?.85:1}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
+              <Av name={openC.firstName+" "+openC.lastName} color={ti?.color||"var(--acc)"} style={{width:52,height:52,fontSize:20}}/>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>{openC.firstName} {openC.lastName}</div>
+                  {hired&&<span style={{background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:5,fontWeight:700}}>✓ {lang==="ru"?"НАНЯТ":"HIRED"}</span>}
+                </div>
+                <div style={{fontSize:12,color:"var(--mu)",display:"flex",gap:14,flexWrap:"wrap",marginBottom:8}}>
+                  {openC.phone&&<span>📞 {openC.phone}</span>}
+                  {openC.email&&<span>✉ {openC.email}</span>}
+                  <span>📅 {openC.createdAt}</span>
+                </div>
+                {openC.comment&&<div style={{fontSize:12,color:"var(--mu2)",fontStyle:"italic",marginBottom:8}}>"{openC.comment}"</div>}
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-g btn-sm" onClick={()=>{setForm({firstName:openC.firstName,lastName:openC.lastName,email:openC.email||"",phone:openC.phone||"",tag:openC.tag||"",deptId:openC.deptId||"",comment:openC.comment||"",status:openC.status||"active"});setEditId(openC.id);setShowForm(true);setOpenCard(null);}}>✏️</button>
+                <button className="btn btn-d btn-sm" onClick={()=>deleteCard(openC.id)}>{IC.trash}</button>
+              </div>
+            </div>
+            {/* Pipeline tags */}
+            <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--bdr)"}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>Pipeline</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                {HR_TAGS_LIST.map(ht=>(
+                  <button key={ht.tag} onClick={()=>updateTag(openC.id,ht.tag)}
+                    style={{padding:"4px 10px",borderRadius:7,border:`1px solid ${openC.tag===ht.tag?ht.color:"var(--bdr)"}`,
+                      background:openC.tag===ht.tag?ht.color+"20":"transparent",
+                      color:openC.tag===ht.tag?ht.color:"var(--mu)",
+                      fontSize:11,cursor:"pointer",fontWeight:openC.tag===ht.tag?700:400}}>
+                    {ht.tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Notes */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>{lang==="ru"?"Комментарии":"Comments"}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12,maxHeight:280,overflowY:"auto"}}>
+              {!(openC.notes?.length)&&<div style={{textAlign:"center",color:"var(--mu2)",padding:20,fontSize:12}}>{lang==="ru"?"Комментариев нет":"No comments yet"}</div>}
+              {[...(openC.notes||[])].reverse().map(n=>(
+                <div key={n.id} style={{background:"var(--s2)",borderRadius:9,padding:"9px 12px"}}>
+                  <div style={{fontSize:13}}>{n.text}</div>
+                  <div style={{fontSize:10,color:"var(--mu)",marginTop:3}}>{n.author} · {n.ts}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <input className="inp" value={noteInputs[openC.id]||""} style={{flex:1}}
+                placeholder={lang==="ru"?"Добавить комментарий...":"Add comment..."}
+                onChange={e=>setNoteInputs(p=>({...p,[openC.id]:e.target.value}))}
+                onKeyDown={e=>{if(e.key==="Enter"&&noteInputs[openC.id]?.trim()){addNote(openC.id,noteInputs[openC.id]);setNoteInputs(p=>({...p,[openC.id]:""}))}}}/>
+              <button className="btn btn-p" onClick={()=>{if(noteInputs[openC.id]?.trim()){addNote(openC.id,noteInputs[openC.id]);setNoteInputs(p=>({...p,[openC.id]:""}))}}}>{IC.send}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {/* Header */}
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16}}>{lang==="ru"?"HR — Картотека кандидатов":"HR — Staff Cards"}</div>
+          <button className="btn btn-p" style={{marginLeft:"auto"}} onClick={()=>{setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",comment:"",status:"active"});setEditId(null);setShowForm(true);}}>
+            {IC.plus} {lang==="ru"?"Новая карточка":"New Card"}
+          </button>
+        </div>
+
+        {/* Pipeline stats */}
+        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+          {HR_TAGS_LIST.map(ht=>{
+            const cnt=(p?.hrCards||[]).filter(c=>c.tag===ht.tag).length;
+            return cnt>0?(
+              <div key={ht.tag} onClick={()=>setTagF(ht.tag===tagF?"":ht.tag)}
+                style={{padding:"5px 10px",borderRadius:7,cursor:"pointer",border:`1px solid ${ht.tag===tagF?ht.color:"var(--bdr)"}`,background:ht.tag===tagF?ht.color+"18":"var(--s1)"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:ht.color}}>{cnt}</div>
+                <div style={{fontSize:9,color:"var(--mu)",whiteSpace:"nowrap"}}>{ht.tag}</div>
+              </div>
+            ):null;
+          })}
+        </div>
+
+        {/* Search */}
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder={lang==="ru"?"Поиск по имени, телефону...":"Search name, phone..."} style={{flex:1}}/>
+          {tagF&&<button className="btn btn-g btn-sm" onClick={()=>setTagF("")}>× {tagF}</button>}
+        </div>
+
+        {/* Card form */}
+        {showForm&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--acc)30",borderRadius:14,padding:18,marginBottom:16}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>
+              {editId?(lang==="ru"?"✏️ Редактировать карточку":"✏️ Edit Card"):(lang==="ru"?"+ Новая карточка":"+ New Card")}
+            </div>
+            <div className="fr">
+              <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"First Name *"}</label><input className="inp" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} placeholder={lang==="ru"?"Имя":"First name"}/></div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Фамилия":"Last Name"}</label><input className="inp" value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} placeholder={lang==="ru"?"Фамилия":"Last name"}/></div>
+            </div>
+            <div className="fr">
+              <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Email":"Email"}</label><input className="inp" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="name@email.com"/></div>
+            </div>
+            <div className="fr">
+              <div className="fg">
+                <label className="lbl">{lang==="ru"?"Тег (статус)":"Tag (status)"}</label>
+                <select className="inp" value={form.tag} onChange={e=>setForm(f=>({...f,tag:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
+                  {HR_TAGS_LIST.map(ht=><option key={ht.tag} value={ht.tag}>{ht.tag}</option>)}
+                </select>
+              </div>
+              <div className="fg">
+                <label className="lbl">{lang==="ru"?"Отдел":"Department"}</label>
+                <select className="inp" value={form.deptId} onChange={e=>setForm(f=>({...f,deptId:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
+                  {depts.map(d=><option key={d.id} value={d.id}>{d.icon} {d.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="fg"><label className="lbl">{lang==="ru"?"Комментарий":"Comment"}</label>
+              <input className="inp" value={form.comment} onChange={e=>setForm(f=>({...f,comment:e.target.value}))} placeholder={lang==="ru"?"Откуда узнал, особые заметки...":"How they found us, notes..."}/>
+            </div>
+            <div className="ma">
+              <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditId(null);}}>{t.cancel}</button>
+              <button className="btn btn-p" onClick={saveCard}>{editId?t.save:t.create}</button>
+            </div>
+          </div>
+        )}
+
+        {/* Cards grid */}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {!filtered.length&&<div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+            <div style={{fontSize:32,marginBottom:8}}>👥</div>
+            <div>{lang==="ru"?"Карточек пока нет":"No cards yet"}</div>
+          </div>}
+          {filtered.map(c=>{
+            const ti=tagInfo(c.tag);
+            const hired=HIRED.includes(c.tag);
+            return (
+              <div key={c.id} style={{background:"var(--s1)",border:`1px solid ${hired?"#22c55e25":"var(--bdr)"}`,borderRadius:11,padding:"12px 16px",
+                display:"flex",alignItems:"center",gap:14,cursor:"pointer",opacity:hired?.8:1,transition:"all .15s",position:"relative"}}
+                onClick={()=>setOpenCard(c.id)}
+                onMouseEnter={e=>e.currentTarget.style.opacity="1"}
+                onMouseLeave={e=>e.currentTarget.style.opacity=hired?.8+"":"1"}>
+                {hired&&<div style={{position:"absolute",top:0,right:0,background:"#22c55e",color:"#fff",fontSize:9,padding:"2px 8px",borderRadius:"0 11px 0 8px",fontWeight:700}}>✓ {lang==="ru"?"НАНЯТ":"HIRED"}</div>}
+                <Av name={c.firstName+" "+c.lastName} color={ti?.color||"var(--acc)"}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:14}}>{c.firstName} {c.lastName}</div>
+                  <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {c.phone&&<span>{c.phone}</span>}
+                    {c.email&&<span>{c.email}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  {ti&&<span style={{fontSize:11,padding:"3px 9px",borderRadius:6,background:ti.color+"20",color:ti.color,border:`1px solid ${ti.color}30`,fontWeight:600,whiteSpace:"nowrap"}}>{ti.tag}</span>}
+                  {depts.find(d=>d.id===c.deptId)&&<span style={{fontSize:10,color:"var(--mu)",padding:"2px 6px",borderRadius:5,background:"var(--s2)"}}>{depts.find(d=>d.id===c.deptId)?.icon}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
   const Training = () => {
     const pid      = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p        = getPartner(pid)||{lessons:[],assignments:[],employees:[],departments:[],branches:[]};
@@ -3657,7 +3958,7 @@ export default function App() {
   const sectionLabels = {
     dashboard:t.dashboard, departments:t.departments, branches:t.branches,
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
-    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training, crm:t.crm,
+    performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training, crm:t.crm, hrcards:t.hrcards,
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
@@ -3665,7 +3966,7 @@ export default function App() {
   const navPages   = viewPartner ? wsPages
     : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, hrcards:<HRCards/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
@@ -3944,7 +4245,7 @@ export default function App() {
           return (
           <div className="ovl" onClick={()=>setModal(null)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-t">{t.newDept}</div>
+              <div className="modal-t">{dF._editId?(lang==="ru"?"✏️ Редактировать отдел":"✏️ Edit Department"):t.newDept}</div>
               <div className="fr">
                 <div className="fg"><label className="lbl">{t.deptName}</label><input className="inp" value={dF.name} onChange={e=>setDF(p=>({...p,name:e.target.value}))} placeholder={lang==="ru"?"Отдел продаж":"Sales Department"}/></div>
                 <div className="fg">
@@ -4151,3 +4452,7 @@ export default function App() {
     </LangCtx.Provider>
   );
 }
+
+  /* ══════════════════════════════════════════════════════
+     HR STAFF CARDS — карточки сотрудников (внутри HR отдела)
+  ══════════════════════════════════════════════════════ */
