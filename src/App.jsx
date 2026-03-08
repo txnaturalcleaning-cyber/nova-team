@@ -1773,6 +1773,35 @@ export default function App() {
     const [newTag,   setNewTag]   = useState({name:"",color:"#f0a500"});
     const [aF, setAF] = useState({triggerTag:"",delayHours:"1",msgTemplate:"",name:""});
     const [aModal,   setAModal]   = useState(false);
+    const [smsModal, setSmsModal] = useState(null); // contactId
+    const [smsText,  setSmsText]  = useState("");
+    const [smsSending,setSmsSending] = useState(false);
+    const [smsLog,   setSmsLog]   = useState({}); // {contactId: [{text,ts,dir}]}
+
+    async function sendSMS(contactId, phone, text) {
+      if (!phone||!text.trim()) return;
+      setSmsSending(true);
+      try {
+        const r = await fetch("/api/send-sms", {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({to: phone, message: text.trim()})
+        });
+        const d = await r.json();
+        if (d.success) {
+          const entry = {id:"sms_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), dir:"out", sid:d.sid};
+          setSmsLog(prev=>({...prev,[contactId]:[...(prev[contactId]||[]),entry]}));
+          addHistoryEntry(contactId, `📤 SMS отправлено: ${text.trim()}`);
+          setSmsText("");
+          setSmsModal(null);
+        } else {
+          alert(lang==="ru"?`Ошибка: ${d.error}`:`Error: ${d.error}`);
+        }
+      } catch(e) {
+        alert(lang==="ru"?"Ошибка соединения":"Connection error");
+      }
+      setSmsSending(false);
+    }
 
     // ── CRUD contacts ──
     function saveContact() {
@@ -1919,7 +1948,9 @@ export default function App() {
                 <a href={`tel:${openContact.phone}`} className="btn btn-p btn-sm">{IC.phone} {lang==="ru"?"Позвонить":"Call"}</a>
               )}
               {openContact.phone&&(
-                <a href={`sms:${openContact.phone}`} className="btn btn-bl btn-sm">{IC.sms} SMS</a>
+                <button className="btn btn-bl btn-sm" onClick={()=>{setSmsModal(openContact.id);setSmsText("");}}>
+                  {IC.sms} {lang==="ru"?"Отправить SMS":"Send SMS"}
+                </button>
               )}
               {(isSA||isPartner)&&(
                 <button className="btn btn-d btn-sm" style={{marginLeft:"auto"}} onClick={()=>deleteContact(openContact.id)}>{IC.trash} {t.delete}</button>
@@ -2023,6 +2054,7 @@ export default function App() {
                       {(c.tags||[]).length>3&&<span style={{fontSize:10,color:"var(--mu)"}}>+{(c.tags||[]).length-3}</span>}
                       <span style={{fontSize:10,padding:"2px 8px",borderRadius:5,background:stage.color+"18",color:stage.color,border:`1px solid ${stage.color}30`,whiteSpace:"nowrap"}}>{stage.label}</span>
                       {c.phone&&<a href={`tel:${c.phone}`} className="btn btn-g btn-sm" style={{padding:"4px 7px"}} onClick={e=>e.stopPropagation()}>{IC.phone}</a>}
+                      {c.phone&&<button className="btn btn-bl btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();setSmsModal(c.id);setSmsText("");}}>{IC.sms}</button>}
                     </div>
                   </div>
                 );
@@ -2214,6 +2246,63 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* ── SMS MODAL ── */}
+        {smsModal&&(()=>{
+          const c = contacts.find(x=>x.id===smsModal);
+          const history = smsLog[smsModal]||[];
+          return (
+            <div className="ovl" onClick={()=>setSmsModal(null)}>
+              <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
+                <div className="modal-t" style={{display:"flex",alignItems:"center",gap:10}}>
+                  {IC.sms} SMS → {c?.name}
+                  <span style={{fontSize:12,color:"var(--mu)",fontWeight:400,marginLeft:4}}>{c?.phone}</span>
+                </div>
+                {/* SMS history */}
+                {history.length>0&&(
+                  <div style={{maxHeight:180,overflowY:"auto",marginBottom:14,display:"flex",flexDirection:"column",gap:6}}>
+                    {history.map(m=>(
+                      <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:m.dir==="out"?"flex-end":"flex-start"}}>
+                        <div style={{background:m.dir==="out"?"var(--acc)18":"var(--s2)",border:`1px solid ${m.dir==="out"?"var(--acc)30":"var(--bdr)"}`,
+                          borderRadius:9,padding:"7px 11px",maxWidth:"80%",fontSize:12}}>
+                          {m.text}
+                        </div>
+                        <div style={{fontSize:9,color:"var(--mu)",marginTop:2}}>{m.ts}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="fg">
+                  <label className="lbl">{lang==="ru"?"Сообщение":"Message"}</label>
+                  <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)}
+                    style={{minHeight:80}} placeholder={lang==="ru"?"Введите сообщение...":"Type your message..."}
+                    onKeyDown={e=>{if(e.key==="Enter"&&e.metaKey)sendSMS(smsModal,c?.phone,smsText);}}/>
+                  <div style={{fontSize:10,color:"var(--mu)",marginTop:3,textAlign:"right"}}>{smsText.length}/160</div>
+                </div>
+                {/* Templates */}
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{lang==="ru"?"Быстрые шаблоны:":"Quick templates:"}</div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {[
+                      lang==="ru"?"Спасибо за интерес! Свяжемся в ближайшее время.":"Thanks for your interest! We'll be in touch soon.",
+                      lang==="ru"?"Ваша уборка запланирована. Увидимся!":"Your cleaning is scheduled. See you soon!",
+                      lang==="ru"?"Хотите узнать подробнее о наших услугах?":"Want to learn more about our services?",
+                    ].map((tmpl,i)=>(
+                      <button key={i} className="btn btn-g btn-sm" style={{fontSize:10,padding:"3px 8px",textAlign:"left"}}
+                        onClick={()=>setSmsText(tmpl)}>{tmpl.slice(0,30)}...</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="ma">
+                  <button className="btn btn-g" onClick={()=>setSmsModal(null)}>{t.cancel}</button>
+                  <button className="btn btn-p" disabled={smsSending||!smsText.trim()} onClick={()=>sendSMS(smsModal,c?.phone,smsText)}>
+                    {smsSending?(lang==="ru"?"Отправка...":"Sending..."):(`${IC.send} ${lang==="ru"?"Отправить":"Send"}`)}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── AUTOMATION CREATE MODAL ── */}
         {aModal&&(
