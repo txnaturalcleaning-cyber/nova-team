@@ -1980,6 +1980,52 @@ export default function App() {
               <button className="btn btn-p" onClick={()=>addNote(openContact.id)}>{IC.send}</button>
             </div>
           </div>
+
+          {/* SMS MODAL inline for contact detail */}
+          {smsModal&&(()=>{
+            const c = contacts.find(x=>x.id===smsModal);
+            const history = smsLog[smsModal]||[];
+            return (
+              <div className="ovl" onClick={()=>setSmsModal(null)}>
+                <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
+                  <div className="modal-t">{IC.sms} SMS → {c?.name} <span style={{fontSize:12,color:"var(--mu)",fontWeight:400,marginLeft:4}}>{c?.phone}</span></div>
+                  {history.length>0&&(
+                    <div style={{maxHeight:180,overflowY:"auto",marginBottom:14,display:"flex",flexDirection:"column",gap:6}}>
+                      {history.map(m=>(
+                        <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:m.dir==="out"?"flex-end":"flex-start"}}>
+                          <div style={{background:m.dir==="out"?"var(--acc)18":"var(--s2)",border:`1px solid ${m.dir==="out"?"var(--acc)30":"var(--bdr)"}`,borderRadius:9,padding:"7px 11px",maxWidth:"80%",fontSize:12}}>{m.text}</div>
+                          <div style={{fontSize:9,color:"var(--mu)",marginTop:2}}>{m.ts}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="fg">
+                    <label className="lbl">{lang==="ru"?"Сообщение":"Message"}</label>
+                    <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)} style={{minHeight:80}}
+                      placeholder={lang==="ru"?"Введите сообщение...":"Type your message..."}/>
+                    <div style={{fontSize:10,color:"var(--mu)",marginTop:3,textAlign:"right"}}>{smsText.length}/160</div>
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{lang==="ru"?"Быстрые шаблоны:":"Quick templates:"}</div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                      {[lang==="ru"?"Спасибо за интерес! Свяжемся в ближайшее время.":"Thanks for your interest! We'll be in touch soon.",
+                        lang==="ru"?"Ваша уборка запланирована. Увидимся!":"Your cleaning is scheduled. See you soon!",
+                        lang==="ru"?"Хотите узнать подробнее о наших услугах?":"Want to learn more about our services?",
+                      ].map((tmpl,i)=>(
+                        <button key={i} className="btn btn-g btn-sm" style={{fontSize:10,padding:"3px 8px",textAlign:"left"}} onClick={()=>setSmsText(tmpl)}>{tmpl.slice(0,30)}...</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="ma">
+                    <button className="btn btn-g" onClick={()=>setSmsModal(null)}>{t.cancel}</button>
+                    <button className="btn btn-p" disabled={smsSending||!smsText.trim()} onClick={()=>sendSMS(smsModal,c?.phone,smsText)}>
+                      {smsSending?(lang==="ru"?"Отправка...":"Sending..."):(`${IC.send} ${lang==="ru"?"Отправить":"Send"}`)}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       );
     }
