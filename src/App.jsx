@@ -3727,16 +3727,6 @@ export default function App() {
       const [clF2, setClF2] = useState(defCl);
       const [search, setSearch] = useState("");
 
-      // Sync form when editing
-      React.useEffect(()=>{
-        if (editCrId) {
-          const e = emps.find(x=>x.id===editCrId);
-          if (e) setClF2({name:e.name||"",phone:e.phone||"",email:e.email||"",address:e.address||"",city:e.city||"",notes:e.notes||"",status:e.status||"active",daysOff:e.daysOff||[],workStart:e.workStart||"08:00",workEnd:e.workEnd||"18:00",color:e.color||""});
-        } else {
-          setClF2(defCl);
-        }
-      }, [editCrId, showCrForm]);
-
       const cleaners = emps.filter(e=>e.status!=="fired");
       const filtered = cleaners.filter(c=>{
         const q=search.toLowerCase();
@@ -3849,7 +3839,7 @@ export default function App() {
 
           <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
             <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder={lang==="ru"?"Поиск клинеров...":"Search cleaners..."} style={{flex:1}}/>
-            <button className="btn btn-p" onClick={()=>{setEditCrId(null);setCrForm(true);}}>
+            <button className="btn btn-p" onClick={()=>{setClF2({name:"",phone:"",email:"",address:"",city:"",notes:"",status:"active",daysOff:[],workStart:"08:00",workEnd:"18:00",color:""});setEditCrId(null);setCrForm(true);}}>
               + {lang==="ru"?"Клинер":"Cleaner"}
             </button>
           </div>
@@ -3879,7 +3869,11 @@ export default function App() {
                       {c.phone&&<div style={{fontSize:11,color:"var(--mu)"}}>{c.phone}</div>}
                       {c.email&&<div style={{fontSize:11,color:"var(--mu)"}}>{c.email}</div>}
                     </div>
-                    <button className="btn btn-g btn-sm" onClick={()=>{setEditCrId(c.id);setCrForm(true);}}>✏️</button>
+                    <button className="btn btn-g btn-sm" onClick={()=>{
+                      const ec=emps.find(x=>x.id===c.id);
+                      if(ec) setClF2({name:ec.name||"",phone:ec.phone||"",email:ec.email||"",address:ec.address||"",city:ec.city||"",notes:ec.notes||"",status:ec.status||"active",daysOff:ec.daysOff||[],workStart:ec.workStart||"08:00",workEnd:ec.workEnd||"18:00",color:ec.color||""});
+                      setEditCrId(c.id);setCrForm(true);
+                    }}>✏️</button>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
                     {[
@@ -3913,16 +3907,6 @@ export default function App() {
         return !q||(c.name||"").toLowerCase().includes(q)||(c.phone||"").includes(q)||(c.email||"").toLowerCase().includes(q);
       });
 
-      // Sync clF when editClId changes
-      React.useEffect(()=>{
-        if (editClId) {
-          const c=bkClients.find(x=>x.id===editClId);
-          if (c) setClF({name:c.name||"",phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||""});
-        } else {
-          setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});
-        }
-      }, [editClId, showClForm]);
-
       return (
         <>
           {showClForm&&(
@@ -3952,7 +3936,7 @@ export default function App() {
           )}
           <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
             <input className="inp" value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder={lang==="ru"?"Поиск...":"Search..."} style={{flex:1}}/>
-            <button className="btn btn-p" onClick={()=>{setEditClId(null);setClForm(true);}}>
+            <button className="btn btn-p" onClick={()=>{setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});setEditClId(null);setClForm(true);}}>
               + {lang==="ru"?"Клиент":"Client"}
             </button>
           </div>
@@ -3978,7 +3962,7 @@ export default function App() {
                     <div style={{fontSize:11,color:"var(--mu)"}}>{cBks.length} {lang==="ru"?"уборок":"cleanings"}</div>
                   </div>
                   <div style={{display:"flex",gap:5}}>
-                    <button className="btn btn-g btn-sm" onClick={()=>{setEditClId(c.id);setClForm(true);}}>✏️</button>
+                    <button className="btn btn-g btn-sm" onClick={()=>{setClF({name:c.name||"",phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||""});setEditClId(c.id);setClForm(true);}}>✏️</button>
                     <button className="btn btn-p btn-sm" onClick={()=>{setBkF({...defBkF,clientId:c.id,notes:c.address||""});setBkForm(true);}}>+ {lang==="ru"?"Запись":"Book"}</button>
                   </div>
                 </div>
