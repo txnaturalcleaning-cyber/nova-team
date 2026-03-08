@@ -2156,7 +2156,7 @@ export default function App() {
                 </div>
               </div>
               <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>
-                {IC.sms} = SMS · {IC.send} = {lang==="ru"?"заметка":"note"} · {smsText.length}/160
+                💬 = SMS · ➤ = {lang==="ru"?"заметка":"note"} · {smsText.length}/160
               </div>
             </div>
           </div>
