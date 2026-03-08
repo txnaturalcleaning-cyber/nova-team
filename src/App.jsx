@@ -3153,12 +3153,32 @@ export default function App() {
         {id:"laundry",  label:lang==="ru"?"Глажка/стирка":"Laundry/Ironing",       price:40},
       ],
       matrix:[
-        [80, 100,120,140],
-        [100,120,140,160],
-        [120,140,165,185],
-        [145,165,190,210],
-        [170,195,220,245],
+        [80, 100,120,140,160,175,190,205,220,235],
+        [100,120,140,160,180,195,210,225,240,255],
+        [120,140,165,185,205,220,235,250,265,280],
+        [145,165,190,210,230,245,260,275,290,305],
+        [170,195,220,245,265,280,295,310,325,340],
+        [195,220,245,270,290,305,320,335,350,365],
+        [220,245,270,295,315,330,345,360,375,390],
+        [245,270,295,320,340,355,370,385,400,415],
+        [270,295,320,345,365,380,395,410,425,440],
+        [295,320,345,370,390,405,420,435,450,465],
       ],
+      // Duration matrix (in hours, 1 cleaner). Rows=beds 0-9, cols=baths 1-10
+      durMatrix:[
+        [1.0, 1.3, 1.5, 1.8, 2.0, 2.2, 2.5, 2.7, 3.0, 3.2],
+        [1.3, 1.7, 2.0, 2.3, 2.5, 2.8, 3.0, 3.3, 3.5, 3.8],
+        [2.0, 2.5, 3.0, 3.3, 3.5, 3.8, 4.0, 4.3, 4.5, 4.8],
+        [2.5, 3.0, 3.5, 4.0, 4.3, 4.5, 4.8, 5.0, 5.3, 5.5],
+        [3.0, 3.5, 4.0, 4.5, 5.0, 5.3, 5.5, 5.8, 6.0, 6.3],
+        [3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.3, 6.5, 6.8, 7.0],
+        [4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.3, 7.5, 7.8],
+        [4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.3, 8.5],
+        [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.3],
+        [5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5,10.0],
+      ],
+      // Frequency discounts (%)
+      freqDiscounts:{ weekly:10, biweekly:5, monthly:3 },
       currency:"$",
     };
 
@@ -3184,18 +3204,29 @@ export default function App() {
     function deleteClient(id) {
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,bkClients:(x.bkClients||[]).filter(c=>c.id!==id)}:x));
     }
-    function calcPrice(beds,baths,cleanTypeId,addons) {
-      const m=bkSettings.matrix||[]; const r=Math.min(beds,m.length-1); const c=Math.min(baths,(m[0]||[]).length-1);
+    function calcPrice(beds,baths,cleanTypeId,addons,frequency) {
+      const m=bkSettings.matrix||[]; const r=Math.min(beds,m.length-1); const c=Math.min(Math.max(baths-1,0),(m[0]||[]).length-1);
       const base=(m[r]||[])[c]||0;
       const mult=(bkSettings.cleanTypes||[]).find(x=>x.id===cleanTypeId)?.mult||1;
       const addTotal=(addons||[]).reduce((s,aid)=>s+((bkSettings.addons||[]).find(x=>x.id===aid)?.price||0),0);
-      return Math.round(base*mult)+addTotal;
+      const subtotal=Math.round(base*mult)+addTotal;
+      // Apply frequency discount
+      const fd=bkSettings.freqDiscounts||{};
+      const discPct = frequency&&frequency!=="once" ? (fd[frequency]||0) : 0;
+      return discPct>0 ? Math.round(subtotal*(1-discPct/100)) : subtotal;
     }
-    // Estimate duration in hours based on size
-    function calcDuration(beds,baths,cleanTypeId) {
-      const base = 1 + beds*0.5 + baths*0.3;
-      const mult = (bkSettings.cleanTypes||[]).find(x=>x.id===cleanTypeId)?.mult||1;
-      return Math.round(base*mult*10)/10;
+    function calcDuration(beds,baths,cleanTypeId,cleanerCount) {
+      const dm=bkSettings.durMatrix;
+      let base;
+      if (dm&&dm.length>0) {
+        const r=Math.min(beds,dm.length-1); const c=Math.min(Math.max(baths-1,0),(dm[0]||[]).length-1);
+        base=(dm[r]||[])[c]||1;
+      } else {
+        base = 1 + beds*0.5 + baths*0.3;
+      }
+      const mult=(bkSettings.cleanTypes||[]).find(x=>x.id===cleanTypeId)?.mult||1;
+      const cnt=Math.max(cleanerCount||1,1);
+      return Math.round(base*mult/cnt*10)/10;
     }
 
     // ── State ──
@@ -3212,12 +3243,12 @@ export default function App() {
     const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
     const [clientSearch,  setClientSearch]  = useState("");
     const [settingsTab,   setSettTab]       = useState("matrix");
-    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0,priceOverride:null,durOverride:null};
+    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0,priceOverride:null,durOverride:null,cleanerCount:1};
     const [bkF,  setBkF]  = useState(defBkF);
     const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
 
-    const livePrice    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
-    const liveDuration = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
+    const livePrice    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons,bkF.frequency);
+    const liveDuration = calcDuration(bkF.beds,bkF.baths,bkF.cleanType,bkF.cleanerCount);
 
     // ── Calendar data ──
     const today = new Date().toISOString().split("T")[0];
@@ -3294,8 +3325,8 @@ export default function App() {
       const [showNewClient, setShowNewClient] = useState(false);
       const [newClientF, setNewClientF] = useState({name:"",lastName:"",phone:"",email:"",address:"",city:"",notes:""});
 
-      const autoPrice = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
-      const autoDur   = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
+      const autoPrice = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons,bkF.frequency);
+      const autoDur   = calcDuration(bkF.beds,bkF.baths,bkF.cleanType,bkF.cleanerCount);
       const price     = bkF.priceOverride!=null ? bkF.priceOverride : autoPrice;
       const dur       = bkF.durOverride!=null   ? bkF.durOverride   : autoDur;
       const tipAmt    = bkF.tipType==="pct" ? Math.round(price*(bkF.tip||0)/100) : (bkF.tip||0);
@@ -3405,16 +3436,25 @@ export default function App() {
             <div className="fg" style={{marginBottom:10}}>
               <label className="lbl">🔄 {lang==="ru"?"Частота":"Frequency"}</label>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {Object.entries(FREQ_LABELS).map(([k,v])=>(
-                  <button key={k} onClick={()=>setBkF(f=>({...f,frequency:k}))}
-                    style={{padding:"5px 12px",borderRadius:7,fontSize:11,cursor:"pointer",
-                      border:`1px solid ${bkF.frequency===k?"var(--acc)":"var(--bdr)"}`,
-                      background:bkF.frequency===k?"var(--acc)18":"transparent",
-                      color:bkF.frequency===k?"var(--acc)":"var(--mu)"}}>
-                    {v}
-                  </button>
-                ))}
+                {Object.entries(FREQ_LABELS).map(([k,v])=>{
+                  const discPct=(bkSettings.freqDiscounts||{})[k]||0;
+                  return (
+                    <button key={k} onClick={()=>setBkF(f=>({...f,frequency:k}))}
+                      style={{padding:"5px 12px",borderRadius:7,fontSize:11,cursor:"pointer",position:"relative",
+                        border:`1px solid ${bkF.frequency===k?"var(--acc)":"var(--bdr)"}`,
+                        background:bkF.frequency===k?"var(--acc)18":"transparent",
+                        color:bkF.frequency===k?"var(--acc)":"var(--mu)"}}>
+                      {v}
+                      {discPct>0&&<span style={{marginLeft:5,fontSize:9,color:"var(--gr)",fontWeight:700}}>-{discPct}%</span>}
+                    </button>
+                  );
+                })}
               </div>
+              {bkF.frequency!=="once"&&(bkSettings.freqDiscounts||{})[bkF.frequency]>0&&(
+                <div style={{fontSize:10,color:"var(--gr)",marginTop:4}}>
+                  ✓ {lang==="ru"?"Скидка за регулярность":"Recurring discount"}: -{(bkSettings.freqDiscounts||{})[bkF.frequency]}%
+                </div>
+              )}
             </div>
 
             {/* Pricing block */}
@@ -3425,17 +3465,22 @@ export default function App() {
               <div className="fr" style={{marginBottom:8}}>
                 <div className="fg"><label className="lbl">{lang==="ru"?"Спальни":"Bedrooms"}</label>
                   <select className="inp" value={bkF.beds} onChange={e=>setBkF(f=>({...f,beds:+e.target.value}))}>
-                    {[0,1,2,3,4].map(n=><option key={n} value={n}>{n===0?"Studio":`${n} bd`}</option>)}
+                    {[0,1,2,3,4,5,6,7,8,9].map(n=><option key={n} value={n}>{n===0?"Studio":`${n} bd`}</option>)}
                   </select>
                 </div>
                 <div className="fg"><label className="lbl">{lang==="ru"?"Ванные":"Bathrooms"}</label>
                   <select className="inp" value={bkF.baths} onChange={e=>setBkF(f=>({...f,baths:+e.target.value}))}>
-                    {[1,2,3,4].map(n=><option key={n} value={n}>{n} ba</option>)}
+                    {[1,2,3,4,5,6,7,8,9,10].map(n=><option key={n} value={n}>{n} ba</option>)}
                   </select>
                 </div>
                 <div className="fg"><label className="lbl">{lang==="ru"?"Тип уборки":"Clean Type"}</label>
                   <select className="inp" value={bkF.cleanType} onChange={e=>setBkF(f=>({...f,cleanType:e.target.value}))}>
                     {(bkSettings.cleanTypes||[]).map(ct=><option key={ct.id} value={ct.id}>{ct.label}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label className="lbl">👥 {lang==="ru"?"Клинеров":"Cleaners"}</label>
+                  <select className="inp" value={bkF.cleanerCount||1} onChange={e=>setBkF(f=>({...f,cleanerCount:+e.target.value}))}>
+                    {[1,2,3,4].map(n=><option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
               </div>
@@ -3627,7 +3672,7 @@ export default function App() {
       const emp = emps.find(e=>e.id===bk.cleanerId);
       const ct  = (bkSettings.cleanTypes||[]).find(x=>x.id===bk.cleanType);
       const sc  = STATUS_COLORS[bk.status]||"var(--mu)";
-      const dur = bk.durOverride||calcDuration(bk.beds,bk.baths,bk.cleanType);
+      const dur = bk.durOverride||calcDuration(bk.beds,bk.baths,bk.cleanType,bk.cleanerCount);
       const displayPrice = bk.total||bk.price;
       const isCC = bk.paymentMethod==="cc";
 
@@ -3967,40 +4012,161 @@ export default function App() {
 
     // ── Settings ──
     const SettingsPanel = () => {
-      const [lm,setLM]=useState(bkSettings.matrix||[]);
-      const [lt,setLT]=useState(bkSettings.cleanTypes||[]);
-      const [la,setLA]=useState(bkSettings.addons||[]);
-      const BL=["Studio","1 bd","2 bd","3 bd","4 bd"], HL=["1 ba","2 ba","3 ba","4 ba"];
+      const SIZE=10;
+      const [lm,setLM]   = useState(()=>{
+        const m=bkSettings.matrix||[];
+        // Ensure 10×10
+        return Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>m[r]?.[c]||0));
+      });
+      const [ldm,setLDM] = useState(()=>{
+        const m=bkSettings.durMatrix||[];
+        return Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>m[r]?.[c]||0));
+      });
+      const [lt,setLT]   = useState(bkSettings.cleanTypes||[]);
+      const [la,setLA]   = useState(bkSettings.addons||[]);
+      const [lfd,setLFD] = useState(bkSettings.freqDiscounts||{weekly:10,biweekly:5,monthly:3});
+
+      // Smart setup state
+      const [p1,setP1] = useState({beds:1,baths:1,price:120,dur:1.33});
+      const [p2,setP2] = useState({beds:2,baths:2,price:180,dur:3.0});
+
+      function autoFillMatrix() {
+        // Derive per-bed and per-bath increments from 2 anchor points
+        // price(b,ba) = base + b*pricePerBed + (ba-1)*pricePerBath
+        // Assume equal contribution of bed and bath
+        const totalRooms1 = p1.beds + p1.baths;
+        const totalRooms2 = p2.beds + p2.baths;
+        const pricePerRoom = (p2.price - p1.price) / (totalRooms2 - totalRooms1);
+        const durPerRoom   = (p2.dur   - p1.dur)   / (totalRooms2 - totalRooms1);
+        const basePrice = p1.price - (p1.beds + p1.baths) * pricePerRoom;
+        const baseDur   = p1.dur   - (p1.beds + p1.baths) * durPerRoom;
+
+        const newM  = Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>{
+          const beds=r, baths=c+1;
+          return Math.max(0,Math.round(basePrice + beds*pricePerRoom + baths*pricePerRoom));
+        }));
+        const newDM = Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>{
+          const beds=r, baths=c+1;
+          return Math.max(0,Math.round((baseDur + beds*durPerRoom + baths*durPerRoom)*10)/10);
+        }));
+        setLM(newM); setLDM(newDM);
+        saveBkSettings({matrix:newM, durMatrix:newDM});
+      }
+
+      const BL = ["Studio","1 bd","2 bd","3 bd","4 bd","5 bd","6 bd","7 bd","8 bd","9 bd"];
+      const HL = ["1 ba","2 ba","3 ba","4 ba","5 ba","6 ba","7 ba","8 ba","9 ba","10 ba"];
+
+      const tabs = [
+        ["smart",   lang==="ru"?"⚡ Автонастройка":"⚡ Smart Setup"],
+        ["matrix",  lang==="ru"?"💰 Матрица цен":"💰 Price Matrix"],
+        ["dur",     lang==="ru"?"⏱ Матрица времени":"⏱ Duration Matrix"],
+        ["disc",    lang==="ru"?"🏷 Скидки":"🏷 Discounts"],
+        ["types",   lang==="ru"?"Типы уборки":"Clean Types"],
+        ["addons",  lang==="ru"?"Доп услуги":"Add-ons"],
+      ];
+
       return (
         <>
-          <div style={{display:"flex",gap:6,marginBottom:14}}>
-            {[["matrix",lang==="ru"?"Матрица цен":"Price Matrix"],["types",lang==="ru"?"Типы уборки":"Clean Types"],["addons",lang==="ru"?"Доп услуги":"Add-ons"]].map(([k,v])=>(
-              <button key={k} onClick={()=>setSettTab(k)} style={{padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",
-                border:`1px solid ${settingsTab===k?"var(--acc)":"var(--bdr)"}`,background:settingsTab===k?"var(--acc)18":"transparent",color:settingsTab===k?"var(--acc)":"var(--mu)"}}>
+          <div style={{display:"flex",gap:5,marginBottom:16,flexWrap:"wrap"}}>
+            {tabs.map(([k,v])=>(
+              <button key={k} onClick={()=>setSettTab(k)} style={{padding:"5px 11px",borderRadius:7,fontSize:11,cursor:"pointer",
+                border:`1px solid ${settingsTab===k?"var(--acc)":"var(--bdr)"}`,
+                background:settingsTab===k?"var(--acc)18":"transparent",
+                color:settingsTab===k?"var(--acc)":"var(--mu)"}}>
                 {v}
               </button>
             ))}
           </div>
+
+          {/* ── SMART SETUP ── */}
+          {settingsTab==="smart"&&(
+            <div>
+              <div style={{background:"var(--acc)10",border:"1px solid var(--acc)30",borderRadius:12,padding:16,marginBottom:16}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>⚡ {lang==="ru"?"Умная настройка цен":"Smart Price Setup"}</div>
+                <div style={{fontSize:12,color:"var(--mu)",lineHeight:1.6}}>
+                  {lang==="ru"
+                    ?"Введи 2 ориентира — программа рассчитает всю матрицу до 9 спален × 10 ванных автоматически."
+                    :"Enter 2 anchor points — the system auto-fills the entire 9 bed × 10 bath matrix."}
+                </div>
+              </div>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                {/* Point 1 */}
+                {[{p:p1,setP:setP1,label:lang==="ru"?"Ориентир 1":"Anchor 1",color:"var(--bl)"},
+                  {p:p2,setP:setP2,label:lang==="ru"?"Ориентир 2":"Anchor 2",color:"var(--acc)"}].map(({p,setP,label,color})=>(
+                  <div key={label} style={{background:"var(--s2)",borderRadius:11,padding:14,border:`1px solid ${color}30`}}>
+                    <div style={{fontSize:11,fontWeight:700,color,marginBottom:10}}>📍 {label}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      <div>
+                        <label className="lbl">{lang==="ru"?"Спален":"Beds"}</label>
+                        <select className="inp" value={p.beds} onChange={e=>setP(x=>({...x,beds:+e.target.value}))}>
+                          {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} bd</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="lbl">{lang==="ru"?"Ванных":"Baths"}</label>
+                        <select className="inp" value={p.baths} onChange={e=>setP(x=>({...x,baths:+e.target.value}))}>
+                          {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} ba</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="lbl">💰 {lang==="ru"?"Цена $":"Price $"}</label>
+                        <input type="number" className="inp" value={p.price} onChange={e=>setP(x=>({...x,price:+e.target.value}))} style={{textAlign:"center"}}/>
+                      </div>
+                      <div>
+                        <label className="lbl">⏱ {lang==="ru"?"Время ч":"Hours"}</label>
+                        <input type="number" step="0.1" className="inp" value={p.dur} onChange={e=>setP(x=>({...x,dur:+e.target.value}))} style={{textAlign:"center"}}/>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview */}
+              <div style={{background:"var(--s2)",borderRadius:10,padding:12,marginBottom:14,fontSize:11,color:"var(--mu)"}}>
+                <div style={{fontWeight:600,color:"var(--tx)",marginBottom:6}}>{lang==="ru"?"Предпросмотр прогрессии:":"Preview progression:"}</div>
+                {(()=>{
+                  const totalRooms1=p1.beds+p1.baths, totalRooms2=p2.beds+p2.baths;
+                  if(totalRooms1===totalRooms2) return <div style={{color:"#ef4444"}}>{lang==="ru"?"Ориентиры должны отличаться":"Anchors must differ"}</div>;
+                  const pricePerRoom=Math.round((p2.price-p1.price)/(totalRooms2-totalRooms1));
+                  const durPerRoom=Math.round((p2.dur-p1.dur)/(totalRooms2-totalRooms1)*10)/10;
+                  return (
+                    <div style={{display:"flex",gap:16}}>
+                      <span>📈 {lang==="ru"?"Шаг цены":"Price step"}: <b style={{color:"var(--acc)"}}>+${pricePerRoom}</b> {lang==="ru"?"за комнату":"per room"}</span>
+                      <span>⏱ {lang==="ru"?"Шаг времени":"Duration step"}: <b style={{color:"var(--bl)"}}>+{durPerRoom}h</b> {lang==="ru"?"за комнату":"per room"}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <button className="btn btn-p" style={{width:"100%",padding:"11px 0",fontSize:13,fontWeight:700}}
+                onClick={autoFillMatrix}>
+                ⚡ {lang==="ru"?"Рассчитать и заполнить всю матрицу (9×10)":"Calculate & Fill Full Matrix (9×10)"}
+              </button>
+            </div>
+          )}
+
+          {/* ── PRICE MATRIX ── */}
           {settingsTab==="matrix"&&(
             <div>
-              <div style={{fontSize:12,color:"var(--mu)",marginBottom:10}}>
-                {lang==="ru"?"Базовая цена по кол-ву спален и ванных. Тип уборки умножает эту сумму.":"Base price by bedrooms and bathrooms. Clean type multiplies this amount."}
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:10}}>
+                {lang==="ru"?"Базовая цена (Standard). Тип уборки применяет множитель.":"Base price (Standard). Clean type applies multiplier."}
               </div>
               <div style={{overflowX:"auto"}}>
-                <table style={{borderCollapse:"collapse",minWidth:300}}>
+                <table style={{borderCollapse:"collapse",fontSize:11}}>
                   <thead><tr>
-                    <th style={{padding:"5px 10px",fontSize:10,color:"var(--mu)",textAlign:"left"}}>{lang==="ru"?"Сп\\Ван":"Bd\\Ba"}</th>
-                    {HL.map((h,ci)=><th key={ci} style={{padding:"5px 10px",fontSize:11,color:"var(--bl)",textAlign:"center"}}>{h}</th>)}
+                    <th style={{padding:"5px 8px",fontSize:10,color:"var(--mu)",textAlign:"left",minWidth:60}}>{lang==="ru"?"Сп\\Ван":"Bd\\Ba"}</th>
+                    {HL.map((h,ci)=><th key={ci} style={{padding:"5px 8px",color:"var(--bl)",textAlign:"center",minWidth:68}}>{h}</th>)}
                   </tr></thead>
                   <tbody>{lm.map((row,ri)=>(
                     <tr key={ri}>
-                      <td style={{padding:"4px 10px",fontSize:11,color:"var(--acc)",fontWeight:600}}>{BL[ri]}</td>
+                      <td style={{padding:"4px 8px",color:"var(--acc)",fontWeight:600}}>{BL[ri]}</td>
                       {row.map((v,ci)=>(
-                        <td key={ci} style={{padding:3}}>
-                          <div style={{display:"flex",alignItems:"center",gap:2}}>
-                            <span style={{fontSize:11,color:"var(--mu)"}}>$</span>
+                        <td key={ci} style={{padding:2}}>
+                          <div style={{display:"flex",alignItems:"center",gap:1}}>
+                            <span style={{fontSize:10,color:"var(--mu)"}}>$</span>
                             <input type="number" value={v} onChange={e=>{const m=lm.map(r=>[...r]);m[ri][ci]=+e.target.value;setLM(m);}}
-                              style={{width:62,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:12,textAlign:"center"}}/>
+                              style={{width:58,padding:"3px 4px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:11,textAlign:"center"}}/>
                           </div>
                         </td>
                       ))}
@@ -4011,6 +4177,73 @@ export default function App() {
               <button className="btn btn-p" style={{marginTop:12}} onClick={()=>saveBkSettings({matrix:lm})}>{lang==="ru"?"Сохранить":"Save"}</button>
             </div>
           )}
+
+          {/* ── DURATION MATRIX ── */}
+          {settingsTab==="dur"&&(
+            <div>
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:10}}>
+                {lang==="ru"?"Базовое время (часы, 1 клинер, Standard). При 2 клинерах делится пополам.":"Base duration (hours, 1 cleaner, Standard). With 2 cleaners it's halved."}
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{borderCollapse:"collapse",fontSize:11}}>
+                  <thead><tr>
+                    <th style={{padding:"5px 8px",fontSize:10,color:"var(--mu)",textAlign:"left",minWidth:60}}>{lang==="ru"?"Сп\\Ван":"Bd\\Ba"}</th>
+                    {HL.map((h,ci)=><th key={ci} style={{padding:"5px 8px",color:"var(--bl)",textAlign:"center",minWidth:68}}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>{ldm.map((row,ri)=>(
+                    <tr key={ri}>
+                      <td style={{padding:"4px 8px",color:"var(--acc)",fontWeight:600}}>{BL[ri]}</td>
+                      {row.map((v,ci)=>(
+                        <td key={ci} style={{padding:2}}>
+                          <input type="number" step="0.1" min="0" value={v} onChange={e=>{const m=ldm.map(r=>[...r]);m[ri][ci]=+e.target.value;setLDM(m);}}
+                            style={{width:58,padding:"3px 4px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:11,textAlign:"center"}}/>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <button className="btn btn-p" style={{marginTop:12}} onClick={()=>saveBkSettings({durMatrix:ldm})}>{lang==="ru"?"Сохранить":"Save"}</button>
+            </div>
+          )}
+
+          {/* ── FREQUENCY DISCOUNTS ── */}
+          {settingsTab==="disc"&&(
+            <div>
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:14}}>
+                {lang==="ru"?"Скидка применяется автоматически при выборе регулярности.":"Discount applies automatically when a recurring frequency is selected."}
+              </div>
+              {[
+                ["weekly",   lang==="ru"?"Каждую неделю":"Weekly"],
+                ["biweekly", lang==="ru"?"Раз в 2 нед":"Every 2 weeks"],
+                ["monthly",  lang==="ru"?"Раз в 4 нед":"Every 4 weeks"],
+              ].map(([k,label])=>{
+                const pct=lfd[k]||0;
+                const exampleBase=120;
+                const discounted=Math.round(exampleBase*(1-pct/100));
+                return (
+                  <div key={k} style={{background:"var(--s2)",borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{label}</div>
+                      <div style={{fontSize:10,color:"var(--mu)",marginTop:2}}>
+                        {lang==="ru"?"Пример: $120":"Example: $120"} → <span style={{color:"var(--gr)",fontWeight:600}}>${discounted}</span>
+                        {pct>0&&<span style={{color:"var(--gr)"}}> (-{pct}%)</span>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <input type="number" min="0" max="50" value={pct}
+                        onChange={e=>setLFD(f=>({...f,[k]:+e.target.value}))}
+                        style={{width:60,padding:"6px 8px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:14,fontWeight:700,textAlign:"center"}}/>
+                      <span style={{fontSize:12,color:"var(--mu)"}}>%</span>
+                    </div>
+                  </div>
+                );
+              })}
+              <button className="btn btn-p" style={{marginTop:6}} onClick={()=>saveBkSettings({freqDiscounts:lfd})}>{lang==="ru"?"Сохранить скидки":"Save Discounts"}</button>
+            </div>
+          )}
+
+          {/* ── CLEAN TYPES ── */}
           {settingsTab==="types"&&(
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {lt.map((ct,i)=>(
@@ -4020,12 +4253,14 @@ export default function App() {
                   <input type="number" step="0.1" min="0.5" max="5" value={ct.mult}
                     onChange={e=>{const a=[...lt];a[i]={...a[i],mult:+e.target.value};setLT(a);}}
                     style={{width:60,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12}}/>
-                  <span style={{fontSize:11,color:"var(--gr)"}}>→ {bkSettings.currency}{Math.round((lm?.[2]?.[0]||120)*ct.mult)}</span>
+                  <span style={{fontSize:11,color:"var(--gr)"}}>→ {bkSettings.currency}{Math.round((lm?.[2]?.[1]||140)*ct.mult)}</span>
                 </div>
               ))}
               <button className="btn btn-p" onClick={()=>saveBkSettings({cleanTypes:lt})}>{lang==="ru"?"Сохранить":"Save"}</button>
             </div>
           )}
+
+          {/* ── ADD-ONS ── */}
           {settingsTab==="addons"&&(
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {la.map((a,i)=>(
