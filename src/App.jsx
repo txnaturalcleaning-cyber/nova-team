@@ -1894,138 +1894,156 @@ export default function App() {
 
     if (openContact) {
       const stage = STAGES.find(s=>s.id===openContact.stage)||STAGES[0];
+      // Merge SMS log + notes into unified chat timeline
+      const smsHistory = (smsLog[openContact.id]||[]).map(m=>({...m, type:"sms"}));
+      const noteHistory = (openContact.history||[]).map(m=>({...m, type:"note"}));
+      const allMessages = [...smsHistory, ...noteHistory].sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+
       return (
-        <div style={{maxWidth:760,margin:"0 auto"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18,cursor:"pointer",color:"var(--mu)",fontSize:13}}
-            onClick={()=>setOpenId(null)}>
-            ← {lang==="ru"?"Назад к контактам":"Back to contacts"}
-          </div>
+        <div style={{display:"flex",gap:14,maxWidth:1000,margin:"0 auto",height:"calc(100vh - 160px)",minHeight:500}}>
 
-          {/* Contact header */}
-          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20,marginBottom:14}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
-              <Av name={openContact.name} color={stage.color} size="av-lg" style={{width:52,height:52,fontSize:20}}/>
-              <div style={{flex:1,minWidth:200}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,marginBottom:4}}>{openContact.name}</div>
-                <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:13,color:"var(--mu)",marginBottom:10}}>
-                  {openContact.phone&&<span>{IC.phone} {openContact.phone}</span>}
-                  {openContact.email&&<span>✉ {openContact.email}</span>}
-                  <span>📅 {openContact.createdAt}</span>
-                </div>
-                {/* Tags */}
-                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
-                  {(openContact.tags||[]).map(tag=>{
-                    const td = crmTags.find(t=>t.name===tag);
-                    return <span key={tag} style={{fontSize:11,padding:"2px 8px",borderRadius:5,background:(td?.color||"var(--acc)")+"22",color:td?.color||"var(--acc)",border:`1px solid ${td?.color||"var(--acc)"}40`,cursor:"pointer"}}
-                      onClick={()=>toggleTag(openContact.id,tag)}>
-                      {IC.tag} {tag} ×
-                    </span>;
-                  })}
-                  {/* Add tag dropdown */}
-                  <select style={{fontSize:11,padding:"2px 6px",borderRadius:5,background:"var(--s2)",border:"1px solid var(--bdr)",color:"var(--mu)",cursor:"pointer"}}
-                    value="" onChange={e=>{if(e.target.value)toggleTag(openContact.id,e.target.value);}}>
-                    <option value="">+ {lang==="ru"?"тег":"tag"}</option>
-                    {crmTags.filter(t=>!(openContact.tags||[]).includes(t.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Stage selector */}
-              <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                {STAGES.map(s=>(
-                  <button key={s.id} onClick={()=>moveStage(openContact.id,s.id)}
-                    style={{padding:"5px 12px",borderRadius:7,border:`1px solid ${s.id===openContact.stage?s.color:"var(--bdr)"}`,
-                      background:s.id===openContact.stage?s.color+"18":"transparent",
-                      color:s.id===openContact.stage?s.color:"var(--mu)",
-                      fontSize:11,fontWeight:s.id===openContact.stage?600:400,cursor:"pointer",textAlign:"left"}}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+          {/* LEFT: Contact info panel */}
+          <div style={{width:240,flexShrink:0,display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"var(--mu)",fontSize:12,marginBottom:4}}
+              onClick={()=>setOpenId(null)}>← {lang==="ru"?"Назад":"Back"}
             </div>
-            {/* Action buttons */}
-            <div style={{display:"flex",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid var(--bdr)",flexWrap:"wrap"}}>
-              {openContact.phone&&(
-                <a href={`tel:${openContact.phone}`} className="btn btn-p btn-sm">{IC.phone} {lang==="ru"?"Позвонить":"Call"}</a>
-              )}
-              {openContact.phone&&(
-                <button className="btn btn-bl btn-sm" onClick={()=>{setSmsModal(openContact.id);setSmsText("");}}>
-                  {IC.sms} {lang==="ru"?"Отправить SMS":"Send SMS"}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:14,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
+              <Av name={openContact.name} color={stage.color} style={{width:48,height:48,fontSize:18}}/>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15}}>{openContact.name}</div>
+              {openContact.phone&&<div style={{fontSize:12,color:"var(--mu)"}}>{openContact.phone}</div>}
+              {openContact.email&&<div style={{fontSize:11,color:"var(--mu2)",wordBreak:"break-all"}}>{openContact.email}</div>}
+              <div style={{fontSize:10,color:"var(--mu2)"}}>📅 {openContact.createdAt}</div>
+            </div>
+
+            {/* Stage */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:12}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>{t.crmStage}</div>
+              {STAGES.map(s=>(
+                <button key={s.id} onClick={()=>moveStage(openContact.id,s.id)}
+                  style={{width:"100%",padding:"5px 10px",borderRadius:7,marginBottom:3,border:`1px solid ${s.id===openContact.stage?s.color:"transparent"}`,
+                    background:s.id===openContact.stage?s.color+"18":"transparent",
+                    color:s.id===openContact.stage?s.color:"var(--mu)",
+                    fontSize:11,fontWeight:s.id===openContact.stage?700:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                  {s.label}
                 </button>
-              )}
-              {(isSA||isPartner)&&(
-                <button className="btn btn-d btn-sm" style={{marginLeft:"auto"}} onClick={()=>deleteContact(openContact.id)}>{IC.trash} {t.delete}</button>
-              )}
-            </div>
-          </div>
-
-          {/* History / Notes */}
-          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>{t.contactHistory}</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,maxHeight:320,overflowY:"auto"}}>
-              {(openContact.history||[]).length===0&&(
-                <div style={{textAlign:"center",color:"var(--mu)",padding:24,fontSize:13}}>{lang==="ru"?"История пуста":"No history yet"}</div>
-              )}
-              {[...(openContact.history||[])].reverse().map(n=>(
-                <div key={n.id} style={{background:"var(--s2)",borderRadius:9,padding:"10px 12px"}}>
-                  <div style={{fontSize:13,lineHeight:1.5}}>{n.text}</div>
-                  <div style={{fontSize:10,color:"var(--mu)",marginTop:4}}>{n.author} · {n.ts}</div>
-                </div>
               ))}
             </div>
-            <div style={{display:"flex",gap:8}}>
-              <input className="inp" value={noteText} onChange={e=>setNoteText(e.target.value)}
-                placeholder={lang==="ru"?"Добавить заметку...":"Add a note..."}
-                onKeyDown={e=>{if(e.key==="Enter")addNote(openContact.id);}}
-                style={{flex:1}}/>
-              <button className="btn btn-p" onClick={()=>addNote(openContact.id)}>{IC.send}</button>
+
+            {/* Tags */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:12}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>{t.crmTags}</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
+                {(openContact.tags||[]).map(tag=>{
+                  const td=crmTags.find(t=>t.name===tag);
+                  return <span key={tag} style={{fontSize:10,padding:"2px 7px",borderRadius:5,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)",cursor:"pointer",border:`1px solid ${td?.color||"var(--acc)"}30`}}
+                    onClick={()=>toggleTag(openContact.id,tag)}>{tag} ×</span>;
+                })}
+              </div>
+              <select style={{width:"100%",fontSize:11,padding:"4px 6px",borderRadius:6,background:"var(--s2)",border:"1px solid var(--bdr)",color:"var(--mu)",cursor:"pointer"}}
+                value="" onChange={e=>{if(e.target.value)toggleTag(openContact.id,e.target.value);}}>
+                <option value="">+ {lang==="ru"?"добавить тег":"add tag"}</option>
+                {crmTags.filter(t=>!(openContact.tags||[]).includes(t.name)).map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
             </div>
+
+            {/* Delete */}
+            {(isSA||isPartner)&&(
+              <button className="btn btn-d btn-sm" onClick={()=>deleteContact(openContact.id)}>{IC.trash} {t.delete}</button>
+            )}
           </div>
 
-          {/* SMS MODAL inline for contact detail */}
-          {smsModal&&(()=>{
-            const c = contacts.find(x=>x.id===smsModal);
-            const history = smsLog[smsModal]||[];
-            return (
-              <div className="ovl" onClick={()=>setSmsModal(null)}>
-                <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
-                  <div className="modal-t">{IC.sms} SMS → {c?.name} <span style={{fontSize:12,color:"var(--mu)",fontWeight:400,marginLeft:4}}>{c?.phone}</span></div>
-                  {history.length>0&&(
-                    <div style={{maxHeight:180,overflowY:"auto",marginBottom:14,display:"flex",flexDirection:"column",gap:6}}>
-                      {history.map(m=>(
-                        <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:m.dir==="out"?"flex-end":"flex-start"}}>
-                          <div style={{background:m.dir==="out"?"var(--acc)18":"var(--s2)",border:`1px solid ${m.dir==="out"?"var(--acc)30":"var(--bdr)"}`,borderRadius:9,padding:"7px 11px",maxWidth:"80%",fontSize:12}}>{m.text}</div>
-                          <div style={{fontSize:9,color:"var(--mu)",marginTop:2}}>{m.ts}</div>
-                        </div>
-                      ))}
+          {/* RIGHT: Chat window */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,overflow:"hidden"}}>
+
+            {/* Chat header */}
+            <div style={{padding:"12px 16px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+              <Av name={openContact.name} color={stage.color}/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14}}>{openContact.name}</div>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{openContact.phone||openContact.email||""}</div>
+              </div>
+              {openContact.phone&&(
+                <div style={{display:"flex",gap:6}}>
+                  <a href={`tel:${openContact.phone}`} className="btn btn-p btn-sm" title={lang==="ru"?"Позвонить":"Call"}>{IC.phone}</a>
+                </div>
+              )}
+            </div>
+
+            {/* Messages area */}
+            <div style={{flex:1,overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:10}}>
+              {allMessages.length===0&&(
+                <div style={{textAlign:"center",color:"var(--mu)",marginTop:60}}>
+                  <div style={{fontSize:32,marginBottom:8}}>💬</div>
+                  <div style={{fontSize:13}}>{lang==="ru"?"Начните общение — отправьте SMS или добавьте заметку":"Start the conversation — send an SMS or add a note"}</div>
+                </div>
+              )}
+              {allMessages.map(m=>{
+                const isOut = m.dir==="out"||m.type==="note";
+                const isSmsOut = m.type==="sms"&&m.dir==="out";
+                const isSmsIn  = m.type==="sms"&&m.dir==="in";
+                const isNote   = m.type==="note";
+                return (
+                  <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isSmsIn?"flex-start":"flex-end"}}>
+                    <div style={{
+                      maxWidth:"72%",padding:"9px 13px",borderRadius:isSmsIn?"4px 14px 14px 14px":"14px 4px 14px 14px",
+                      background: isSmsIn?"var(--s2)": isSmsOut?"var(--acc)22": "var(--bl)12",
+                      border:`1px solid ${isSmsIn?"var(--bdr)":isSmsOut?"var(--acc)35":"var(--bl)25"}`,
+                      fontSize:13,lineHeight:1.5,color:"var(--tx)"
+                    }}>
+                      {isNote&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📝 {lang==="ru"?"Заметка":"Note"}</div>}
+                      {isSmsOut&&<div style={{fontSize:9,color:"var(--acc)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📤 SMS</div>}
+                      {isSmsIn&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📥 SMS</div>}
+                      <div>{m.text}</div>
                     </div>
-                  )}
-                  <div className="fg">
-                    <label className="lbl">{lang==="ru"?"Сообщение":"Message"}</label>
-                    <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)} style={{minHeight:80}}
-                      placeholder={lang==="ru"?"Введите сообщение...":"Type your message..."}/>
-                    <div style={{fontSize:10,color:"var(--mu)",marginTop:3,textAlign:"right"}}>{smsText.length}/160</div>
+                    <div style={{fontSize:9,color:"var(--mu2)",marginTop:2,paddingLeft:4,paddingRight:4}}>{m.author&&m.type==="note"?`${m.author} · `:""}{m.ts}</div>
                   </div>
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{lang==="ru"?"Быстрые шаблоны:":"Quick templates:"}</div>
-                    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                      {[lang==="ru"?"Спасибо за интерес! Свяжемся в ближайшее время.":"Thanks for your interest! We'll be in touch soon.",
-                        lang==="ru"?"Ваша уборка запланирована. Увидимся!":"Your cleaning is scheduled. See you soon!",
-                        lang==="ru"?"Хотите узнать подробнее о наших услугах?":"Want to learn more about our services?",
-                      ].map((tmpl,i)=>(
-                        <button key={i} className="btn btn-g btn-sm" style={{fontSize:10,padding:"3px 8px",textAlign:"left"}} onClick={()=>setSmsText(tmpl)}>{tmpl.slice(0,30)}...</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="ma">
-                    <button className="btn btn-g" onClick={()=>setSmsModal(null)}>{t.cancel}</button>
-                    <button className="btn btn-p" disabled={smsSending||!smsText.trim()} onClick={()=>sendSMS(smsModal,c?.phone,smsText)}>
-                      {smsSending?(lang==="ru"?"Отправка...":"Sending..."):(`${IC.send} ${lang==="ru"?"Отправить":"Send"}`)}
+                );
+              })}
+            </div>
+
+            {/* Input area */}
+            <div style={{borderTop:"1px solid var(--bdr)",padding:12,flexShrink:0}}>
+              {/* Quick templates */}
+              <div style={{display:"flex",gap:5,marginBottom:8,overflowX:"auto",paddingBottom:2}}>
+                {[
+                  lang==="ru"?"Спасибо за интерес!":"Thanks for your interest!",
+                  lang==="ru"?"Уборка запланирована ✓":"Cleaning scheduled ✓",
+                  lang==="ru"?"Можем ли мы помочь?":"Can we help you?",
+                  lang==="ru"?"Свяжемся скоро!":"We'll be in touch!",
+                ].map((tmpl,i)=>(
+                  <button key={i} className="btn btn-g btn-sm" style={{fontSize:10,padding:"2px 8px",whiteSpace:"nowrap",flexShrink:0}}
+                    onClick={()=>setSmsText(tmpl)}>{tmpl}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)}
+                  style={{flex:1,minHeight:40,maxHeight:100,resize:"none",padding:"8px 12px"}}
+                  placeholder={lang==="ru"?"SMS или заметка... (Enter = заметка, Shift+Enter = строка)":"SMS or note... (Enter = note, Shift+Enter = newline)"}
+                  onKeyDown={e=>{
+                    if(e.key==="Enter"&&!e.shiftKey){
+                      e.preventDefault();
+                      if(smsText.trim()) addNote(openContact.id); // Enter adds note
+                    }
+                  }}/>
+                <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {openContact.phone&&(
+                    <button className="btn btn-p btn-sm" style={{padding:"7px 10px"}} disabled={smsSending||!smsText.trim()}
+                      title="Send SMS" onClick={()=>sendSMS(openContact.id,openContact.phone,smsText)}>
+                      {smsSending?"...":IC.sms}
                     </button>
-                  </div>
+                  )}
+                  <button className="btn btn-g btn-sm" style={{padding:"7px 10px"}} title={lang==="ru"?"Добавить заметку":"Add note"}
+                    disabled={!smsText.trim()} onClick={()=>addNote(openContact.id)}>
+                    {IC.send}
+                  </button>
                 </div>
               </div>
-            );
-          })()}
+              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>
+                {IC.sms} = SMS · {IC.send} = {lang==="ru"?"заметка":"note"} · {smsText.length}/160
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
@@ -2342,7 +2360,7 @@ export default function App() {
                 <div className="ma">
                   <button className="btn btn-g" onClick={()=>setSmsModal(null)}>{t.cancel}</button>
                   <button className="btn btn-p" disabled={smsSending||!smsText.trim()} onClick={()=>sendSMS(smsModal,c?.phone,smsText)}>
-                    {smsSending?(lang==="ru"?"Отправка...":"Sending..."):(`${IC.send} ${lang==="ru"?"Отправить":"Send"}`)}
+                    {smsSending?(lang==="ru"?"Отправка...":"Sending..."):<>{IC.send} {lang==="ru"?"Отправить":"Send"}</>}
                   </button>
                 </div>
               </div>
