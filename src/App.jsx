@@ -3205,8 +3205,10 @@ export default function App() {
     const [viewDate,    setViewDate]  = useState(new Date());
     const [popupBk,     setPopupBk]   = useState(null);  // quick-view popup
     const [showBkForm,  setBkForm]    = useState(false);
-    const [showClForm,  setClForm]    = useState(false);
+    const [showClForm,  setClForm]    = useState(false); // client form
     const [editClId,    setEditClId]  = useState(null);
+    const [showCrForm,  setCrForm]    = useState(false); // cleaner form
+    const [editCrId,    setEditCrId]  = useState(null);
     const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
     const [clientSearch,  setClientSearch]  = useState("");
     const [settingsTab,   setSettTab]       = useState("matrix");
@@ -3237,6 +3239,8 @@ export default function App() {
     const CLEANER_COLORS = ["#3b82f6","#a855f7","#22c55e","#f0a500","#ec4899","#06b6d4","#ef4444","#84cc16","#f97316","#8b5cf6"];
     function cleanerColor(empId) {
       if (!empId) return "#94a3b8";
+      const emp = emps.find(e=>e.id===empId);
+      if (emp?.color) return emp.color;
       const idx = emps.findIndex(e=>e.id===empId);
       return CLEANER_COLORS[Math.abs(idx)%CLEANER_COLORS.length]||"#94a3b8";
     }
@@ -3719,13 +3723,20 @@ export default function App() {
     // ── Cleaners tab (full profiles) ──
     const CleanersTab = () => {
       const monthStr2 = `${yr}-${String(mo+1).padStart(2,"0")}`;
-      const [showForm, setShowForm] = useState(false);
-      const [editId,   setEditId]   = useState(null);
-      const [search,   setSearch]   = useState("");
-      const defCl = {name:"",phone:"",email:"",address:"",city:"",notes:"",status:"active",daysOff:[],workStart:"08:00",workEnd:"18:00"};
+      const defCl = {name:"",phone:"",email:"",address:"",city:"",notes:"",status:"active",daysOff:[],workStart:"08:00",workEnd:"18:00",color:""};
       const [clF2, setClF2] = useState(defCl);
+      const [search, setSearch] = useState("");
 
-      // Cleaners = employees (stored in partner.employees)
+      // Sync form when editing
+      React.useEffect(()=>{
+        if (editCrId) {
+          const e = emps.find(x=>x.id===editCrId);
+          if (e) setClF2({name:e.name||"",phone:e.phone||"",email:e.email||"",address:e.address||"",city:e.city||"",notes:e.notes||"",status:e.status||"active",daysOff:e.daysOff||[],workStart:e.workStart||"08:00",workEnd:e.workEnd||"18:00",color:e.color||""});
+        } else {
+          setClF2(defCl);
+        }
+      }, [editCrId, showCrForm]);
+
       const cleaners = emps.filter(e=>e.status!=="fired");
       const filtered = cleaners.filter(c=>{
         const q=search.toLowerCase();
@@ -3739,16 +3750,22 @@ export default function App() {
         }:x));
       }
 
-      const DAYS = lang==="ru"
-        ?["Вс","Пн","Вт","Ср","Чт","Пт","Сб"]
-        :["Su","Mo","Tu","We","Th","Fr","Sa"];
+      // Color = custom if set, else auto by index
+      function getCleanerColor(c) {
+        if (c.color) return c.color;
+        const idx = emps.findIndex(e=>e.id===c.id);
+        return CLEANER_COLORS[Math.abs(idx)%CLEANER_COLORS.length]||"#94a3b8";
+      }
+
+      const PALETTE = ["#3b82f6","#a855f7","#22c55e","#f0a500","#ec4899","#06b6d4","#ef4444","#84cc16","#f97316","#8b5cf6","#14b8a6","#f43f5e"];
+      const DAYS = lang==="ru"?["Вс","Пн","Вт","Ср","Чт","Пт","Сб"]:["Su","Mo","Tu","We","Th","Fr","Sa"];
 
       return (
         <>
-          {showForm&&(
-            <div className="ovl" onClick={()=>{setShowForm(false);setEditId(null);}}>
+          {showCrForm&&(
+            <div className="ovl" onClick={()=>{setCrForm(false);setEditCrId(null);}}>
               <div className="modal" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
-                <div className="modal-t">{editId?(lang==="ru"?"✏️ Профиль клинера":"✏️ Cleaner Profile"):(lang==="ru"?"+ Новый клинер":"+ New Cleaner")}</div>
+                <div className="modal-t">{editCrId?(lang==="ru"?"✏️ Профиль клинера":"✏️ Cleaner Profile"):(lang==="ru"?"+ Новый клинер":"+ New Cleaner")}</div>
                 <div className="fr">
                   <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label>
                     <input className="inp" value={clF2.name} onChange={e=>setClF2(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/>
@@ -3767,6 +3784,23 @@ export default function App() {
                 </div>
                 <div className="fg"><label className="lbl">📍 {lang==="ru"?"Адрес":"Address"}</label>
                   <input className="inp" value={clF2.address||""} onChange={e=>setClF2(f=>({...f,address:e.target.value}))} placeholder="123 Main St"/>
+                </div>
+                {/* Color picker */}
+                <div className="fg">
+                  <label className="lbl">🎨 {lang==="ru"?"Цвет в календаре":"Calendar color"}</label>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4,alignItems:"center"}}>
+                    {PALETTE.map(col=>(
+                      <button key={col} onClick={()=>setClF2(f=>({...f,color:f.color===col?"":col}))}
+                        style={{width:24,height:24,borderRadius:"50%",background:col,cursor:"pointer",
+                          border:`3px solid ${clF2.color===col?"var(--tx)":"transparent"}`,
+                          outline:`2px solid ${clF2.color===col?col:"transparent"}`,transition:"all .15s"}}>
+                      </button>
+                    ))}
+                    <button onClick={()=>setClF2(f=>({...f,color:""}))}
+                      style={{fontSize:10,padding:"2px 8px",borderRadius:5,cursor:"pointer",border:"1px solid var(--bdr)",background:"transparent",color:"var(--mu)"}}>
+                      {lang==="ru"?"авто":"auto"}
+                    </button>
+                  </div>
                 </div>
                 <div className="fr">
                   <div className="fg"><label className="lbl">🕐 {lang==="ru"?"Нач. работы":"Work Start"}</label>
@@ -3791,8 +3825,7 @@ export default function App() {
                         <button key={i} onClick={()=>setClF2(f=>({...f,daysOff:on?(f.daysOff||[]).filter(x=>x!==i):[...(f.daysOff||[]),i]}))}
                           style={{padding:"4px 8px",borderRadius:6,fontSize:11,cursor:"pointer",
                             border:`1px solid ${on?"var(--acc)":"var(--bdr)"}`,
-                            background:on?"var(--acc)18":"transparent",
-                            color:on?"var(--acc)":"var(--mu)"}}>
+                            background:on?"var(--acc)18":"transparent",color:on?"var(--acc)":"var(--mu)"}}>
                           {d}
                         </button>
                       );
@@ -3803,11 +3836,11 @@ export default function App() {
                   <input className="inp" value={clF2.notes||""} onChange={e=>setClF2(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Особенности, навыки...":"Skills, notes..."}/>
                 </div>
                 <div className="ma">
-                  <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditId(null);}}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                  <button className="btn btn-g" onClick={()=>{setCrForm(false);setEditCrId(null);}}>{lang==="ru"?"Отмена":"Cancel"}</button>
                   <button className="btn btn-p" onClick={()=>{
                     if(!clF2.name.trim()) return;
-                    saveCleaner({...clF2,id:editId||"emp_"+Date.now(),type:"employee",partnerId:pid,sections:["booking","tasks","schedule"],role:lang==="ru"?"Клинер":"Cleaner",createdAt:new Date().toISOString().split("T")[0]});
-                    setShowForm(false);setEditId(null);
+                    saveCleaner({...clF2,id:editCrId||"emp_"+Date.now(),type:"employee",partnerId:pid,sections:["booking","tasks","schedule"],role:lang==="ru"?"Клинер":"Cleaner",createdAt:new Date().toISOString().split("T")[0]});
+                    setCrForm(false);setEditCrId(null);
                   }}>{lang==="ru"?"Сохранить":"Save"}</button>
                 </div>
               </div>
@@ -3816,7 +3849,7 @@ export default function App() {
 
           <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
             <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder={lang==="ru"?"Поиск клинеров...":"Search cleaners..."} style={{flex:1}}/>
-            <button className="btn btn-p" onClick={()=>{setClF2(defCl);setEditId(null);setShowForm(true);}}>
+            <button className="btn btn-p" onClick={()=>{setEditCrId(null);setCrForm(true);}}>
               + {lang==="ru"?"Клинер":"Cleaner"}
             </button>
           </div>
@@ -3824,19 +3857,20 @@ export default function App() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
             {!filtered.length&&<div style={{gridColumn:"1/-1",textAlign:"center",color:"var(--mu)",padding:40}}>🧹 {lang==="ru"?"Клинеров нет":"No cleaners"}</div>}
             {filtered.map(c=>{
-              const cc = cleanerColor(c.id);
+              const cc = getCleanerColor(c);
               const cBks = bookings.filter(b=>b.cleanerId===c.id&&b.date?.startsWith(monthStr2));
               const monthEarn = cBks.reduce((s,b)=>s+(b.price||0),0);
               const todayBks2 = bookings.filter(b=>b.cleanerId===c.id&&b.date===today);
               const daysOffStr = (c.daysOff||[]).sort((a,b)=>a-b).map(i=>DAYS[i]).join(", ");
               return (
-                <div key={c.id} style={{background:"var(--s1)",border:`1px solid ${cc}20`,borderLeft:`3px solid ${cc}`,borderRadius:10,padding:16}}>
+                <div key={c.id} style={{background:"var(--s1)",border:`1px solid ${cc}30`,borderLeft:`3px solid ${cc}`,borderRadius:10,padding:16}}>
                   <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12}}>
                     <Av name={c.name} color={cc} style={{width:44,height:44,fontSize:17,flexShrink:0}}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:6}}>
                         {c.name}
-                        <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,
+                        <span style={{width:10,height:10,borderRadius:"50%",background:cc,display:"inline-block",flexShrink:0}}/>
+                        <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,marginLeft:"auto",
                           background:c.status==="active"?"var(--gr)20":"var(--mu)15",
                           color:c.status==="active"?"var(--gr)":"var(--mu)"}}>
                           {c.status==="active"?(lang==="ru"?"Активен":"Active"):(lang==="ru"?"Неактивен":"Inactive")}
@@ -3845,10 +3879,7 @@ export default function App() {
                       {c.phone&&<div style={{fontSize:11,color:"var(--mu)"}}>{c.phone}</div>}
                       {c.email&&<div style={{fontSize:11,color:"var(--mu)"}}>{c.email}</div>}
                     </div>
-                    <button className="btn btn-g btn-sm" onClick={()=>{
-                      setClF2({name:c.name,phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||"",status:c.status||"active",daysOff:c.daysOff||[],workStart:c.workStart||"08:00",workEnd:c.workEnd||"18:00"});
-                      setEditId(c.id);setShowForm(true);
-                    }}>✏️</button>
+                    <button className="btn btn-g btn-sm" onClick={()=>{setEditCrId(c.id);setCrForm(true);}}>✏️</button>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:8}}>
                     {[
@@ -3877,18 +3908,27 @@ export default function App() {
 
     // ── Clients tab ──
     const ClientsTab = () => {
-      const [editId,setEditId]=useState(null);
-      const [showForm,setShowForm]=useState(false);
       const filtered=bkClients.filter(c=>{
         const q=clientSearch.toLowerCase();
         return !q||(c.name||"").toLowerCase().includes(q)||(c.phone||"").includes(q)||(c.email||"").toLowerCase().includes(q);
       });
+
+      // Sync clF when editClId changes
+      React.useEffect(()=>{
+        if (editClId) {
+          const c=bkClients.find(x=>x.id===editClId);
+          if (c) setClF({name:c.name||"",phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||""});
+        } else {
+          setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});
+        }
+      }, [editClId, showClForm]);
+
       return (
         <>
-          {showForm&&(
-            <div className="ovl" onClick={()=>{setShowForm(false);setEditId(null);}}>
+          {showClForm&&(
+            <div className="ovl" onClick={()=>{setClForm(false);setEditClId(null);}}>
               <div className="modal" onClick={e=>e.stopPropagation()}>
-                <div className="modal-t">{editId?(lang==="ru"?"✏️ Редактировать":"✏️ Edit"):(lang==="ru"?"+ Новый клиент":"+ New Client")}</div>
+                <div className="modal-t">{editClId?(lang==="ru"?"✏️ Редактировать":"✏️ Edit"):(lang==="ru"?"+ Новый клиент":"+ New Client")}</div>
                 <div className="fr">
                   <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label><input className="inp" value={clF.name} onChange={e=>setClF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
                   <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={clF.phone} onChange={e=>setClF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
@@ -3900,11 +3940,11 @@ export default function App() {
                 <div className="fg"><label className="lbl">{lang==="ru"?"Адрес уборки":"Cleaning address"}</label><input className="inp" value={clF.address} onChange={e=>setClF(f=>({...f,address:e.target.value}))} placeholder="123 Main St, Austin TX"/></div>
                 <div className="fg"><label className="lbl">{lang==="ru"?"Заметки":"Notes"}</label><input className="inp" value={clF.notes} onChange={e=>setClF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Особенности...":"Special requests..."}/></div>
                 <div className="ma">
-                  <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditId(null);}}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                  <button className="btn btn-g" onClick={()=>{setClForm(false);setEditClId(null);}}>{lang==="ru"?"Отмена":"Cancel"}</button>
                   <button className="btn btn-p" onClick={()=>{
                     if(!clF.name.trim()) return;
-                    saveClient({...clF,id:editId||"cl_"+Date.now(),createdAt:new Date().toISOString().split("T")[0]});
-                    setShowForm(false);setEditId(null);
+                    saveClient({...clF,id:editClId||"cl_"+Date.now(),createdAt:new Date().toISOString().split("T")[0]});
+                    setClForm(false);setEditClId(null);
                   }}>{lang==="ru"?"Сохранить":"Save"}</button>
                 </div>
               </div>
@@ -3912,7 +3952,7 @@ export default function App() {
           )}
           <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
             <input className="inp" value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder={lang==="ru"?"Поиск...":"Search..."} style={{flex:1}}/>
-            <button className="btn btn-p" onClick={()=>{setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});setEditId(null);setShowForm(true);}}>
+            <button className="btn btn-p" onClick={()=>{setEditClId(null);setClForm(true);}}>
               + {lang==="ru"?"Клиент":"Client"}
             </button>
           </div>
@@ -3921,7 +3961,7 @@ export default function App() {
             {filtered.map(c=>{
               const cBks=bookings.filter(b=>b.clientId===c.id);
               const total=cBks.reduce((s,b)=>s+(b.price||0),0);
-              const last=cBks.sort((a,b)=>b.date?.localeCompare(a.date||""))[0];
+              const last=[...cBks].sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];
               return (
                 <div key={c.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
                   <Av name={c.name} color="var(--bl)"/>
@@ -3938,7 +3978,7 @@ export default function App() {
                     <div style={{fontSize:11,color:"var(--mu)"}}>{cBks.length} {lang==="ru"?"уборок":"cleanings"}</div>
                   </div>
                   <div style={{display:"flex",gap:5}}>
-                    <button className="btn btn-g btn-sm" onClick={()=>{setClF({name:c.name,phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||""});setEditId(c.id);setShowForm(true);}}>✏️</button>
+                    <button className="btn btn-g btn-sm" onClick={()=>{setEditClId(c.id);setClForm(true);}}>✏️</button>
                     <button className="btn btn-p btn-sm" onClick={()=>{setBkF({...defBkF,clientId:c.id,notes:c.address||""});setBkForm(true);}}>+ {lang==="ru"?"Запись":"Book"}</button>
                   </div>
                 </div>
