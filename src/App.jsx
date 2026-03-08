@@ -3212,7 +3212,7 @@ export default function App() {
     const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
     const [clientSearch,  setClientSearch]  = useState("");
     const [settingsTab,   setSettTab]       = useState("matrix");
-    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0};
+    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0,priceOverride:null,durOverride:null};
     const [bkF,  setBkF]  = useState(defBkF);
     const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
 
@@ -3260,8 +3260,25 @@ export default function App() {
     };
 
     function getDateStr(d) { return d.toISOString().split("T")[0]; }
+    // Expand recurring bookings — given a dateStr, return all bookings that fall on that date
+    // including recurrences from bookings with frequency != "once"
     function getDayBks(dateStr) {
-      return bookings.filter(b=>b.date===dateStr&&(cleanerFilter===""||b.cleanerId===cleanerFilter));
+      const result = [];
+      const target = new Date(dateStr+"T12:00");
+      for (const b of bookings) {
+        if (cleanerFilter!==""&&b.cleanerId!==cleanerFilter) continue;
+        if (!b.date) continue;
+        if (b.frequency==="once"||!b.frequency) {
+          if (b.date===dateStr) result.push(b);
+          continue;
+        }
+        const start = new Date(b.date+"T12:00");
+        if (target < start) continue;
+        const diffDays = Math.round((target-start)/(1000*60*60*24));
+        const interval = b.frequency==="weekly"?7:b.frequency==="biweekly"?14:28;
+        if (diffDays%interval===0) result.push({...b, date:dateStr, _recurring:true});
+      }
+      return result;
     }
 
     // ── Booking Form Modal ──
@@ -3270,11 +3287,13 @@ export default function App() {
       const [showNewClient, setShowNewClient] = useState(false);
       const [newClientF, setNewClientF] = useState({name:"",lastName:"",phone:"",email:"",address:"",city:"",notes:""});
 
-      const price    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
-      const dur      = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
-      const tipAmt   = bkF.tipType==="pct" ? Math.round(price*(bkF.tip||0)/100) : (bkF.tip||0);
-      const taxAmt   = Math.round(price*(bkF.salesTax||0)/100);
-      const total    = price + tipAmt + (bkF.parking||0) + taxAmt;
+      const autoPrice = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
+      const autoDur   = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
+      const price     = bkF.priceOverride!=null ? bkF.priceOverride : autoPrice;
+      const dur       = bkF.durOverride!=null   ? bkF.durOverride   : autoDur;
+      const tipAmt    = bkF.tipType==="pct" ? Math.round(price*(bkF.tip||0)/100) : (bkF.tip||0);
+      const taxAmt    = Math.round(price*(bkF.salesTax||0)/100);
+      const total     = price + tipAmt + (bkF.parking||0) + taxAmt;
 
       const PAYMENT_METHODS = [
         {k:"cc",    l:lang==="ru"?"Карта":"Credit Card",      ico:"💳"},
@@ -3427,21 +3446,44 @@ export default function App() {
                   );
                 })}
               </div>
-              {/* Base price line */}
-              <div style={{display:"flex",alignItems:"center",gap:14,paddingTop:10,borderTop:"1px solid var(--bdr)"}}>
-                <div>
-                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Уборка":"Cleaning"}</div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"var(--acc)"}}>
-                    {bkSettings.currency}{price}
+              {/* Price + Duration — editable overrides */}
+              <div style={{display:"flex",alignItems:"flex-end",gap:10,paddingTop:10,borderTop:"1px solid var(--bdr)"}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}>
+                    <span style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{lang==="ru"?"Стоимость":"Price"}</span>
+                    {bkF.priceOverride!=null&&<span style={{fontSize:9,color:"var(--acc)",background:"var(--acc)15",padding:"1px 5px",borderRadius:3}}>✎ {lang==="ru"?"вручную":"manual"}</span>}
                   </div>
+                  <div style={{display:"flex"}}>
+                    <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"7px 0 0 7px",fontSize:13,color:"var(--mu)"}}>$</span>
+                    <input type="number" min="0" value={bkF.priceOverride!=null?bkF.priceOverride:autoPrice}
+                      onChange={e=>setBkF(f=>({...f,priceOverride:+e.target.value}))}
+                      className="inp" style={{borderRadius:"0 7px 7px 0",borderLeft:"none",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)",width:90,textAlign:"center"}}/>
+                  </div>
+                  {bkF.priceOverride!=null&&<button onClick={()=>setBkF(f=>({...f,priceOverride:null}))}
+                    style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:2,padding:0}}>
+                    ↺ {lang==="ru"?"авто $":"auto $"}{autoPrice}
+                  </button>}
                 </div>
-                <div style={{height:36,width:1,background:"var(--bdr)"}}/>
-                <div>
-                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Длит.":"Duration"}</div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:"var(--bl)"}}>{dur}{lang==="ru"?"ч":"h"}</div>
+                <div style={{width:1,height:52,background:"var(--bdr)",flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}>
+                    <span style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{lang==="ru"?"Длит.":"Duration"}</span>
+                    {bkF.durOverride!=null&&<span style={{fontSize:9,color:"var(--bl)",background:"var(--bl)15",padding:"1px 5px",borderRadius:3}}>✎ {lang==="ru"?"вручную":"manual"}</span>}
+                  </div>
+                  <div style={{display:"flex"}}>
+                    <input type="number" min="0.5" max="24" step="0.5"
+                      value={bkF.durOverride!=null?bkF.durOverride:autoDur}
+                      onChange={e=>setBkF(f=>({...f,durOverride:+e.target.value}))}
+                      className="inp" style={{borderRadius:"7px 0 0 7px",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:"var(--bl)",width:70,textAlign:"center"}}/>
+                    <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"0 7px 7px 0",fontSize:13,color:"var(--mu)",borderLeft:"none"}}>{lang==="ru"?"ч":"h"}</span>
+                  </div>
+                  {bkF.durOverride!=null&&<button onClick={()=>setBkF(f=>({...f,durOverride:null}))}
+                    style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:2,padding:0}}>
+                    ↺ {lang==="ru"?"авто":"auto"} {autoDur}{lang==="ru"?"ч":"h"}
+                  </button>}
                 </div>
-                <div style={{marginLeft:"auto",fontSize:11,color:"var(--mu)"}}>
-                  {lang==="ru"?"База":"Base"}: {bkSettings.currency}{calcPrice(bkF.beds,bkF.baths,bkF.cleanType,[])} × {(bkSettings.cleanTypes||[]).find(x=>x.id===bkF.cleanType)?.mult||1}
+                <div style={{fontSize:10,color:"var(--mu)",paddingBottom:6,textAlign:"right"}}>
+                  {lang==="ru"?"База":"Base"}: ${calcPrice(bkF.beds,bkF.baths,bkF.cleanType,[])} × {(bkSettings.cleanTypes||[]).find(x=>x.id===bkF.cleanType)?.mult||1}
                 </div>
               </div>
             </div>
@@ -3548,10 +3590,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* Address / notes */}
+            {/* Notes */}
             <div className="fg" style={{marginBottom:10}}>
-              <label className="lbl">📍 {lang==="ru"?"Адрес / заметки":"Address / notes"}</label>
-              <input className="inp" value={bkF.notes} onChange={e=>setBkF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Адрес уборки, особые пожелания...":"Cleaning address, special requests..."}/>
+              <label className="lbl">📝 {lang==="ru"?"Заметки":"Notes"}</label>
+              <input className="inp" value={bkF.notes} onChange={e=>setBkF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Особые пожелания, ключи, домашние животные...":"Special requests, key access, pets..."}/>
             </div>
 
             <div className="ma">
