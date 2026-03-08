@@ -3627,49 +3627,233 @@ export default function App() {
       const emp = emps.find(e=>e.id===bk.cleanerId);
       const ct  = (bkSettings.cleanTypes||[]).find(x=>x.id===bk.cleanType);
       const sc  = STATUS_COLORS[bk.status]||"var(--mu)";
-      const dur = calcDuration(bk.beds,bk.baths,bk.cleanType);
+      const dur = bk.durOverride||calcDuration(bk.beds,bk.baths,bk.cleanType);
+      const displayPrice = bk.total||bk.price;
+      const isCC = bk.paymentMethod==="cc";
+
+      const [log, setLog] = useState(bk.log||[]);
+      const [showLog, setShowLog] = useState(false);
+      const [showChecklist, setShowChecklist] = useState(false);
+      const [checklist, setChecklist] = useState(bk.checklist||[
+        {id:"c1",text:lang==="ru"?"Кухня":"Kitchen",done:false},
+        {id:"c2",text:lang==="ru"?"Ванная":"Bathroom",done:false},
+        {id:"c3",text:lang==="ru"?"Спальня":"Bedroom",done:false},
+        {id:"c4",text:lang==="ru"?"Гостиная":"Living room",done:false},
+        {id:"c5",text:lang==="ru"?"Полы":"Floors",done:false},
+        {id:"c6",text:lang==="ru"?"Окна":"Windows",done:false},
+      ]);
+      const [chargeConfirm, setChargeConfirm] = useState(false);
+
+      function addLog(action) {
+        const entry = {at:new Date().toLocaleString("ru"),action};
+        const newLog = [entry,...log];
+        setLog(newLog);
+        saveBooking({...bk, log:newLog});
+      }
+
+      function changeStatus(s) {
+        saveBooking({...bk,status:s});
+        addLog(`${lang==="ru"?"Статус изменён на":"Status changed to"}: ${STATUS_LABELS[s]}`);
+        onClose();
+      }
+
+      function saveChecklist(cl2) {
+        setChecklist(cl2);
+        saveBooking({...bk,checklist:cl2});
+      }
+
+      const PM_ICO = {cc:"💳",cash:"💵",zelle:"📲",venmo:"📱",check:"📝"};
+      const ACTIONS = [
+        ...(isCC?[{
+          label:lang==="ru"?"💳 Снять оплату":"💳 Charge Card",
+          color:"#22c55e",tc:"#fff",
+          onClick:()=>setChargeConfirm(true)
+        }]:[]),
+        {
+          label:lang==="ru"?"📋 Чеклист уборки":"📋 Cleaning Checklist",
+          color:"var(--acc)",tc:"#fff",
+          onClick:()=>setShowChecklist(x=>!x)
+        },
+        {
+          label:lang==="ru"?"📜 Лог событий":"📜 Booking Log",
+          color:"var(--s2)",tc:"var(--tx)",border:true,
+          onClick:()=>setShowLog(x=>!x)
+        },
+        {
+          label:lang==="ru"?"➕ В воронку CRM":"➕ Add to CRM Funnel",
+          color:"var(--s2)",tc:"var(--tx)",border:true,
+          onClick:()=>{
+            const exists = (p?.contacts||[]).find(c=>c.phone===cl?.phone||c.email===cl?.email);
+            if(!cl) return;
+            if(!exists) {
+              setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),{
+                id:"c_"+Date.now(),name:cl.name,phone:cl.phone||"",email:cl.email||"",
+                address:cl.address||"",city:cl.city||"",tags:["Cleaner-Client"],
+                createdAt:new Date().toISOString().split("T")[0],history:[]
+              }]}:x));
+              addLog(lang==="ru"?"Добавлен в CRM":"Added to CRM");
+              alert(lang==="ru"?`${cl.name} добавлен в CRM`:`${cl.name} added to CRM`);
+            } else {
+              alert(lang==="ru"?"Контакт уже есть в CRM":"Contact already in CRM");
+            }
+          }
+        },
+        {
+          label:lang==="ru"?"📩 Отправить квитанцию":"📩 Send Receipt",
+          color:"var(--s2)",tc:"var(--tx)",border:true,
+          onClick:()=>{
+            addLog(lang==="ru"?"Квитанция отправлена":"Receipt sent");
+            alert(lang==="ru"?`Квитанция отправлена на ${cl?.email||cl?.phone||"клиента"}`:`Receipt sent to ${cl?.email||cl?.phone||"client"}`);
+          }
+        },
+      ];
+
+      const doneCount = checklist.filter(x=>x.done).length;
+
       return (
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:200}} onClick={onClose}>
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
-            background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:16,padding:22,
-            width:320,boxShadow:"0 20px 60px #00000040"}} onClick={e=>e.stopPropagation()}>
+            background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:16,
+            width:340,maxHeight:"88vh",overflowY:"auto",
+            boxShadow:"0 20px 60px #00000050"}} onClick={e=>e.stopPropagation()}>
+
             {/* Header */}
-            <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:14}}>
-              <Av name={cl?.name||"?"} color={sc} style={{width:40,height:40,fontSize:16}}/>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:15}}>{cl?.name||lang==="ru"?"Клиент не указан":"No client"}</div>
-                {cl?.phone&&<div style={{fontSize:11,color:"var(--mu)"}}>{cl.phone}</div>}
-                {cl?.address&&<div style={{fontSize:11,color:"var(--mu)"}}>📍 {cl.address}</div>}
-              </div>
-              <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"var(--mu)",lineHeight:1}}>×</button>
-            </div>
-            {/* Details grid */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 14px",fontSize:12,marginBottom:14}}>
-              {[
-                ["📅",lang==="ru"?"Дата":"Date", `${bk.date} ${bk.time}`],
-                ["🔄",lang==="ru"?"Частота":"Freq", FREQ_LABELS[bk.frequency]||"—"],
-                ["🛏",lang==="ru"?"Размер":"Size", `${bk.beds}bd / ${bk.baths}ba`],
-                ["🧹",lang==="ru"?"Тип":"Type", ct?.label||"—"],
-                ["⏱",lang==="ru"?"Длит.":"Duration", `${dur}h`],
-                ["🧹",lang==="ru"?"Клинер":"Cleaner", emp?.name||lang==="ru"?"Не назначен":"Unassigned"],
-              ].map(([ico,lbl,val])=>(
-                <div key={lbl}>
-                  <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{ico} {lbl}</div>
-                  <div style={{fontWeight:500,color:"var(--tx)"}}>{val}</div>
+            <div style={{padding:"18px 18px 14px",borderBottom:"1px solid var(--bdr)"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                <Av name={cl?.name||"?"} color={cleanerColor(bk.cleanerId)} style={{width:42,height:42,fontSize:16,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:15,marginBottom:1}}>{cl?.name||(lang==="ru"?"Клиент не указан":"No client")}</div>
+                  <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {cl?.phone&&<span>📞 {cl.phone}</span>}
+                    {cl?.city&&<span>📍 {cl.city}</span>}
+                  </div>
                 </div>
+                <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--mu)",lineHeight:1,flexShrink:0}}>×</button>
+              </div>
+            </div>
+
+            {/* Details */}
+            <div style={{padding:"12px 18px",borderBottom:"1px solid var(--bdr)"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 14px",fontSize:12}}>
+                {[
+                  ["📅",lang==="ru"?"Дата":"Date", `${bk.date} · ${bk.time}`],
+                  ["🔄",lang==="ru"?"Частота":"Freq", FREQ_LABELS[bk.frequency]||"—"],
+                  ["🛏",lang==="ru"?"Размер":"Size", `${bk.beds===0?"Studio":`${bk.beds}bd`} / ${bk.baths}ba`],
+                  ["🧹",lang==="ru"?"Тип":"Type", ct?.label||"—"],
+                  ["⏱",lang==="ru"?"Длит.":"Duration", `${dur}${lang==="ru"?"ч":"h"}`],
+                  ["👤",lang==="ru"?"Клинер":"Cleaner", emp?.name||(lang==="ru"?"Не назначен":"Unassigned")],
+                ].map(([ico,lbl,val])=>(
+                  <div key={lbl}>
+                    <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4,marginBottom:1}}>{ico} {lbl}</div>
+                    <div style={{fontWeight:500}}>{val}</div>
+                  </div>
+                ))}
+              </div>
+              {bk.notes&&<div style={{fontSize:11,color:"var(--mu)",marginTop:10,padding:"6px 10px",background:"var(--s2)",borderRadius:7}}>📝 {bk.notes}</div>}
+            </div>
+
+            {/* Price + status + payment */}
+            <div style={{padding:"10px 18px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:11,padding:"3px 9px",borderRadius:5,background:sc+"20",color:sc,fontWeight:600}}>{STATUS_LABELS[bk.status]}</span>
+              {bk.paymentMethod&&<span style={{fontSize:12}}>{PM_ICO[bk.paymentMethod]||""} <span style={{fontSize:10,color:"var(--mu)"}}>{bk.paymentMethod?.toUpperCase()}</span></span>}
+              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)",marginLeft:"auto"}}>{bkSettings.currency}{displayPrice}</span>
+              {bk.tipAmt>0&&<span style={{fontSize:10,color:"var(--gr)"}}>+${bk.tipAmt} tip</span>}
+            </div>
+
+            {/* Quick status change */}
+            <div style={{padding:"10px 18px",borderBottom:"1px solid var(--bdr)"}}>
+              <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4,marginBottom:7}}>{lang==="ru"?"Изменить статус":"Change Status"}</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {Object.entries(STATUS_LABELS).map(([k,v])=>(
+                  <button key={k} onClick={()=>changeStatus(k)}
+                    style={{padding:"4px 10px",borderRadius:6,fontSize:10,cursor:"pointer",
+                      border:`1px solid ${bk.status===k?STATUS_COLORS[k]:"var(--bdr)"}`,
+                      background:bk.status===k?STATUS_COLORS[k]+"20":"transparent",
+                      color:bk.status===k?STATUS_COLORS[k]:"var(--mu)",fontWeight:bk.status===k?700:400}}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Charge confirm */}
+            {chargeConfirm&&(
+              <div style={{margin:"0 18px 10px",padding:12,background:"#22c55e15",border:"1px solid #22c55e40",borderRadius:10}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>💳 {lang==="ru"?"Подтвердить снятие":"Confirm charge"} {bkSettings.currency}{displayPrice}?</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{addLog(`💳 ${lang==="ru"?"Оплата снята":"Payment charged"}: $${displayPrice}`);setChargeConfirm(false);}}
+                    style={{flex:1,padding:"7px 0",background:"#22c55e",color:"#fff",border:"none",borderRadius:7,cursor:"pointer",fontWeight:700,fontSize:12}}>
+                    ✓ {lang==="ru"?"Снять $":"Charge $"}{displayPrice}
+                  </button>
+                  <button onClick={()=>setChargeConfirm(false)}
+                    style={{padding:"7px 12px",background:"transparent",border:"1px solid var(--bdr)",borderRadius:7,cursor:"pointer",fontSize:12,color:"var(--mu)"}}>
+                    {lang==="ru"?"Отмена":"Cancel"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{padding:"10px 18px",display:"flex",flexDirection:"column",gap:6}}>
+              {/* Edit / Delete top row */}
+              <div style={{display:"flex",gap:6,marginBottom:2}}>
+                <button onClick={()=>{setBkF({...bk,priceOverride:bk.priceOverride??null,durOverride:bk.durOverride??null});onClose();setBkForm(true);}}
+                  style={{flex:1,padding:"9px 0",background:"var(--acc)",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}>
+                  ✏️ {lang==="ru"?"Редактировать":"Edit"}
+                </button>
+                <button onClick={()=>{changeStatus("cancelled");}}
+                  style={{flex:1,padding:"9px 0",background:"#ef444415",color:"#ef4444",border:"1px solid #ef444430",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:12}}>
+                  🚫 {lang==="ru"?"Отменить":"Cancel"}
+                </button>
+              </div>
+              {ACTIONS.map((a,i)=>(
+                <button key={i} onClick={a.onClick}
+                  style={{width:"100%",padding:"9px 14px",textAlign:"left",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:12,
+                    background:a.color,color:a.tc,border:a.border?"1px solid var(--bdr)":"none",
+                    display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  {a.label}
+                  <span style={{opacity:.5,fontSize:14}}>›</span>
+                </button>
               ))}
             </div>
-            {bk.notes&&<div style={{fontSize:11,color:"var(--mu)",borderTop:"1px solid var(--bdr)",paddingTop:8,marginBottom:12}}>📝 {bk.notes}</div>}
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:12,padding:"3px 9px",borderRadius:5,background:sc+"20",color:sc,fontWeight:600}}>{STATUS_LABELS[bk.status]}</span>
-              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)",marginLeft:"auto"}}>
-                {bkSettings.currency}{bk.total||bk.price}
-                {bk.paymentMethod&&<span style={{fontSize:10,color:"var(--mu)",fontWeight:400,marginLeft:4}}>
-                  {bk.paymentMethod==="cc"?"💳":bk.paymentMethod==="cash"?"💵":bk.paymentMethod==="zelle"?"📲":bk.paymentMethod==="venmo"?"📱":"📝"}
-                </span>}
-              </span>
-              <button className="btn btn-p btn-sm" onClick={()=>{setBkF(bk);onClose();setBkForm(true);}}>✏️</button>
-            </div>
+
+            {/* Checklist */}
+            {showChecklist&&(
+              <div style={{margin:"0 18px 12px",background:"var(--s2)",borderRadius:10,padding:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{fontSize:11,fontWeight:700}}>📋 {lang==="ru"?"Чеклист":"Checklist"}</span>
+                  <span style={{fontSize:10,color:"var(--gr)",fontWeight:600}}>{doneCount}/{checklist.length}</span>
+                </div>
+                {checklist.map(item=>(
+                  <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,cursor:"pointer"}}
+                    onClick={()=>saveChecklist(checklist.map(c=>c.id===item.id?{...c,done:!c.done}:c))}>
+                    <div style={{width:18,height:18,borderRadius:4,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+                      background:item.done?"var(--gr)":"transparent",border:`2px solid ${item.done?"var(--gr)":"var(--bdr)"}`}}>
+                      {item.done&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}
+                    </div>
+                    <span style={{fontSize:12,textDecoration:item.done?"line-through":"none",color:item.done?"var(--mu)":"var(--tx)"}}>{item.text}</span>
+                  </div>
+                ))}
+                {doneCount===checklist.length&&checklist.length>0&&(
+                  <div style={{textAlign:"center",fontSize:11,color:"var(--gr)",fontWeight:600,paddingTop:6}}>✅ {lang==="ru"?"Всё готово!":"All done!"}</div>
+                )}
+              </div>
+            )}
+
+            {/* Log */}
+            {showLog&&(
+              <div style={{margin:"0 18px 12px",background:"var(--s2)",borderRadius:10,padding:12}}>
+                <div style={{fontSize:11,fontWeight:700,marginBottom:8}}>📜 {lang==="ru"?"Лог":"Log"}</div>
+                {log.length===0&&<div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"Нет событий":"No events"}</div>}
+                {log.map((e,i)=>(
+                  <div key={i} style={{fontSize:10,display:"flex",gap:8,marginBottom:6,alignItems:"flex-start"}}>
+                    <span style={{color:"var(--mu)",flexShrink:0}}>{e.at}</span>
+                    <span>{e.action}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
         </div>
       );
