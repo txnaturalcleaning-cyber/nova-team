@@ -1784,15 +1784,15 @@ export default function App() {
     const [activeCall,   setActiveCall]     = useState(null);
     const [callContact,  setCallContact]    = useState(null);
     const [callDuration, setCallDuration]   = useState(0);
+    const [sdkReady,     setSdkReady]       = useState(false);
     const callTimerRef = useRef(null);
 
     useEffect(()=>{
-      // Load Twilio Voice SDK dynamically
-      if (window.Twilio?.Device) return;
+      if (window.Twilio?.Device) { setSdkReady(true); return; }
       const script = document.createElement("script");
       script.src = "https://sdk.twilio.com/js/client/releases/2.7.2/twilio.js";
       script.async = true;
-      script.onload = () => console.log("Twilio Voice SDK loaded");
+      script.onload = () => { setSdkReady(true); console.log("Twilio Voice SDK loaded"); };
       document.head.appendChild(script);
       return ()=>{};
     },[]);
@@ -1800,7 +1800,7 @@ export default function App() {
     async function initTwilioDevice() {
       if (twilioDevice) return twilioDevice;
       if (!window.Twilio?.Device) {
-        alert(lang==="ru"?"Twilio SDK ещё загружается, подождите секунду...":"Twilio SDK is loading, please wait a moment...");
+        console.log("Twilio SDK not ready yet");
         return null;
       }
       try {
@@ -2064,9 +2064,11 @@ export default function App() {
               {openContact.phone&&(
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   {callState==="idle"&&(
-                    <button className="btn btn-p btn-sm" style={{gap:5,display:"flex",alignItems:"center"}}
+                    <button className="btn btn-p btn-sm" style={{gap:5,display:"flex",alignItems:"center",opacity:sdkReady?1:0.5}}
+                      disabled={!sdkReady}
+                      title={!sdkReady?(lang==="ru"?"Загрузка...":"Loading..."):undefined}
                       onClick={()=>startCall(openContact)}>
-                      {IC.phone} {lang==="ru"?"Позвонить":"Call"}
+                      {IC.phone} {sdkReady?(lang==="ru"?"Позвонить":"Call"):(lang==="ru"?"Загрузка...":"Loading...")}
                     </button>
                   )}
                   {(callState==="connecting"||callState==="active")&&callContact?.id===openContact.id&&(
