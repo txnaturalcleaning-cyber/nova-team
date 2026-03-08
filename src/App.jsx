@@ -1778,6 +1778,104 @@ export default function App() {
     const [smsSending,setSmsSending] = useState(false);
     const [smsLog,   setSmsLog]   = useState({}); // {contactId: [{text,ts,dir}]}
 
+    // ── TWILIO VOICE ──
+    const [twilioDevice, setTwilioDevice]   = useState(null);
+    const [callState,    setCallState]      = useState("idle"); // idle|connecting|active|incoming
+    const [activeCall,   setActiveCall]     = useState(null);
+    const [callContact,  setCallContact]    = useState(null);
+    const [callDuration, setCallDuration]   = useState(0);
+    const callTimerRef = useRef(null);
+
+    useEffect(()=>{
+      // Load Twilio Voice SDK dynamically
+      if (window.Twilio?.Device) return;
+      const script = document.createElement("script");
+      script.src = "https://sdk.twilio.com/js/client/releases/2.7.2/twilio.js";
+      script.async = true;
+      script.onload = () => console.log("Twilio Voice SDK loaded");
+      document.head.appendChild(script);
+      return ()=>{};
+    },[]);
+
+    async function initTwilioDevice() {
+      if (twilioDevice) return twilioDevice;
+      if (!window.Twilio?.Device) {
+        alert(lang==="ru"?"Twilio SDK ещё загружается, подождите секунду...":"Twilio SDK is loading, please wait a moment...");
+        return null;
+      }
+      try {
+        const r = await fetch("/api/voice-token", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({identity: currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user"})
+        });
+        const {token} = await r.json();
+        const device = new window.Twilio.Device(token, {logLevel:1, codecPreferences:["opus","pcmu"]});
+        device.on("incoming", call => {
+          setCallState("incoming");
+          setActiveCall(call);
+        });
+        device.on("error", err => {
+          console.error("Twilio Device error:", err);
+          setCallState("idle");
+        });
+        await device.register();
+        setTwilioDevice(device);
+        return device;
+      } catch(e) {
+        console.error("Init device error:", e);
+        alert(lang==="ru"?`Ошибка инициализации: ${e.message}`:`Init error: ${e.message}`);
+        return null;
+      }
+    }
+
+    async function startCall(contact) {
+      const device = await initTwilioDevice();
+      if (!device) return;
+      if (!contact.phone) return;
+      setCallContact(contact);
+      setCallState("connecting");
+      try {
+        const call = await device.connect({
+          params: { To: contact.phone }
+        });
+        setActiveCall(call);
+        call.on("accept", ()=>{
+          setCallState("active");
+          callTimerRef.current = setInterval(()=>setCallDuration(d=>d+1), 1000);
+        });
+        call.on("disconnect", ()=>{
+          setCallState("idle");
+          setActiveCall(null);
+          clearInterval(callTimerRef.current);
+          const dur = callDuration;
+          setCallDuration(0);
+          addHistoryEntry(contact.id, `📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
+        });
+        call.on("error", err=>{
+          setCallState("idle");
+          setActiveCall(null);
+          console.error("Call error:", err);
+        });
+      } catch(e) {
+        setCallState("idle");
+        console.error("Call failed:", e);
+        alert(lang==="ru"?`Не удалось позвонить: ${e.message}`:`Call failed: ${e.message}`);
+      }
+    }
+
+    function hangUp() {
+      if (activeCall) activeCall.disconnect();
+      setCallState("idle");
+      setActiveCall(null);
+      clearInterval(callTimerRef.current);
+      setCallDuration(0);
+    }
+
+    function formatDur(sec) {
+      const m = Math.floor(sec/60), s = sec%60;
+      return `${m}:${s.toString().padStart(2,"0")}`;
+    }
+
     async function sendSMS(contactId, phone, text) {
       if (!phone||!text.trim()) return;
       setSmsSending(true);
@@ -1964,8 +2062,24 @@ export default function App() {
                 <div style={{fontSize:11,color:"var(--mu)"}}>{openContact.phone||openContact.email||""}</div>
               </div>
               {openContact.phone&&(
-                <div style={{display:"flex",gap:6}}>
-                  <a href={`tel:${openContact.phone}`} className="btn btn-p btn-sm" title={lang==="ru"?"Позвонить":"Call"}>{IC.phone}</a>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  {callState==="idle"&&(
+                    <button className="btn btn-p btn-sm" style={{gap:5,display:"flex",alignItems:"center"}}
+                      onClick={()=>startCall(openContact)}>
+                      {IC.phone} {lang==="ru"?"Позвонить":"Call"}
+                    </button>
+                  )}
+                  {(callState==="connecting"||callState==="active")&&callContact?.id===openContact.id&&(
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--gr)15",border:"1px solid var(--gr)30",borderRadius:8,padding:"5px 10px",fontSize:12,color:"var(--gr)"}}>
+                        <span style={{width:7,height:7,borderRadius:"50%",background:"var(--gr)",animation:"pulse 1s infinite"}}/>
+                        {callState==="connecting"?(lang==="ru"?"Соединение...":"Connecting..."):`${lang==="ru"?"Звонок":"Call"} ${formatDur(callDuration)}`}
+                      </div>
+                      <button className="btn btn-d btn-sm" onClick={hangUp} style={{background:"var(--rd)20",color:"var(--rd)",border:"1px solid var(--rd)30"}}>
+                        📵 {lang==="ru"?"Завершить":"Hang up"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
