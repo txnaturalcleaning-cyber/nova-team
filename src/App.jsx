@@ -3130,146 +3130,151 @@ export default function App() {
 
 
   /* ══════════════════════════════════════════════════════
-     BOOKING MODULE — Calendar, Clients, Price Calculator
+     BOOKING MODULE v2 — BookingKoala-style
   ══════════════════════════════════════════════════════ */
   const Booking = () => {
-    const pid  = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
-    const p    = getPartner(pid)||{};
-    const emps = p?.employees||[];
-    const depts= p?.departments||[];
-
-    // ── Booking data stored in partner ──
-    const bookings     = p?.bookings||[];
-    const bkClients    = p?.bkClients||[];
-    const bkSettings   = p?.bkSettings||{
+    const pid    = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p      = getPartner(pid)||{};
+    const emps   = p?.employees||[];
+    const bookings  = p?.bookings||[];
+    const bkClients = p?.bkClients||[];
+    const bkSettings = p?.bkSettings||{
       cleanTypes:[
-        {id:"standard",  label:lang==="ru"?"Стандартная":"Standard",   mult:1.0},
-        {id:"deep",      label:lang==="ru"?"Глубокая":"Deep Clean",     mult:1.5},
-        {id:"moveinout", label:lang==="ru"?"Переезд":"Move In/Out",     mult:1.8},
+        {id:"standard",   label:lang==="ru"?"Стандартная":"Standard Clean",  mult:1.0},
+        {id:"deep",       label:lang==="ru"?"Глубокая":"Deep Clean",          mult:1.5},
+        {id:"moveinout",  label:lang==="ru"?"Переезд":"Move In/Out",          mult:1.8},
       ],
       addons:[
-        {id:"fridge",  label:lang==="ru"?"Внутри холодильника":"Inside Fridge", price:45},
-        {id:"oven",    label:lang==="ru"?"Внутри духовки":"Inside Oven",         price:35},
-        {id:"windows", label:lang==="ru"?"Мытьё окон":"Window Washing",          price:60},
-        {id:"laundry", label:lang==="ru"?"Глажка/стирка":"Laundry/Ironing",      price:40},
+        {id:"fridge",   label:lang==="ru"?"Внутри холодильника":"Inside Fridge",  price:45},
+        {id:"oven",     label:lang==="ru"?"Внутри духовки":"Inside Oven",          price:35},
+        {id:"windows",  label:lang==="ru"?"Мытьё окон":"Window Washing",           price:60},
+        {id:"laundry",  label:lang==="ru"?"Глажка/стирка":"Laundry/Ironing",       price:40},
       ],
-      // Price matrix [beds][baths] — rows=beds(0-4+), cols=baths(0-3+)
-      matrix: [
-        [80,  100, 120, 140],
-        [100, 120, 140, 160],
-        [120, 140, 165, 185],
-        [145, 165, 190, 210],
-        [170, 195, 220, 245],
+      matrix:[
+        [80, 100,120,140],
+        [100,120,140,160],
+        [120,140,165,185],
+        [145,165,190,210],
+        [170,195,220,245],
       ],
       currency:"$",
     };
 
+    // ── Helpers ──
     function saveBkSettings(upd) {
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,bkSettings:{...(x.bkSettings||{}), ...upd}}:x));
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,bkSettings:{...(x.bkSettings||{}),...upd}}:x));
     }
     function saveBooking(bk) {
-      const existing = bookings.find(b=>b.id===bk.id);
+      const exists = bookings.find(b=>b.id===bk.id);
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,
-        bookings: existing
-          ? (x.bookings||[]).map(b=>b.id===bk.id?bk:b)
-          : [...(x.bookings||[]), bk]
+        bookings:exists?(x.bookings||[]).map(b=>b.id===bk.id?bk:b):[...(x.bookings||[]),bk]
       }:x));
     }
     function deleteBooking(id) {
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,bookings:(x.bookings||[]).filter(b=>b.id!==id)}:x));
     }
     function saveClient(cl) {
-      const existing = bkClients.find(c=>c.id===cl.id);
+      const exists = bkClients.find(c=>c.id===cl.id);
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,
-        bkClients: existing
-          ? (x.bkClients||[]).map(c=>c.id===cl.id?cl:c)
-          : [...(x.bkClients||[]), cl]
+        bkClients:exists?(x.bkClients||[]).map(c=>c.id===cl.id?cl:c):[...(x.bkClients||[]),cl]
       }:x));
     }
-
-    // ── Price Calculator ──
-    function calcPrice(beds, baths, cleanTypeId, selectedAddons) {
-      const matrix = bkSettings.matrix||[];
-      const r = Math.min(beds, matrix.length-1);
-      const c = Math.min(baths, (matrix[0]||[]).length-1);
-      const base = (matrix[r]||[])[c]||0;
-      const ct = bkSettings.cleanTypes?.find(x=>x.id===cleanTypeId);
-      const mult = ct?.mult||1;
-      const addonsTotal = (selectedAddons||[]).reduce((sum,aid)=>{
-        const a = bkSettings.addons?.find(x=>x.id===aid);
-        return sum+(a?.price||0);
-      }, 0);
-      return Math.round(base * mult) + addonsTotal;
+    function deleteClient(id) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,bkClients:(x.bkClients||[]).filter(c=>c.id!==id)}:x));
+    }
+    function calcPrice(beds,baths,cleanTypeId,addons) {
+      const m=bkSettings.matrix||[]; const r=Math.min(beds,m.length-1); const c=Math.min(baths,(m[0]||[]).length-1);
+      const base=(m[r]||[])[c]||0;
+      const mult=(bkSettings.cleanTypes||[]).find(x=>x.id===cleanTypeId)?.mult||1;
+      const addTotal=(addons||[]).reduce((s,aid)=>s+((bkSettings.addons||[]).find(x=>x.id===aid)?.price||0),0);
+      return Math.round(base*mult)+addTotal;
+    }
+    // Estimate duration in hours based on size
+    function calcDuration(beds,baths,cleanTypeId) {
+      const base = 1 + beds*0.5 + baths*0.3;
+      const mult = (bkSettings.cleanTypes||[]).find(x=>x.id===cleanTypeId)?.mult||1;
+      return Math.round(base*mult*10)/10;
     }
 
-    // ── Local state ──
-    const [tab, setTab]         = useState("calendar");
-    const [viewMonth, setVM]    = useState(new Date());
-    const [openBk,  setOpenBk]  = useState(null);
-    const [showBkForm, setBkForm] = useState(false);
-    const [showClientForm, setClientForm] = useState(false);
-    const [editClientId, setEditClientId] = useState(null);
-    const [clientSearch, setClientSearch] = useState("");
-    const [bkF, setBkF] = useState({
-      id:null, clientId:"", cleanerId:"", date:"", time:"09:00",
-      cleanType:"standard", beds:2, baths:1, addons:[], notes:"",
-      status:"pending", price:0, sqft:"",
-    });
-    const [clF, setClF] = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
-    const [settingsTab, setSettingsTab] = useState("matrix");
+    // ── State ──
+    const [tab,         setTab]       = useState("calendar");
+    const [calView,     setCalView]   = useState("week"); // "month" | "week"
+    const [viewDate,    setViewDate]  = useState(new Date());
+    const [popupBk,     setPopupBk]   = useState(null);  // quick-view popup
+    const [showBkForm,  setBkForm]    = useState(false);
+    const [showClForm,  setClForm]    = useState(false);
+    const [editClId,    setEditClId]  = useState(null);
+    const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
+    const [clientSearch,  setClientSearch]  = useState("");
+    const [settingsTab,   setSettTab]       = useState("matrix");
+    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once"};
+    const [bkF,  setBkF]  = useState(defBkF);
+    const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
 
-    // Recalculate price whenever form changes
-    const livePrice = calcPrice(bkF.beds, bkF.baths, bkF.cleanType, bkF.addons);
+    const livePrice    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
+    const liveDuration = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
 
-    // ── Calendar helpers ──
-    const yr = viewMonth.getFullYear(), mo = viewMonth.getMonth();
-    const firstDay = new Date(yr, mo, 1).getDay();
-    const daysInMonth = new Date(yr, mo+1, 0).getDate();
+    // ── Calendar data ──
     const today = new Date().toISOString().split("T")[0];
+    const yr=viewDate.getFullYear(), mo=viewDate.getMonth();
+    const MONTH_NAMES = lang==="ru"
+      ?["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"]
+      :["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const DAY_NAMES_SHORT = lang==="ru"?["Вс","Пн","Вт","Ср","Чт","Пт","Сб"]:["Su","Mo","Tu","We","Th","Fr","Sa"];
+    const DAY_NAMES_FULL  = lang==="ru"?["Воскресенье","Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"]:["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-    function getDayBookings(dateStr) {
-      return bookings.filter(b=>b.date===dateStr);
+    // Get week dates
+    function getWeekDates(d) {
+      const start = new Date(d); start.setDate(d.getDate()-d.getDay());
+      return Array.from({length:7},(_,i)=>{const x=new Date(start);x.setDate(start.getDate()+i);return x;});
+    }
+    const weekDates = getWeekDates(viewDate);
+
+    // Cleaner color palette (consistent per cleaner id)
+    const CLEANER_COLORS = ["#3b82f6","#a855f7","#22c55e","#f0a500","#ec4899","#06b6d4","#ef4444","#84cc16","#f97316","#8b5cf6"];
+    function cleanerColor(empId) {
+      if (!empId) return "#94a3b8";
+      const idx = emps.findIndex(e=>e.id===empId);
+      return CLEANER_COLORS[Math.abs(idx)%CLEANER_COLORS.length]||"#94a3b8";
     }
 
-    const STATUS_COLORS = {
-      pending:   "#f0a500",
-      confirmed: "#3b82f6",
-      done:      "#22c55e",
-      cancelled: "#ef4444",
-    };
+    const STATUS_COLORS = {pending:"#f0a500",confirmed:"#3b82f6",done:"#22c55e",cancelled:"#ef4444"};
     const STATUS_LABELS = {
-      pending:   lang==="ru"?"Ожидает":"Pending",
-      confirmed: lang==="ru"?"Подтверждено":"Confirmed",
-      done:      lang==="ru"?"Выполнено":"Done",
-      cancelled: lang==="ru"?"Отменено":"Cancelled",
+      pending:lang==="ru"?"Ожидает":"Pending",
+      confirmed:lang==="ru"?"Подтверждено":"Confirmed",
+      done:lang==="ru"?"Выполнено":"Done",
+      cancelled:lang==="ru"?"Отменено":"Cancelled",
     };
-    const MONTH_NAMES = lang==="ru"
-      ? ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"]
-      : ["January","February","March","April","May","June","July","August","September","October","November","December"];
-    const DAY_NAMES = lang==="ru"
-      ? ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"]
-      : ["Su","Mo","Tu","We","Th","Fr","Sa"];
+    const FREQ_LABELS = {
+      once:     lang==="ru"?"Разово":"One-time",
+      weekly:   lang==="ru"?"Каждую неделю":"Weekly",
+      biweekly: lang==="ru"?"Раз в 2 нед":"Every 2 weeks",
+      monthly:  lang==="ru"?"Раз в 4 нед":"Every 4 weeks",
+    };
 
-    // ── Booking Form ──
+    function getDateStr(d) { return d.toISOString().split("T")[0]; }
+    function getDayBks(dateStr) {
+      return bookings.filter(b=>b.date===dateStr&&(cleanerFilter===""||b.cleanerId===cleanerFilter));
+    }
+
+    // ── Booking Form Modal ──
     const BookingForm = ({onClose}) => {
-      const client  = bkClients.find(c=>c.id===bkF.clientId);
       const cleaners = emps.filter(e=>e.status!=="fired");
+      const price = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
+      const dur   = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
       return (
         <div className="ovl" onClick={onClose}>
-          <div className="modal" style={{maxWidth:520}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-t">{bkF.id?(lang==="ru"?"Редактировать заявку":"Edit Booking"):(lang==="ru"?"Новая заявка":"New Booking")}</div>
+          <div className="modal" style={{maxWidth:540,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-t">{bkF.id?(lang==="ru"?"✏️ Редактировать":"✏️ Edit"):(lang==="ru"?"+ Новая заявка":"+ New Booking")}</div>
 
-            {/* Client + Cleaner */}
+            {/* Row 1: Client + Cleaner */}
             <div className="fr">
               <div className="fg">
                 <label className="lbl">👤 {lang==="ru"?"Клиент":"Client"}</label>
                 <select className="inp" value={bkF.clientId} onChange={e=>setBkF(f=>({...f,clientId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Выберите клиента —":"— Select client —"}</option>
-                  {bkClients.map(c=><option key={c.id} value={c.id}>{c.name} {c.phone?`· ${c.phone}`:""}</option>)}
+                  <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
+                  {bkClients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}
                 </select>
-                {!bkClients.length&&<div style={{fontSize:10,color:"var(--mu)",marginTop:3}}>
-                  {lang==="ru"?"Сначала добавьте клиента во вкладке Клиенты":"Add clients in the Clients tab first"}
-                </div>}
               </div>
               <div className="fg">
                 <label className="lbl">🧹 {lang==="ru"?"Клинер":"Cleaner"}</label>
@@ -3280,90 +3285,105 @@ export default function App() {
               </div>
             </div>
 
-            {/* Date + Time */}
+            {/* Row 2: Date + Time + Status */}
             <div className="fr">
-              <div className="fg">
-                <label className="lbl">📅 {lang==="ru"?"Дата":"Date"} *</label>
+              <div className="fg"><label className="lbl">📅 {lang==="ru"?"Дата *":"Date *"}</label>
                 <input className="inp" type="date" value={bkF.date} onChange={e=>setBkF(f=>({...f,date:e.target.value}))}/>
               </div>
-              <div className="fg">
-                <label className="lbl">🕐 {lang==="ru"?"Время":"Time"}</label>
+              <div className="fg"><label className="lbl">🕐 {lang==="ru"?"Время":"Time"}</label>
                 <input className="inp" type="time" value={bkF.time} onChange={e=>setBkF(f=>({...f,time:e.target.value}))}/>
               </div>
-              <div className="fg">
-                <label className="lbl">📊 {lang==="ru"?"Статус":"Status"}</label>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Статус":"Status"}</label>
                 <select className="inp" value={bkF.status} onChange={e=>setBkF(f=>({...f,status:e.target.value}))}>
                   {Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Pricing factors */}
-            <div style={{background:"var(--s2)",borderRadius:10,padding:12,marginBottom:10}}>
-              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>
-                💰 {lang==="ru"?"Расчёт стоимости":"Price Calculation"}
-              </div>
-              <div className="fr" style={{marginBottom:8}}>
-                <div className="fg">
-                  <label className="lbl">{lang==="ru"?"Спальни":"Bedrooms"}</label>
-                  <select className="inp" value={bkF.beds} onChange={e=>setBkF(f=>({...f,beds:+e.target.value}))}>
-                    {[0,1,2,3,4].map(n=><option key={n} value={n}>{n} {lang==="ru"?"сп":"bd"}</option>)}
-                  </select>
-                </div>
-                <div className="fg">
-                  <label className="lbl">{lang==="ru"?"Ванные":"Bathrooms"}</label>
-                  <select className="inp" value={bkF.baths} onChange={e=>setBkF(f=>({...f,baths:+e.target.value}))}>
-                    {[1,2,3,4].map(n=><option key={n} value={n}>{n} {lang==="ru"?"ван":"ba"}</option>)}
-                  </select>
-                </div>
-                <div className="fg">
-                  <label className="lbl">{lang==="ru"?"Тип уборки":"Clean Type"}</label>
-                  <select className="inp" value={bkF.cleanType} onChange={e=>setBkF(f=>({...f,cleanType:e.target.value}))}>
-                    {(bkSettings.cleanTypes||[]).map(ct=><option key={ct.id} value={ct.id}>{ct.label} ×{ct.mult}</option>)}
-                  </select>
-                </div>
-              </div>
-              {/* Add-ons */}
-              <div style={{marginBottom:8}}>
-                <label className="lbl">{lang==="ru"?"Доп услуги":"Add-ons"}</label>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-                  {(bkSettings.addons||[]).map(a=>{
-                    const on=(bkF.addons||[]).includes(a.id);
-                    return (
-                      <button key={a.id} onClick={()=>setBkF(f=>({...f,addons:on?(f.addons||[]).filter(x=>x!==a.id):[...(f.addons||[]),a.id]}))}
-                        style={{padding:"4px 10px",borderRadius:7,fontSize:11,cursor:"pointer",
-                          border:`1px solid ${on?"var(--acc)":"var(--bdr)"}`,
-                          background:on?"var(--acc)18":"transparent",
-                          color:on?"var(--acc)":"var(--mu)"}}>
-                        {a.label} +{bkSettings.currency}{a.price}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {/* Price display */}
-              <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:8,borderTop:"1px solid var(--bdr)"}}>
-                <span style={{color:"var(--mu)",fontSize:12}}>{lang==="ru"?"Итого:":"Total:"}</span>
-                <span style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"var(--acc)"}}>
-                  {bkSettings.currency}{livePrice}
-                </span>
-                <span style={{fontSize:11,color:"var(--mu)",marginLeft:"auto"}}>
-                  {lang==="ru"?"База":"Base"}: {bkSettings.currency}{calcPrice(bkF.beds,bkF.baths,bkF.cleanType,[])} × {(bkSettings.cleanTypes||[]).find(x=>x.id===bkF.cleanType)?.mult||1}
-                </span>
+            {/* Row 3: Frequency */}
+            <div className="fg">
+              <label className="lbl">🔄 {lang==="ru"?"Частота":"Frequency"}</label>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {Object.entries(FREQ_LABELS).map(([k,v])=>(
+                  <button key={k} onClick={()=>setBkF(f=>({...f,frequency:k}))}
+                    style={{padding:"5px 12px",borderRadius:7,fontSize:11,cursor:"pointer",
+                      border:`1px solid ${bkF.frequency===k?"var(--acc)":"var(--bdr)"}`,
+                      background:bkF.frequency===k?"var(--acc)18":"transparent",
+                      color:bkF.frequency===k?"var(--acc)":"var(--mu)"}}>
+                    {v}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="fg">
-              <label className="lbl">{lang==="ru"?"Заметки":"Notes"}</label>
-              <input className="inp" value={bkF.notes} onChange={e=>setBkF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Адрес, особые пожелания...":"Address, special requests..."}/>
+            {/* Pricing block */}
+            <div style={{background:"var(--s2)",borderRadius:11,padding:13,marginTop:8}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>
+                💰 {lang==="ru"?"Расчёт стоимости":"Price Calculation"}
+              </div>
+              <div className="fr" style={{marginBottom:8}}>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Спальни":"Bedrooms"}</label>
+                  <select className="inp" value={bkF.beds} onChange={e=>setBkF(f=>({...f,beds:+e.target.value}))}>
+                    {[0,1,2,3,4].map(n=><option key={n} value={n}>{n===0?"Studio":`${n} bd`}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Ванные":"Bathrooms"}</label>
+                  <select className="inp" value={bkF.baths} onChange={e=>setBkF(f=>({...f,baths:+e.target.value}))}>
+                    {[1,2,3,4].map(n=><option key={n} value={n}>{n} ba</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Тип уборки":"Clean Type"}</label>
+                  <select className="inp" value={bkF.cleanType} onChange={e=>setBkF(f=>({...f,cleanType:e.target.value}))}>
+                    {(bkSettings.cleanTypes||[]).map(ct=><option key={ct.id} value={ct.id}>{ct.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              {/* Addons */}
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+                {(bkSettings.addons||[]).map(a=>{
+                  const on=(bkF.addons||[]).includes(a.id);
+                  return (
+                    <button key={a.id} onClick={()=>setBkF(f=>({...f,addons:on?(f.addons||[]).filter(x=>x!==a.id):[...(f.addons||[]),a.id]}))}
+                      style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",
+                        border:`1px solid ${on?"var(--acc)":"var(--bdr)"}`,
+                        background:on?"var(--acc)18":"transparent",color:on?"var(--acc)":"var(--mu)"}}>
+                      {a.label} <span style={{opacity:.7}}>+{bkSettings.currency}{a.price}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Price + Duration summary */}
+              <div style={{display:"flex",alignItems:"center",gap:14,paddingTop:10,borderTop:"1px solid var(--bdr)"}}>
+                <div>
+                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Итого":"Total"}</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:"var(--acc)"}}>
+                    {bkSettings.currency}{price}
+                  </div>
+                </div>
+                <div style={{height:36,width:1,background:"var(--bdr)"}}/>
+                <div>
+                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Длительность":"Duration"}</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:"var(--bl)"}}>
+                    {dur} {lang==="ru"?"ч":"h"}
+                  </div>
+                </div>
+                <div style={{marginLeft:"auto",fontSize:11,color:"var(--mu)"}}>
+                  {lang==="ru"?"База":"Base"}: {bkSettings.currency}{calcPrice(bkF.beds,bkF.baths,bkF.cleanType,[])} × {(bkSettings.cleanTypes||[]).find(x=>x.id===bkF.cleanType)?.mult||1}
+                </div>
+              </div>
+            </div>
+
+            <div className="fg" style={{marginTop:8}}>
+              <label className="lbl">📍 {lang==="ru"?"Адрес / заметки":"Address / notes"}</label>
+              <input className="inp" value={bkF.notes} onChange={e=>setBkF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Адрес уборки, особые пожелания...":"Cleaning address, special requests..."}/>
             </div>
 
             <div className="ma">
               <button className="btn btn-g" onClick={onClose}>{lang==="ru"?"Отмена":"Cancel"}</button>
-              {bkF.id&&<button className="btn btn-d" onClick={()=>{deleteBooking(bkF.id);onClose();}}>🗑 {lang==="ru"?"Удалить":"Delete"}</button>}
+              {bkF.id&&<button className="btn btn-d" onClick={()=>{deleteBooking(bkF.id);onClose();}}>🗑</button>}
               <button className="btn btn-p" onClick={()=>{
                 if (!bkF.date) return;
-                saveBooking({...bkF, id:bkF.id||"bk_"+Date.now(), price:livePrice});
+                saveBooking({...bkF,id:bkF.id||"bk_"+Date.now(),price});
                 onClose();
               }}>{lang==="ru"?"Сохранить":"Save"}</button>
             </div>
@@ -3372,173 +3392,149 @@ export default function App() {
       );
     };
 
-    // ── Settings panel ──
-    const SettingsPanel = () => {
-      const [localMatrix, setLM] = useState(bkSettings.matrix||[]);
-      const [localTypes,  setLT] = useState(bkSettings.cleanTypes||[]);
-      const [localAddons, setLA] = useState(bkSettings.addons||[]);
-      const BEDS_LABELS  = ["Studio","1 bd","2 bd","3 bd","4 bd"];
-      const BATHS_LABELS = ["1 ba","2 ba","3 ba","4 ba"];
+    // ── Booking Quick Popup ──
+    const BookingPopup = ({bk,onClose}) => {
+      const cl  = bkClients.find(c=>c.id===bk.clientId);
+      const emp = emps.find(e=>e.id===bk.cleanerId);
+      const ct  = (bkSettings.cleanTypes||[]).find(x=>x.id===bk.cleanType);
+      const sc  = STATUS_COLORS[bk.status]||"var(--mu)";
+      const dur = calcDuration(bk.beds,bk.baths,bk.cleanType);
       return (
-        <div>
-          {/* Sub-tabs */}
-          <div style={{display:"flex",gap:6,marginBottom:16}}>
-            {[["matrix",lang==="ru"?"Матрица цен":"Price Matrix"],["types",lang==="ru"?"Типы уборки":"Clean Types"],["addons",lang==="ru"?"Доп услуги":"Add-ons"]].map(([k,v])=>(
-              <button key={k} onClick={()=>setSettingsTab(k)}
-                style={{padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",
-                  border:`1px solid ${settingsTab===k?"var(--acc)":"var(--bdr)"}`,
-                  background:settingsTab===k?"var(--acc)18":"transparent",
-                  color:settingsTab===k?"var(--acc)":"var(--mu)"}}>
-                {v}
-              </button>
-            ))}
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:200}} onClick={onClose}>
+          <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+            background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:16,padding:22,
+            width:320,boxShadow:"0 20px 60px #00000040"}} onClick={e=>e.stopPropagation()}>
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:14}}>
+              <Av name={cl?.name||"?"} color={sc} style={{width:40,height:40,fontSize:16}}/>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:15}}>{cl?.name||lang==="ru"?"Клиент не указан":"No client"}</div>
+                {cl?.phone&&<div style={{fontSize:11,color:"var(--mu)"}}>{cl.phone}</div>}
+                {cl?.address&&<div style={{fontSize:11,color:"var(--mu)"}}>📍 {cl.address}</div>}
+              </div>
+              <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"var(--mu)",lineHeight:1}}>×</button>
+            </div>
+            {/* Details grid */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 14px",fontSize:12,marginBottom:14}}>
+              {[
+                ["📅",lang==="ru"?"Дата":"Date", `${bk.date} ${bk.time}`],
+                ["🔄",lang==="ru"?"Частота":"Freq", FREQ_LABELS[bk.frequency]||"—"],
+                ["🛏",lang==="ru"?"Размер":"Size", `${bk.beds}bd / ${bk.baths}ba`],
+                ["🧹",lang==="ru"?"Тип":"Type", ct?.label||"—"],
+                ["⏱",lang==="ru"?"Длит.":"Duration", `${dur}h`],
+                ["🧹",lang==="ru"?"Клинер":"Cleaner", emp?.name||lang==="ru"?"Не назначен":"Unassigned"],
+              ].map(([ico,lbl,val])=>(
+                <div key={lbl}>
+                  <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4}}>{ico} {lbl}</div>
+                  <div style={{fontWeight:500,color:"var(--tx)"}}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {bk.notes&&<div style={{fontSize:11,color:"var(--mu)",borderTop:"1px solid var(--bdr)",paddingTop:8,marginBottom:12}}>📝 {bk.notes}</div>}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:12,padding:"3px 9px",borderRadius:5,background:sc+"20",color:sc,fontWeight:600}}>{STATUS_LABELS[bk.status]}</span>
+              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)",marginLeft:"auto"}}>{bkSettings.currency}{bk.price}</span>
+              <button className="btn btn-p btn-sm" onClick={()=>{setBkF(bk);onClose();setBkForm(true);}}>✏️</button>
+            </div>
           </div>
-
-          {settingsTab==="matrix"&&(
-            <div>
-              <div style={{fontSize:12,color:"var(--mu)",marginBottom:10}}>
-                {lang==="ru"?"Базовая цена: строки = спальни, столбцы = ванные. Коэффициент типа уборки умножается сверху.":"Base prices: rows = bedrooms, cols = bathrooms. Clean type multiplier applies on top."}
-              </div>
-              <div style={{overflowX:"auto"}}>
-                <table style={{borderCollapse:"collapse",minWidth:320}}>
-                  <thead>
-                    <tr>
-                      <th style={{padding:"6px 10px",fontSize:10,color:"var(--mu)",textAlign:"left"}}>{lang==="ru"?"Сп\\Ван":"Bd\\Ba"}</th>
-                      {BATHS_LABELS.map((b,ci)=>(
-                        <th key={ci} style={{padding:"6px 10px",fontSize:11,color:"var(--bl)",textAlign:"center"}}>{b}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {localMatrix.map((row,ri)=>(
-                      <tr key={ri}>
-                        <td style={{padding:"4px 10px",fontSize:11,color:"var(--acc)",fontWeight:600}}>{BEDS_LABELS[ri]}</td>
-                        {row.map((val,ci)=>(
-                          <td key={ci} style={{padding:"3px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:2}}>
-                              <span style={{fontSize:11,color:"var(--mu)"}}>$</span>
-                              <input type="number" value={val}
-                                onChange={e=>{const m=localMatrix.map(r=>[...r]);m[ri][ci]=+e.target.value;setLM(m);}}
-                                style={{width:60,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",
-                                  background:"var(--s2)",color:"var(--tx)",fontSize:12,textAlign:"center"}}/>
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <button className="btn btn-p" style={{marginTop:12}} onClick={()=>saveBkSettings({matrix:localMatrix})}>
-                {lang==="ru"?"Сохранить матрицу":"Save Matrix"}
-              </button>
-            </div>
-          )}
-
-          {settingsTab==="types"&&(
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {localTypes.map((ct,i)=>(
-                <div key={ct.id} style={{background:"var(--s2)",borderRadius:9,padding:"10px 14px",display:"flex",gap:10,alignItems:"center"}}>
-                  <input className="inp" value={ct.label} onChange={e=>{const a=[...localTypes];a[i]={...a[i],label:e.target.value};setLT(a);}}
-                    style={{flex:1}} placeholder={lang==="ru"?"Название":"Name"}/>
-                  <div style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--mu)"}}>
-                    <span>×</span>
-                    <input type="number" step="0.1" min="0.5" max="5" value={ct.mult}
-                      onChange={e=>{const a=[...localTypes];a[i]={...a[i],mult:+e.target.value};setLT(a);}}
-                      style={{width:60,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12}}/>
-                  </div>
-                  <span style={{fontSize:11,color:"var(--mu)"}}>
-                    {lang==="ru"?"пример 2/1:":"ex 2/1:"} {bkSettings.currency}{Math.round((bkSettings.matrix?.[2]?.[0]||120)*ct.mult)}
-                  </span>
-                </div>
-              ))}
-              <button className="btn btn-p" onClick={()=>saveBkSettings({cleanTypes:localTypes})}>{lang==="ru"?"Сохранить":"Save"}</button>
-            </div>
-          )}
-
-          {settingsTab==="addons"&&(
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {localAddons.map((a,i)=>(
-                <div key={a.id} style={{background:"var(--s2)",borderRadius:9,padding:"10px 14px",display:"flex",gap:10,alignItems:"center"}}>
-                  <input className="inp" value={a.label} onChange={e=>{const arr=[...localAddons];arr[i]={...arr[i],label:e.target.value};setLA(arr);}}
-                    style={{flex:1}}/>
-                  <div style={{display:"flex",alignItems:"center",gap:4,fontSize:12}}>
-                    <span style={{color:"var(--mu)"}}>{bkSettings.currency}</span>
-                    <input type="number" value={a.price} onChange={e=>{const arr=[...localAddons];arr[i]={...arr[i],price:+e.target.value};setLA(arr);}}
-                      style={{width:70,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12}}/>
-                  </div>
-                  <button className="btn btn-d btn-sm" onClick={()=>setLA(localAddons.filter((_,j)=>j!==i))}>×</button>
-                </div>
-              ))}
-              <div style={{display:"flex",gap:8}}>
-                <button className="btn btn-g" onClick={()=>setLA([...localAddons,{id:"a_"+Date.now(),label:"",price:0}])}>
-                  + {lang==="ru"?"Добавить услугу":"Add service"}
-                </button>
-                <button className="btn btn-p" onClick={()=>saveBkSettings({addons:localAddons})}>{lang==="ru"?"Сохранить":"Save"}</button>
-              </div>
-            </div>
-          )}
         </div>
       );
     };
 
-    // ── Calendar view ──
-    const CalendarView = () => {
-      const cells = [];
-      for (let i=0; i<firstDay; i++) cells.push(null);
-      for (let d=1; d<=daysInMonth; d++) cells.push(d);
-
+    // ── Week Calendar ──
+    const WeekCalendar = () => {
+      const hours = Array.from({length:11},(_,i)=>i+7); // 7am-5pm
       return (
-        <>
-          {/* Month nav + New booking */}
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
-            <button className="btn btn-g btn-sm" onClick={()=>setVM(new Date(yr,mo-1,1))}>‹</button>
-            <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,flex:1,textAlign:"center"}}>
-              {MONTH_NAMES[mo]} {yr}
-            </span>
-            <button className="btn btn-g btn-sm" onClick={()=>setVM(new Date(yr,mo+1,1))}>›</button>
-            <button className="btn btn-p" onClick={()=>{
-              setBkF({id:null,clientId:"",cleanerId:"",date:`${yr}-${String(mo+1).padStart(2,"0")}-01`,time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0});
-              setBkForm(true);
-            }}>+ {lang==="ru"?"Заявка":"Booking"}</button>
-          </div>
-
+        <div style={{overflowX:"auto"}}>
           {/* Day headers */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
-            {DAY_NAMES.map(d=>(
-              <div key={d} style={{textAlign:"center",fontSize:10,color:"var(--mu)",padding:"4px 0",fontWeight:600}}>{d}</div>
+          <div style={{display:"grid",gridTemplateColumns:"50px repeat(7,1fr)",gap:0,marginBottom:4,minWidth:600}}>
+            <div/>
+            {weekDates.map(d=>{
+              const ds=getDateStr(d);
+              const cnt=getDayBks(ds).length;
+              const isToday=ds===today;
+              return (
+                <div key={ds} style={{textAlign:"center",padding:"6px 4px",borderRadius:8,
+                  background:isToday?"var(--acc)15":"transparent",marginBottom:4}}>
+                  <div style={{fontSize:10,color:isToday?"var(--acc)":"var(--mu)",fontWeight:600}}>{DAY_NAMES_SHORT[d.getDay()]}</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:isToday?"var(--acc)":"var(--tx)"}}>{d.getDate()}</div>
+                  {cnt>0&&<div style={{fontSize:9,color:"var(--mu)"}}>{cnt} {lang==="ru"?"заяв":"bk"}</div>}
+                </div>
+              );
+            })}
+          </div>
+          {/* Hour rows */}
+          <div style={{display:"grid",gridTemplateColumns:"50px repeat(7,1fr)",minWidth:600,border:"1px solid var(--bdr)",borderRadius:10,overflow:"hidden"}}>
+            {hours.map(hr=>(
+              <>
+                <div key={`h${hr}`} style={{padding:"4px 6px",fontSize:10,color:"var(--mu)",borderBottom:"1px solid var(--bdr)",background:"var(--s2)",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
+                  {hr}:00
+                </div>
+                {weekDates.map(d=>{
+                  const ds = getDateStr(d);
+                  const hourBks = getDayBks(ds).filter(b=>{
+                    const bh=parseInt((b.time||"00").split(":")[0]);
+                    return bh===hr;
+                  });
+                  return (
+                    <div key={ds+hr} style={{minHeight:44,borderLeft:"1px solid var(--bdr)",borderBottom:"1px solid var(--bdr)",
+                      padding:"2px 3px",position:"relative",cursor:"pointer"}}
+                      onClick={()=>{
+                        const t=`${String(hr).padStart(2,"0")}:00`;
+                        setBkF({...defBkF,date:ds,time:t});setBkForm(true);
+                      }}>
+                      {hourBks.map(bk=>{
+                        const cl=bkClients.find(c=>c.id===bk.clientId);
+                        const cc=cleanerColor(bk.cleanerId);
+                        return (
+                          <div key={bk.id} onClick={e=>{e.stopPropagation();setPopupBk(bk);}}
+                            style={{fontSize:9,padding:"2px 4px",borderRadius:4,background:cc+"22",
+                              color:cc,border:`1px solid ${cc}40`,marginBottom:2,cursor:"pointer",
+                              whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",lineHeight:1.4}}>
+                            {bk.time} {cl?.name||"?"}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </>
             ))}
           </div>
+        </div>
+      );
+    };
 
-          {/* Calendar grid */}
+    // ── Month Calendar ──
+    const MonthCalendar = () => {
+      const firstDay=new Date(yr,mo,1).getDay(), days=new Date(yr,mo+1,0).getDate();
+      const cells=[]; for(let i=0;i<firstDay;i++)cells.push(null); for(let d=1;d<=days;d++)cells.push(d);
+      return (
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+            {DAY_NAMES_SHORT.map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:"var(--mu)",padding:"3px 0",fontWeight:600}}>{d}</div>)}
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
             {cells.map((day,i)=>{
-              if (!day) return <div key={i}/>;
-              const dateStr = `${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-              const dayBks  = getDayBookings(dateStr);
-              const isToday = dateStr===today;
+              if(!day) return <div key={i}/>;
+              const ds=`${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+              const dayBks=getDayBks(ds);
+              const isToday=ds===today;
               return (
-                <div key={i} onClick={()=>{
-                  if (dayBks.length===1) { setBkF(dayBks[0]); setBkForm(true); }
-                  else if (dayBks.length===0) {
-                    setBkF({id:null,clientId:"",cleanerId:"",date:dateStr,time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0});
-                    setBkForm(true);
-                  }
-                }}
-                  style={{minHeight:70,background:isToday?"var(--acc)15":"var(--s1)",
-                    border:`1px solid ${isToday?"var(--acc)":"var(--bdr)"}`,
-                    borderRadius:8,padding:"5px 6px",cursor:"pointer",transition:"all .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--acc)"}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor=isToday?"var(--acc)":"var(--bdr)"}>
+                <div key={i} style={{minHeight:72,background:isToday?"var(--acc)12":"var(--s1)",
+                  border:`1px solid ${isToday?"var(--acc)":"var(--bdr)"}`,borderRadius:8,padding:"5px 6px",cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--acc)30"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor=isToday?"var(--acc)":"var(--bdr)"}
+                  onClick={()=>{setBkF({...defBkF,date:ds});setBkForm(true);}}>
                   <div style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?"var(--acc)":"var(--tx)",marginBottom:3}}>{day}</div>
                   {dayBks.slice(0,3).map(bk=>{
                     const cl=bkClients.find(c=>c.id===bk.clientId);
-                    const clr=STATUS_COLORS[bk.status]||"var(--mu)";
+                    const cc=cleanerColor(bk.cleanerId);
                     return (
-                      <div key={bk.id} onClick={e=>{e.stopPropagation();setBkF(bk);setBkForm(true);}}
-                        style={{fontSize:9,padding:"1px 4px",borderRadius:3,background:clr+"22",color:clr,
-                          marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer"}}>
-                        {bk.time} {cl?.name||"?"} ${bk.price}
+                      <div key={bk.id} onClick={e=>{e.stopPropagation();setPopupBk(bk);}}
+                        style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:cc+"25",color:cc,
+                          marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer",border:`1px solid ${cc}30`}}>
+                        {bk.time} {cl?.name||"?"}
                       </div>
                     );
                   })}
@@ -3547,50 +3543,171 @@ export default function App() {
               );
             })}
           </div>
+        </>
+      );
+    };
 
-          {/* Upcoming bookings list */}
-          <div style={{marginTop:20}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:10}}>
-              {lang==="ru"?"Ближайшие заявки":"Upcoming Bookings"}
+    // ── Settings ──
+    const SettingsPanel = () => {
+      const [lm,setLM]=useState(bkSettings.matrix||[]);
+      const [lt,setLT]=useState(bkSettings.cleanTypes||[]);
+      const [la,setLA]=useState(bkSettings.addons||[]);
+      const BL=["Studio","1 bd","2 bd","3 bd","4 bd"], HL=["1 ba","2 ba","3 ba","4 ba"];
+      return (
+        <>
+          <div style={{display:"flex",gap:6,marginBottom:14}}>
+            {[["matrix",lang==="ru"?"Матрица цен":"Price Matrix"],["types",lang==="ru"?"Типы уборки":"Clean Types"],["addons",lang==="ru"?"Доп услуги":"Add-ons"]].map(([k,v])=>(
+              <button key={k} onClick={()=>setSettTab(k)} style={{padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",
+                border:`1px solid ${settingsTab===k?"var(--acc)":"var(--bdr)"}`,background:settingsTab===k?"var(--acc)18":"transparent",color:settingsTab===k?"var(--acc)":"var(--mu)"}}>
+                {v}
+              </button>
+            ))}
+          </div>
+          {settingsTab==="matrix"&&(
+            <div>
+              <div style={{fontSize:12,color:"var(--mu)",marginBottom:10}}>
+                {lang==="ru"?"Базовая цена по кол-ву спален и ванных. Тип уборки умножает эту сумму.":"Base price by bedrooms and bathrooms. Clean type multiplies this amount."}
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{borderCollapse:"collapse",minWidth:300}}>
+                  <thead><tr>
+                    <th style={{padding:"5px 10px",fontSize:10,color:"var(--mu)",textAlign:"left"}}>{lang==="ru"?"Сп\\Ван":"Bd\\Ba"}</th>
+                    {HL.map((h,ci)=><th key={ci} style={{padding:"5px 10px",fontSize:11,color:"var(--bl)",textAlign:"center"}}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>{lm.map((row,ri)=>(
+                    <tr key={ri}>
+                      <td style={{padding:"4px 10px",fontSize:11,color:"var(--acc)",fontWeight:600}}>{BL[ri]}</td>
+                      {row.map((v,ci)=>(
+                        <td key={ci} style={{padding:3}}>
+                          <div style={{display:"flex",alignItems:"center",gap:2}}>
+                            <span style={{fontSize:11,color:"var(--mu)"}}>$</span>
+                            <input type="number" value={v} onChange={e=>{const m=lm.map(r=>[...r]);m[ri][ci]=+e.target.value;setLM(m);}}
+                              style={{width:62,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:12,textAlign:"center"}}/>
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <button className="btn btn-p" style={{marginTop:12}} onClick={()=>saveBkSettings({matrix:lm})}>{lang==="ru"?"Сохранить":"Save"}</button>
             </div>
-            {bookings
-              .filter(b=>b.date>=today&&b.status!=="cancelled")
-              .sort((a,b)=>a.date.localeCompare(b.date)||(a.time||"").localeCompare(b.time||""))
-              .slice(0,10)
-              .map(bk=>{
-                const cl=bkClients.find(c=>c.id===bk.clientId);
-                const clr=bkSettings.cleaners?.find(c=>c.id===bk.cleanerId)||emps.find(e=>e.id===bk.cleanerId);
-                const ct=bkSettings.cleanTypes?.find(x=>x.id===bk.cleanType);
-                const sc=STATUS_COLORS[bk.status];
+          )}
+          {settingsTab==="types"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {lt.map((ct,i)=>(
+                <div key={ct.id} style={{background:"var(--s2)",borderRadius:9,padding:"10px 14px",display:"flex",gap:10,alignItems:"center"}}>
+                  <input className="inp" value={ct.label} onChange={e=>{const a=[...lt];a[i]={...a[i],label:e.target.value};setLT(a);}} style={{flex:1}}/>
+                  <span style={{fontSize:12,color:"var(--mu)"}}>×</span>
+                  <input type="number" step="0.1" min="0.5" max="5" value={ct.mult}
+                    onChange={e=>{const a=[...lt];a[i]={...a[i],mult:+e.target.value};setLT(a);}}
+                    style={{width:60,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12}}/>
+                  <span style={{fontSize:11,color:"var(--gr)"}}>→ {bkSettings.currency}{Math.round((lm?.[2]?.[0]||120)*ct.mult)}</span>
+                </div>
+              ))}
+              <button className="btn btn-p" onClick={()=>saveBkSettings({cleanTypes:lt})}>{lang==="ru"?"Сохранить":"Save"}</button>
+            </div>
+          )}
+          {settingsTab==="addons"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {la.map((a,i)=>(
+                <div key={a.id} style={{background:"var(--s2)",borderRadius:9,padding:"10px 14px",display:"flex",gap:10,alignItems:"center"}}>
+                  <input className="inp" value={a.label} onChange={e=>{const ar=[...la];ar[i]={...ar[i],label:e.target.value};setLA(ar);}} style={{flex:1}}/>
+                  <span style={{fontSize:12,color:"var(--mu)"}}>$</span>
+                  <input type="number" value={a.price} onChange={e=>{const ar=[...la];ar[i]={...ar[i],price:+e.target.value};setLA(ar);}}
+                    style={{width:65,padding:"4px 6px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12}}/>
+                  <button className="btn btn-d btn-sm" onClick={()=>setLA(la.filter((_,j)=>j!==i))}>×</button>
+                </div>
+              ))}
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-g" onClick={()=>setLA([...la,{id:"a_"+Date.now(),label:"",price:0}])}>+ {lang==="ru"?"Добавить":"Add"}</button>
+                <button className="btn btn-p" onClick={()=>saveBkSettings({addons:la})}>{lang==="ru"?"Сохранить":"Save"}</button>
+              </div>
+            </div>
+          )}
+        </>
+      );
+    };
+
+    // ── Reports ──
+    const Reports = () => {
+      const [period,setPeriod]=useState("month");
+      const now=new Date(), nowStr=now.toISOString().split("T")[0];
+      const monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+      const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
+      const filtered = bookings.filter(b=>{
+        if (period==="week") return b.date>=getDateStr(weekAgo)&&b.date<=nowStr;
+        if (period==="month") return b.date?.startsWith(monthStr);
+        return true;
+      });
+      const revenue=filtered.reduce((s,b)=>s+(b.price||0),0);
+      const avgRevenue=filtered.length?Math.round(revenue/filtered.length):0;
+      const byStatus={pending:0,confirmed:0,done:0,cancelled:0};
+      filtered.forEach(b=>{ if(byStatus[b.status]!==undefined) byStatus[b.status]++; });
+      const byFreq={once:0,weekly:0,biweekly:0,monthly:0};
+      filtered.forEach(b=>{ if(byFreq[b.frequency]!==undefined) byFreq[b.frequency]++; });
+      const byCleanType={}; filtered.forEach(b=>{byCleanType[b.cleanType]=(byCleanType[b.cleanType]||0)+1;});
+      // Top cleaners
+      const cleanerStats={}; filtered.filter(b=>b.cleanerId).forEach(b=>{cleanerStats[b.cleanerId]=(cleanerStats[b.cleanerId]||0)+1;});
+      const topCleaners=Object.entries(cleanerStats).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([id,cnt])=>({emp:emps.find(e=>e.id===id),cnt}));
+
+      return (
+        <>
+          {/* Period selector */}
+          <div style={{display:"flex",gap:6,marginBottom:16}}>
+            {[["week",lang==="ru"?"Эта неделя":"This week"],["month",lang==="ru"?"Этот месяц":"This month"],["all",lang==="ru"?"Всё время":"All time"]].map(([k,v])=>(
+              <button key={k} onClick={()=>setPeriod(k)} style={{padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",
+                border:`1px solid ${period===k?"var(--acc)":"var(--bdr)"}`,background:period===k?"var(--acc)18":"transparent",color:period===k?"var(--acc)":"var(--mu)"}}>
+                {v}
+              </button>
+            ))}
+          </div>
+          {/* Stats grid */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:18}}>
+            {[
+              {l:lang==="ru"?"Выручка":"Revenue",      v:`$${revenue}`,              c:"var(--acc)"},
+              {l:lang==="ru"?"Заявок":"Bookings",       v:filtered.length,            c:"var(--bl)"},
+              {l:lang==="ru"?"Средний чек":"Avg check", v:`$${avgRevenue}`,           c:"var(--gr)"},
+              {l:lang==="ru"?"Выполнено":"Completed",   v:byStatus.done||0,           c:"#22c55e"},
+              {l:lang==="ru"?"Ожидают":"Pending",        v:byStatus.pending||0,       c:"#f0a500"},
+              {l:lang==="ru"?"Отменено":"Cancelled",     v:byStatus.cancelled||0,     c:"#ef4444"},
+            ].map(s=>(
+              <div key={s.l} style={{background:"var(--s1)",border:`1px solid ${s.c}20`,borderRadius:10,padding:"12px 14px"}}>
+                <div style={{fontSize:10,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:.4}}>{s.l}</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,flexWrap:"wrap"}}>
+            {/* Frequency breakdown */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🔄 {lang==="ru"?"По частоте":"By Frequency"}</div>
+              {Object.entries(FREQ_LABELS).map(([k,v])=>{
+                const cnt=byFreq[k]||0; const pct=filtered.length?Math.round(cnt/filtered.length*100):0;
                 return (
-                  <div key={bk.id} style={{background:"var(--s1)",border:`1px solid ${sc}25`,borderLeft:`3px solid ${sc}`,
-                    borderRadius:9,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}
-                    onClick={()=>{setBkF(bk);setBkForm(true);}}>
-                    <div style={{minWidth:46,textAlign:"center"}}>
-                      <div style={{fontSize:11,color:"var(--mu)"}}>{new Date(bk.date+"T12:00").toLocaleDateString(lang==="ru"?"ru":"en",{month:"short"})}</div>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:sc}}>{new Date(bk.date+"T12:00").getDate()}</div>
+                  <div key={k} style={{marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                      <span>{v}</span><span style={{fontWeight:600}}>{cnt} <span style={{color:"var(--mu)",fontWeight:400}}>({pct}%)</span></span>
                     </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:600,fontSize:13}}>{cl?.name||lang==="ru"?"Клиент не указан":"No client"}</div>
-                      <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:8,flexWrap:"wrap"}}>
-                        <span>🕐 {bk.time}</span>
-                        <span>{bk.beds}bd/{bk.baths}ba</span>
-                        {ct&&<span>{ct.label}</span>}
-                        {clr&&<span>🧹 {clr.name}</span>}
-                      </div>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:"var(--acc)"}}>${bk.price}</div>
-                      <div style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:sc+"20",color:sc,fontWeight:600}}>{STATUS_LABELS[bk.status]}</div>
+                    <div style={{height:4,borderRadius:2,background:"var(--s3)"}}>
+                      <div style={{height:4,borderRadius:2,background:"var(--acc)",width:`${pct}%`,transition:"width .4s"}}/>
                     </div>
                   </div>
                 );
               })}
-            {!bookings.filter(b=>b.date>=today).length&&(
-              <div style={{textAlign:"center",color:"var(--mu)",padding:32,fontSize:13}}>
-                📅 {lang==="ru"?"Предстоящих заявок нет":"No upcoming bookings"}
-              </div>
-            )}
+            </div>
+            {/* Top cleaners */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🧹 {lang==="ru"?"Топ клинеры":"Top Cleaners"}</div>
+              {topCleaners.length===0&&<div style={{color:"var(--mu)",fontSize:12}}>{lang==="ru"?"Нет данных":"No data"}</div>}
+              {topCleaners.map(({emp,cnt},i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <Av name={emp?.name||"?"} color={cleanerColor(emp?.id)} style={{width:28,height:28,fontSize:11}}/>
+                  <span style={{flex:1,fontSize:12}}>{emp?.name||"?"}</span>
+                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--bl)"}}>{cnt}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       );
@@ -3598,52 +3715,51 @@ export default function App() {
 
     // ── Clients tab ──
     const ClientsTab = () => {
-      const ClientForm = ({onClose}) => (
-        <div className="ovl" onClick={onClose}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
-            <div className="modal-t">{editClientId?(lang==="ru"?"Редактировать клиента":"Edit Client"):(lang==="ru"?"Новый клиент":"New Client")}</div>
-            <div className="fr">
-              <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label><input className="inp" value={clF.name} onChange={e=>setClF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
-              <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={clF.phone} onChange={e=>setClF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
-            </div>
-            <div className="fr">
-              <div className="fg"><label className="lbl">Email</label><input className="inp" value={clF.email} onChange={e=>setClF(f=>({...f,email:e.target.value}))} placeholder="jane@email.com"/></div>
-              <div className="fg"><label className="lbl">📍 {lang==="ru"?"Город":"City"}</label><input className="inp" value={clF.city} onChange={e=>setClF(f=>({...f,city:e.target.value}))} placeholder="Austin"/></div>
-            </div>
-            <div className="fg"><label className="lbl">{lang==="ru"?"Адрес уборки":"Cleaning address"}</label><input className="inp" value={clF.address} onChange={e=>setClF(f=>({...f,address:e.target.value}))} placeholder="123 Main St"/></div>
-            <div className="fg"><label className="lbl">{lang==="ru"?"Заметки":"Notes"}</label><input className="inp" value={clF.notes} onChange={e=>setClF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Особенности, пожелания...":"Special requests..."}/></div>
-            <div className="ma">
-              <button className="btn btn-g" onClick={onClose}>{lang==="ru"?"Отмена":"Cancel"}</button>
-              <button className="btn btn-p" onClick={()=>{
-                if (!clF.name.trim()) return;
-                saveClient({...clF, id:editClientId||"cl_"+Date.now(), createdAt:new Date().toISOString().split("T")[0]});
-                onClose();
-              }}>{lang==="ru"?"Сохранить":"Save"}</button>
-            </div>
-          </div>
-        </div>
-      );
-
-      const filtered = bkClients.filter(c=>{
+      const [editId,setEditId]=useState(null);
+      const [showForm,setShowForm]=useState(false);
+      const filtered=bkClients.filter(c=>{
         const q=clientSearch.toLowerCase();
         return !q||(c.name||"").toLowerCase().includes(q)||(c.phone||"").includes(q)||(c.email||"").toLowerCase().includes(q);
       });
-
       return (
         <>
-          {showClientForm&&<ClientForm onClose={()=>{setClientForm(false);setEditClientId(null);setClF({name:"",phone:"",email:"",address:"",city:"",notes:"",});}}/>}
+          {showForm&&(
+            <div className="ovl" onClick={()=>{setShowForm(false);setEditId(null);}}>
+              <div className="modal" onClick={e=>e.stopPropagation()}>
+                <div className="modal-t">{editId?(lang==="ru"?"✏️ Редактировать":"✏️ Edit"):(lang==="ru"?"+ Новый клиент":"+ New Client")}</div>
+                <div className="fr">
+                  <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label><input className="inp" value={clF.name} onChange={e=>setClF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
+                  <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={clF.phone} onChange={e=>setClF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
+                </div>
+                <div className="fr">
+                  <div className="fg"><label className="lbl">Email</label><input className="inp" value={clF.email} onChange={e=>setClF(f=>({...f,email:e.target.value}))} placeholder="jane@email.com"/></div>
+                  <div className="fg"><label className="lbl">📍 {lang==="ru"?"Город":"City"}</label><input className="inp" value={clF.city} onChange={e=>setClF(f=>({...f,city:e.target.value}))} placeholder="Austin"/></div>
+                </div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Адрес уборки":"Cleaning address"}</label><input className="inp" value={clF.address} onChange={e=>setClF(f=>({...f,address:e.target.value}))} placeholder="123 Main St, Austin TX"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Заметки":"Notes"}</label><input className="inp" value={clF.notes} onChange={e=>setClF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Особенности...":"Special requests..."}/></div>
+                <div className="ma">
+                  <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditId(null);}}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                  <button className="btn btn-p" onClick={()=>{
+                    if(!clF.name.trim()) return;
+                    saveClient({...clF,id:editId||"cl_"+Date.now(),createdAt:new Date().toISOString().split("T")[0]});
+                    setShowForm(false);setEditId(null);
+                  }}>{lang==="ru"?"Сохранить":"Save"}</button>
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
-            <input className="inp" value={clientSearch} onChange={e=>setClientSearch(e.target.value)}
-              placeholder={lang==="ru"?"Поиск клиентов...":"Search clients..."} style={{flex:1}}/>
-            <button className="btn btn-p" onClick={()=>{setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});setEditClientId(null);setClientForm(true);}}>
+            <input className="inp" value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder={lang==="ru"?"Поиск...":"Search..."} style={{flex:1}}/>
+            <button className="btn btn-p" onClick={()=>{setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});setEditId(null);setShowForm(true);}}>
               + {lang==="ru"?"Клиент":"Client"}
             </button>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>
-            {!filtered.length&&<div style={{textAlign:"center",color:"var(--mu)",padding:40,fontSize:13}}>👤 {lang==="ru"?"Клиентов нет":"No clients yet"}</div>}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {!filtered.length&&<div style={{textAlign:"center",color:"var(--mu)",padding:36,fontSize:13}}>👤 {lang==="ru"?"Клиентов нет":"No clients"}</div>}
             {filtered.map(c=>{
               const cBks=bookings.filter(b=>b.clientId===c.id);
               const total=cBks.reduce((s,b)=>s+(b.price||0),0);
+              const last=cBks.sort((a,b)=>b.date?.localeCompare(a.date||""))[0];
               return (
                 <div key={c.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
                   <Av name={c.name} color="var(--bl)"/>
@@ -3651,23 +3767,17 @@ export default function App() {
                     <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
                     <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:10,flexWrap:"wrap"}}>
                       {c.phone&&<span>📞 {c.phone}</span>}
-                      {c.email&&<span>✉ {c.email}</span>}
                       {c.city&&<span>📍 {c.city}</span>}
+                      {last&&<span>🕐 {lang==="ru"?"Посл.":"Last"}: {last.date}</span>}
                     </div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontSize:12,color:"var(--mu)"}}>{cBks.length} {lang==="ru"?"уборок":"cleanings"}</div>
                     <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--acc)"}}>${total}</div>
+                    <div style={{fontSize:11,color:"var(--mu)"}}>{cBks.length} {lang==="ru"?"уборок":"cleanings"}</div>
                   </div>
                   <div style={{display:"flex",gap:5}}>
-                    <button className="btn btn-g btn-sm" onClick={()=>{
-                      setClF({name:c.name,phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||""});
-                      setEditClientId(c.id);setClientForm(true);
-                    }}>✏️</button>
-                    <button className="btn btn-p btn-sm" onClick={()=>{
-                      setBkF({id:null,clientId:c.id,cleanerId:"",date:today,time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:c.address||"",status:"pending",price:0});
-                      setBkForm(true);
-                    }}>+ {lang==="ru"?"Заявка":"Book"}</button>
+                    <button className="btn btn-g btn-sm" onClick={()=>{setClF({name:c.name,phone:c.phone||"",email:c.email||"",address:c.address||"",city:c.city||"",notes:c.notes||""});setEditId(c.id);setShowForm(true);}}>✏️</button>
+                    <button className="btn btn-p btn-sm" onClick={()=>{setBkF({...defBkF,clientId:c.id,notes:c.address||""});setBkForm(true);}}>+ {lang==="ru"?"Запись":"Book"}</button>
                   </div>
                 </div>
               );
@@ -3678,47 +3788,109 @@ export default function App() {
     };
 
     // ── Stats bar ──
-    const todayBks   = bookings.filter(b=>b.date===today);
-    const monthBks   = bookings.filter(b=>b.date?.startsWith(`${yr}-${String(mo+1).padStart(2,"0")}`));
-    const monthRev   = monthBks.reduce((s,b)=>s+(b.price||0),0);
-    const pendingCnt = bookings.filter(b=>b.status==="pending").length;
+    const todayBks = bookings.filter(b=>b.date===today);
+    const monthStr = `${yr}-${String(mo+1).padStart(2,"0")}`;
+    const monthBks = bookings.filter(b=>b.date?.startsWith(monthStr));
+    const monthRev = monthBks.reduce((s,b)=>s+(b.price||0),0);
+
+    // ── Cleaners sidebar (right panel on calendar) ──
+    const cleanersList = [{id:"",name:lang==="ru"?"Все":"All",cnt:bookings.filter(b=>b.date?.startsWith(monthStr)).length}];
+    emps.filter(e=>e.status!=="fired").forEach(e=>{
+      cleanersList.push({id:e.id,name:e.name,cnt:bookings.filter(b=>b.cleanerId===e.id&&b.date?.startsWith(monthStr)).length,color:cleanerColor(e.id)});
+    });
 
     return (
       <>
-        {/* Stats */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:16}}>
+        {popupBk&&<BookingPopup bk={popupBk} onClose={()=>setPopupBk(null)}/>}
+        {showBkForm&&<BookingForm onClose={()=>setBkForm(false)}/>}
+
+        {/* Stats row */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:14}}>
           {[
-            {l:lang==="ru"?"Сегодня":"Today",      v:todayBks.length,   c:"var(--acc)"},
-            {l:lang==="ru"?"В этом месяце":"Month", v:monthBks.length,   c:"var(--bl)"},
-            {l:lang==="ru"?"Выручка/мес":"Revenue",v:`$${monthRev}`,     c:"var(--gr)"},
-            {l:lang==="ru"?"Ожидают":"Pending",     v:pendingCnt,        c:"#f0a500"},
+            {l:lang==="ru"?"Сегодня":"Today",   v:todayBks.length,  c:"var(--acc)"},
+            {l:lang==="ru"?"Месяц":"Month",     v:monthBks.length,  c:"var(--bl)"},
+            {l:lang==="ru"?"Выручка":"Revenue", v:`$${monthRev}`,   c:"var(--gr)"},
+            {l:lang==="ru"?"Клиентов":"Clients",v:bkClients.length, c:"var(--pu)"},
           ].map(s=>(
-            <div key={s.l} style={{background:"var(--s1)",border:`1px solid ${s.c}20`,borderRadius:10,padding:"12px 14px"}}>
-              <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>{s.l}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:s.c,marginTop:3}}>{s.v}</div>
+            <div key={s.l} style={{background:"var(--s1)",border:`1px solid ${s.c}20`,borderRadius:9,padding:"10px 13px"}}>
+              <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>{s.l}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:s.c,marginTop:2}}>{s.v}</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{display:"flex",gap:6,marginBottom:16,borderBottom:"1px solid var(--bdr)",paddingBottom:10}}>
-          {[["calendar",lang==="ru"?"📅 Календарь":"📅 Calendar"],
-            ["clients",lang==="ru"?"👤 Клиенты":"👤 Clients"],
-            ["settings",lang==="ru"?"⚙️ Настройки":"⚙️ Settings"]].map(([k,v])=>(
-            <button key={k} onClick={()=>setTab(k)}
-              style={{padding:"6px 14px",borderRadius:8,fontSize:12,cursor:"pointer",fontWeight:tab===k?600:400,
-                border:`1px solid ${tab===k?"var(--acc)":"transparent"}`,
-                background:tab===k?"var(--acc)15":"transparent",
-                color:tab===k?"var(--acc)":"var(--mu)"}}>
+        <div style={{display:"flex",gap:5,marginBottom:14,borderBottom:"1px solid var(--bdr)",paddingBottom:10}}>
+          {[["calendar","📅 "+(lang==="ru"?"Календарь":"Calendar")],
+            ["clients","👤 "+(lang==="ru"?"Клиенты":"Clients")],
+            ["reports","📊 "+(lang==="ru"?"Отчёты":"Reports")],
+            ["settings","⚙️ "+(lang==="ru"?"Настройки":"Settings")]].map(([k,v])=>(
+            <button key={k} onClick={()=>setTab(k)} style={{padding:"5px 13px",borderRadius:7,fontSize:12,cursor:"pointer",fontWeight:tab===k?600:400,
+              border:`1px solid ${tab===k?"var(--acc)":"transparent"}`,background:tab===k?"var(--acc)15":"transparent",color:tab===k?"var(--acc)":"var(--mu)"}}>
               {v}
             </button>
           ))}
         </div>
 
-        {showBkForm&&<BookingForm onClose={()=>setBkForm(false)}/>}
+        {tab==="calendar"&&(
+          <div style={{display:"flex",gap:14}}>
+            {/* Calendar main area */}
+            <div style={{flex:1,minWidth:0}}>
+              {/* Calendar controls */}
+              <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+                <button className="btn btn-g btn-sm" onClick={()=>{
+                  const d=new Date(viewDate);
+                  calView==="week"?d.setDate(d.getDate()-7):d.setMonth(d.getMonth()-1);
+                  setViewDate(d);
+                }}>‹</button>
+                <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,minWidth:160,textAlign:"center"}}>
+                  {calView==="week"
+                    ? `${weekDates[0].getDate()} – ${weekDates[6].getDate()} ${MONTH_NAMES[weekDates[6].getMonth()]} ${weekDates[6].getFullYear()}`
+                    : `${MONTH_NAMES[mo]} ${yr}`}
+                </span>
+                <button className="btn btn-g btn-sm" onClick={()=>{
+                  const d=new Date(viewDate);
+                  calView==="week"?d.setDate(d.getDate()+7):d.setMonth(d.getMonth()+1);
+                  setViewDate(d);
+                }}>›</button>
+                <button className="btn btn-g btn-sm" onClick={()=>setViewDate(new Date())}>{lang==="ru"?"Сегодня":"Today"}</button>
+                <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+                  {[["week",lang==="ru"?"Неделя":"Week"],["month",lang==="ru"?"Месяц":"Month"]].map(([k,v])=>(
+                    <button key={k} onClick={()=>setCalView(k)} style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",
+                      border:`1px solid ${calView===k?"var(--acc)":"var(--bdr)"}`,background:calView===k?"var(--acc)18":"transparent",
+                      color:calView===k?"var(--acc)":"var(--mu)"}}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn btn-p" onClick={()=>{setBkF(defBkF);setBkForm(true);}}>+ {lang==="ru"?"Заявка":"Booking"}</button>
+              </div>
+              {calView==="week"?<WeekCalendar/>:<MonthCalendar/>}
+            </div>
 
-        {tab==="calendar"&&<CalendarView/>}
+            {/* Right panel: Cleaners */}
+            <div style={{width:190,flexShrink:0}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,marginBottom:8,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>
+                {lang==="ru"?"Клинеры":"Providers"}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                {cleanersList.map(c=>(
+                  <button key={c.id} onClick={()=>setCleanerFilter(cleanerFilter===c.id&&c.id!==""?"":c.id)}
+                    style={{display:"flex",alignItems:"center",gap:7,padding:"6px 10px",borderRadius:8,cursor:"pointer",
+                      border:`1px solid ${cleanerFilter===c.id&&c.id!==""?(c.color||"var(--acc)"):"var(--bdr)"}`,
+                      background:cleanerFilter===c.id&&c.id!==""?(c.color||"var(--acc)")+"15":"transparent",
+                      textAlign:"left",width:"100%"}}>
+                    {c.id?<span style={{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}/>:<span style={{fontSize:12}}>👁</span>}
+                    <span style={{fontSize:12,flex:1,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                    <span style={{fontSize:10,color:"var(--mu)",background:"var(--s3)",borderRadius:10,padding:"1px 5px"}}>{c.cnt}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {tab==="clients"&&<ClientsTab/>}
+        {tab==="reports"&&<Reports/>}
         {tab==="settings"&&<SettingsPanel/>}
       </>
     );
