@@ -531,8 +531,12 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
    MAIN APP
 ═══════════════════════════════════════════ */
 export default function App() {
-  const [lang, setLang]           = useState("ru");
-  const [theme, setTheme]         = useState("dark");
+  const [lang, setLang]           = useState(()=>localStorage.getItem("nls_lang")||"ru");
+  const [theme, setTheme]         = useState(()=>localStorage.getItem("nls_theme")||"dark");
+
+  // ── Persist preferences to localStorage ──
+  useEffect(()=>{ localStorage.setItem("nls_lang",  lang);  }, [lang]);
+  useEffect(()=>{ localStorage.setItem("nls_theme", theme); }, [theme]);
   useEffect(()=>{
     const html = document.documentElement;
     const body = document.body;
@@ -553,7 +557,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [viewPartner, setViewPartner] = useState(null);
   const [saMode,      setSaMode]      = useState("workspace"); // "workspace" | "partners"
-  const [page,        setPage]        = useState("dashboard");
+  const [page,        setPage]        = useState(()=>localStorage.getItem("nls_page")||"dashboard");
+  useEffect(()=>{ if(page) localStorage.setItem("nls_page", page); }, [page]);
   const [modal,       setModal]       = useState(null);
   const [chatChannel, setChatChannel] = useState("general");
   const [chatMsgs,    setChatMsgs]    = useState({});
@@ -598,7 +603,10 @@ export default function App() {
             : saved.type==="partner"
               ? (data.partners||[]).some(p=>p.id===saved.id&&p.status==="active")
               : (data.partners||[]).some(p=>(p.employees||[]).some(e=>e.id===saved.id&&e.status==="active"));
-          if (stillValid && !currentUser) setCurrentUser(saved);
+          if (stillValid && !currentUser) {
+            setCurrentUser(saved);
+            // Restore last page — will be validated by myAccess in render
+          }
         }
       }
       setFbLoading(false);
@@ -2754,7 +2762,7 @@ export default function App() {
     const [tagF,     setTagF]     = useState("");
     const [showForm, setShowForm] = useState(false);
     const [editId,   setEditId]   = useState(null);
-    const [form, setForm] = useState({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",comment:"",status:"active"});
+    const [form, setForm] = useState({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",branchId:"",comment:"",status:"active"});
 
     // Sync with Firebase partner data
     useEffect(()=>{ setCards(p?.hrCards||[]); },[p?.hrCards]);
@@ -2766,7 +2774,7 @@ export default function App() {
         : [...(p?.hrCards||[]), {...form, id:"hr_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], notes:[]}];
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:item}:x));
       setShowForm(false); setEditId(null);
-      setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",comment:"",status:"active"});
+      setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",branchId:"",comment:"",status:"active"});
     }
 
     function deleteCard(id) {
@@ -2825,11 +2833,14 @@ export default function App() {
                   {openC.phone&&<span>📞 {openC.phone}</span>}
                   {openC.email&&<span>✉ {openC.email}</span>}
                   <span>📅 {openC.createdAt}</span>
+                  {openC.branchId&&p?.branches?.find(b=>b.id===openC.branchId)&&(
+                    <span>📍 {p.branches.find(b=>b.id===openC.branchId)?.name}</span>
+                  )}
                 </div>
                 {openC.comment&&<div style={{fontSize:12,color:"var(--mu2)",fontStyle:"italic",marginBottom:8}}>"{openC.comment}"</div>}
               </div>
               <div style={{display:"flex",gap:6}}>
-                <button className="btn btn-g btn-sm" onClick={()=>{setForm({firstName:openC.firstName,lastName:openC.lastName,email:openC.email||"",phone:openC.phone||"",tag:openC.tag||"",deptId:openC.deptId||"",comment:openC.comment||"",status:openC.status||"active"});setEditId(openC.id);setShowForm(true);setOpenCard(null);}}>✏️</button>
+                <button className="btn btn-g btn-sm" onClick={()=>{setForm({firstName:openC.firstName,lastName:openC.lastName,email:openC.email||"",phone:openC.phone||"",tag:openC.tag||"",deptId:openC.deptId||"",branchId:openC.branchId||"",comment:openC.comment||"",status:openC.status||"active"});setEditId(openC.id);setShowForm(true);setOpenCard(null);}}>✏️</button>
                 <button className="btn btn-d btn-sm" onClick={()=>deleteCard(openC.id)}>{IC.trash}</button>
               </div>
             </div>
@@ -2878,7 +2889,7 @@ export default function App() {
         {/* Header */}
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16}}>{lang==="ru"?"HR — Картотека кандидатов":"HR — Staff Cards"}</div>
-          <button className="btn btn-p" style={{marginLeft:"auto"}} onClick={()=>{setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",comment:"",status:"active"});setEditId(null);setShowForm(true);}}>
+          <button className="btn btn-p" style={{marginLeft:"auto"}} onClick={()=>{setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",branchId:"",comment:"",status:"active"});setEditId(null);setShowForm(true);}}>
             {IC.plus} {lang==="ru"?"Новая карточка":"New Card"}
           </button>
         </div>
@@ -2926,6 +2937,15 @@ export default function App() {
                 </select>
               </div>
               <div className="fg">
+                <label className="lbl">📍 {lang==="ru"?"Город работы":"City"}</label>
+                <select className="inp" value={form.branchId} onChange={e=>setForm(f=>({...f,branchId:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Выберите город —":"— Select city —"}</option>
+                  {(p?.branches||[]).map(b=><option key={b.id} value={b.id}>🏙️ {b.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="fr">
+              <div className="fg">
                 <label className="lbl">{lang==="ru"?"Отдел":"Department"}</label>
                 <select className="inp" value={form.deptId} onChange={e=>setForm(f=>({...f,deptId:e.target.value}))}>
                   <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
@@ -2969,6 +2989,11 @@ export default function App() {
                 </div>
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   {ti&&<span style={{fontSize:11,padding:"3px 9px",borderRadius:6,background:ti.color+"20",color:ti.color,border:`1px solid ${ti.color}30`,fontWeight:600,whiteSpace:"nowrap"}}>{ti.tag}</span>}
+                  {c.branchId&&p?.branches?.find(b=>b.id===c.branchId)&&(
+                    <span style={{fontSize:10,color:"var(--mu)",padding:"2px 6px",borderRadius:5,background:"var(--s2)",whiteSpace:"nowrap"}}>
+                      📍 {p.branches.find(b=>b.id===c.branchId)?.name}
+                    </span>
+                  )}
                   {depts.find(d=>d.id===c.deptId)&&<span style={{fontSize:10,color:"var(--mu)",padding:"2px 6px",borderRadius:5,background:"var(--s2)"}}>{depts.find(d=>d.id===c.deptId)?.icon}</span>}
                 </div>
               </div>
@@ -4038,7 +4063,7 @@ export default function App() {
               </div>
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
-              onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
+              onClick={()=>{localStorage.removeItem("nls_page");setCurrentUser(null);setViewPartner(null);setPage("dashboard");setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
               ⏏ {IC.logout} {t.logout}
             </button>
           </div>
@@ -4076,7 +4101,7 @@ export default function App() {
               </div>
               <div style={{marginTop:14}}>
                 <button className="btn btn-d" style={{width:"100%",justifyContent:"center"}}
-                  onClick={()=>{setCurrentUser(null);setViewPartner(null);setPage("dashboard");setModal(null);}}>
+                  onClick={()=>{localStorage.removeItem("nls_page");setCurrentUser(null);setViewPartner(null);setPage("dashboard");setModal(null);}}>
                   ⏏ {t.logout}
                 </button>
               </div>
