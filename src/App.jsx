@@ -3212,7 +3212,7 @@ export default function App() {
     const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
     const [clientSearch,  setClientSearch]  = useState("");
     const [settingsTab,   setSettTab]       = useState("matrix");
-    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once"};
+    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0};
     const [bkF,  setBkF]  = useState(defBkF);
     const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
 
@@ -3267,32 +3267,100 @@ export default function App() {
     // ── Booking Form Modal ──
     const BookingForm = ({onClose}) => {
       const cleaners = emps.filter(e=>e.status!=="fired");
-      const price = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
-      const dur   = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
+      const [showNewClient, setShowNewClient] = useState(false);
+      const [newClientF, setNewClientF] = useState({name:"",lastName:"",phone:"",email:"",address:"",city:"",notes:""});
+
+      const price    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons);
+      const dur      = calcDuration(bkF.beds,bkF.baths,bkF.cleanType);
+      const tipAmt   = bkF.tipType==="pct" ? Math.round(price*(bkF.tip||0)/100) : (bkF.tip||0);
+      const taxAmt   = Math.round(price*(bkF.salesTax||0)/100);
+      const total    = price + tipAmt + (bkF.parking||0) + taxAmt;
+
+      const PAYMENT_METHODS = [
+        {k:"cc",    l:lang==="ru"?"Карта":"Credit Card",      ico:"💳"},
+        {k:"cash",  l:lang==="ru"?"Наличные":"Cash",           ico:"💵"},
+        {k:"zelle", l:"Zelle",                                 ico:"📲"},
+        {k:"venmo", l:"Venmo",                                 ico:"📱"},
+        {k:"check", l:lang==="ru"?"Чек":"Check",               ico:"📝"},
+      ];
+
+      function createAndSelectClient() {
+        if (!newClientF.name.trim()) return;
+        const fullName = [newClientF.name, newClientF.lastName].filter(Boolean).join(" ");
+        const newCl = {...newClientF, name:fullName, id:"cl_"+Date.now(), createdAt:new Date().toISOString().split("T")[0]};
+        saveClient(newCl);
+        setBkF(f=>({...f, clientId:newCl.id, notes:f.notes||newCl.address||""}));
+        setShowNewClient(false);
+        setNewClientF({name:"",lastName:"",phone:"",email:"",address:"",city:"",notes:""});
+      }
+
       return (
         <div className="ovl" onClick={onClose}>
-          <div className="modal" style={{maxWidth:540,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div className="modal-t">{bkF.id?(lang==="ru"?"✏️ Редактировать":"✏️ Edit"):(lang==="ru"?"+ Новая заявка":"+ New Booking")}</div>
+          <div className="modal" style={{maxWidth:560,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-t">{bkF.id?(lang==="ru"?"✏️ Редактировать заявку":"✏️ Edit Booking"):(lang==="ru"?"+ Новая заявка":"+ New Booking")}</div>
 
-            {/* Row 1: Client + Cleaner */}
-            <div className="fr">
-              <div className="fg">
-                <label className="lbl">👤 {lang==="ru"?"Клиент":"Client"}</label>
-                <select className="inp" value={bkF.clientId} onChange={e=>setBkF(f=>({...f,clientId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
+            {/* ── Client selector + quick-add ── */}
+            <div style={{marginBottom:10}}>
+              <label className="lbl">👤 {lang==="ru"?"Клиент":"Client"}</label>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <select className="inp" style={{flex:1}} value={bkF.clientId} onChange={e=>setBkF(f=>({...f,clientId:e.target.value}))}>
+                  <option value="">{lang==="ru"?"— Выберите клиента —":"— Select client —"}</option>
                   {bkClients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}
                 </select>
+                <button onClick={()=>setShowNewClient(x=>!x)}
+                  style={{padding:"7px 11px",borderRadius:8,fontSize:12,cursor:"pointer",flexShrink:0,
+                    border:`1px solid ${showNewClient?"var(--acc)":"var(--bdr)"}`,
+                    background:showNewClient?"var(--acc)18":"var(--s2)",color:showNewClient?"var(--acc)":"var(--mu)"}}>
+                  {showNewClient?"✕":`+ ${lang==="ru"?"Новый":"New"}`}
+                </button>
               </div>
-              <div className="fg">
-                <label className="lbl">🧹 {lang==="ru"?"Клинер":"Cleaner"}</label>
-                <select className="inp" value={bkF.cleanerId} onChange={e=>setBkF(f=>({...f,cleanerId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
-                  {cleaners.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              </div>
+              {/* Inline new client form */}
+              {showNewClient&&(
+                <div style={{background:"var(--s2)",border:"1px solid var(--acc)30",borderRadius:10,padding:12,marginTop:8}}>
+                  <div style={{fontSize:10,color:"var(--acc)",fontWeight:600,marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>
+                    ✦ {lang==="ru"?"Быстрое создание клиента":"Quick Create Client"}
+                  </div>
+                  <div className="fr">
+                    <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"First Name *"}</label>
+                      <input className="inp" value={newClientF.name} onChange={e=>setNewClientF(f=>({...f,name:e.target.value}))} placeholder={lang==="ru"?"Имя":"First name"}/>
+                    </div>
+                    <div className="fg"><label className="lbl">{lang==="ru"?"Фамилия":"Last Name"}</label>
+                      <input className="inp" value={newClientF.lastName} onChange={e=>setNewClientF(f=>({...f,lastName:e.target.value}))} placeholder={lang==="ru"?"Фамилия":"Last name"}/>
+                    </div>
+                  </div>
+                  <div className="fr">
+                    <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label>
+                      <input className="inp" value={newClientF.phone} onChange={e=>setNewClientF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/>
+                    </div>
+                    <div className="fg"><label className="lbl">Email</label>
+                      <input className="inp" value={newClientF.email} onChange={e=>setNewClientF(f=>({...f,email:e.target.value}))} placeholder="jane@email.com"/>
+                    </div>
+                  </div>
+                  <div className="fr">
+                    <div className="fg"><label className="lbl">📍 {lang==="ru"?"Адрес уборки":"Cleaning Address"}</label>
+                      <input className="inp" value={newClientF.address} onChange={e=>setNewClientF(f=>({...f,address:e.target.value}))} placeholder="123 Main St, Austin TX"/>
+                    </div>
+                    <div className="fg"><label className="lbl">{lang==="ru"?"Город":"City"}</label>
+                      <input className="inp" value={newClientF.city} onChange={e=>setNewClientF(f=>({...f,city:e.target.value}))} placeholder="Austin"/>
+                    </div>
+                  </div>
+                  <button className="btn btn-p" style={{marginTop:4}} onClick={createAndSelectClient}>
+                    ✓ {lang==="ru"?"Создать и выбрать":"Create & Select"}
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Row 2: Date + Time + Status */}
+            {/* Cleaner */}
+            <div className="fg" style={{marginBottom:10}}>
+              <label className="lbl">🧹 {lang==="ru"?"Клинер":"Cleaner"}</label>
+              <select className="inp" value={bkF.cleanerId} onChange={e=>setBkF(f=>({...f,cleanerId:e.target.value}))}>
+                <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
+                {cleaners.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+
+            {/* Date + Time + Status */}
             <div className="fr">
               <div className="fg"><label className="lbl">📅 {lang==="ru"?"Дата *":"Date *"}</label>
                 <input className="inp" type="date" value={bkF.date} onChange={e=>setBkF(f=>({...f,date:e.target.value}))}/>
@@ -3307,8 +3375,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Row 3: Frequency */}
-            <div className="fg">
+            {/* Frequency */}
+            <div className="fg" style={{marginBottom:10}}>
               <label className="lbl">🔄 {lang==="ru"?"Частота":"Frequency"}</label>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {Object.entries(FREQ_LABELS).map(([k,v])=>(
@@ -3324,7 +3392,7 @@ export default function App() {
             </div>
 
             {/* Pricing block */}
-            <div style={{background:"var(--s2)",borderRadius:11,padding:13,marginTop:8}}>
+            <div style={{background:"var(--s2)",borderRadius:11,padding:13,marginBottom:10}}>
               <div style={{fontSize:10,color:"var(--mu)",marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>
                 💰 {lang==="ru"?"Расчёт стоимости":"Price Calculation"}
               </div>
@@ -3359,20 +3427,18 @@ export default function App() {
                   );
                 })}
               </div>
-              {/* Price + Duration summary */}
+              {/* Base price line */}
               <div style={{display:"flex",alignItems:"center",gap:14,paddingTop:10,borderTop:"1px solid var(--bdr)"}}>
                 <div>
-                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Итого":"Total"}</div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:"var(--acc)"}}>
+                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Уборка":"Cleaning"}</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"var(--acc)"}}>
                     {bkSettings.currency}{price}
                   </div>
                 </div>
                 <div style={{height:36,width:1,background:"var(--bdr)"}}/>
                 <div>
-                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Длительность":"Duration"}</div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:"var(--bl)"}}>
-                    {dur} {lang==="ru"?"ч":"h"}
-                  </div>
+                  <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Длит.":"Duration"}</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:"var(--bl)"}}>{dur}{lang==="ru"?"ч":"h"}</div>
                 </div>
                 <div style={{marginLeft:"auto",fontSize:11,color:"var(--mu)"}}>
                   {lang==="ru"?"База":"Base"}: {bkSettings.currency}{calcPrice(bkF.beds,bkF.baths,bkF.cleanType,[])} × {(bkSettings.cleanTypes||[]).find(x=>x.id===bkF.cleanType)?.mult||1}
@@ -3380,7 +3446,110 @@ export default function App() {
               </div>
             </div>
 
-            <div className="fg" style={{marginTop:8}}>
+            {/* ── Tips + Parking ── */}
+            <div style={{background:"var(--s2)",borderRadius:11,padding:13,marginBottom:10}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>
+                ✦ {lang==="ru"?"Чаевые и доп. расходы":"Tips & Extra Charges"}
+              </div>
+              <div className="fr" style={{alignItems:"flex-end",gap:8}}>
+                {/* Tips */}
+                <div style={{flex:2}}>
+                  <label className="lbl">🙏 {lang==="ru"?"Чаевые (Tip)":"Tips"}</label>
+                  <div style={{display:"flex",gap:0}}>
+                    <input type="number" min="0" value={bkF.tip||""} onChange={e=>setBkF(f=>({...f,tip:+e.target.value||0}))}
+                      className="inp" placeholder="0"
+                      style={{borderRadius:"7px 0 0 7px",borderRight:"none",textAlign:"center",width:70}}/>
+                    <select value={bkF.tipType||"$"} onChange={e=>setBkF(f=>({...f,tipType:e.target.value}))}
+                      className="inp" style={{borderRadius:"0 7px 7px 0",width:60,padding:"7px 4px",flexShrink:0}}>
+                      <option value="$">$</option>
+                      <option value="pct">%</option>
+                    </select>
+                  </div>
+                  {bkF.tip>0&&bkF.tipType==="pct"&&(
+                    <div style={{fontSize:10,color:"var(--gr)",marginTop:3}}>=  {bkSettings.currency}{tipAmt}</div>
+                  )}
+                  {/* Quick tip % buttons */}
+                  <div style={{display:"flex",gap:4,marginTop:5}}>
+                    {[10,15,18,20].map(pct=>(
+                      <button key={pct} onClick={()=>setBkF(f=>({...f,tip:pct,tipType:"pct"}))}
+                        style={{padding:"3px 7px",borderRadius:5,fontSize:10,cursor:"pointer",
+                          border:`1px solid ${bkF.tip===pct&&bkF.tipType==="pct"?"var(--gr)":"var(--bdr)"}`,
+                          background:bkF.tip===pct&&bkF.tipType==="pct"?"var(--gr)18":"transparent",
+                          color:bkF.tip===pct&&bkF.tipType==="pct"?"var(--gr)":"var(--mu)"}}>
+                        {pct}%
+                      </button>
+                    ))}
+                    <button onClick={()=>setBkF(f=>({...f,tip:0,tipType:"$"}))}
+                      style={{padding:"3px 7px",borderRadius:5,fontSize:10,cursor:"pointer",
+                        border:"1px solid var(--bdr)",background:"transparent",color:"var(--mu)"}}>
+                      {lang==="ru"?"сброс":"clear"}
+                    </button>
+                  </div>
+                </div>
+                {/* Parking */}
+                <div style={{flex:1}}>
+                  <label className="lbl">🅿️ {lang==="ru"?"Парковка":"Parking"}</label>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontSize:12,color:"var(--mu)"}}>$</span>
+                    <input type="number" min="0" value={bkF.parking||""} onChange={e=>setBkF(f=>({...f,parking:+e.target.value||0}))}
+                      className="inp" placeholder="0" style={{textAlign:"center"}}/>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sales Tax */}
+              <div className="fg" style={{marginTop:10}}>
+                <label className="lbl">🏛 {lang==="ru"?"Sales Tax":"Sales Tax"}</label>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <select className="inp" style={{width:90,flexShrink:0}} value={bkF.salesTax||0}
+                    onChange={e=>setBkF(f=>({...f,salesTax:+e.target.value}))}>
+                    <option value={0}>{lang==="ru"?"Нет":"None"} — 0%</option>
+                    {Array.from({length:20},(_,i)=>i+1).map(n=>(
+                      <option key={n} value={n}>{n}%</option>
+                    ))}
+                  </select>
+                  {bkF.salesTax>0&&(
+                    <span style={{fontSize:12,color:"var(--mu)"}}>
+                      = <span style={{color:"var(--acc)",fontWeight:600}}>{bkSettings.currency}{taxAmt}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Total line */}
+              {(tipAmt>0||bkF.parking>0||taxAmt>0)&&(
+                <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:10,marginTop:8,borderTop:"1px solid var(--bdr)"}}>
+                  <span style={{fontSize:11,color:"var(--mu)",flex:1,lineHeight:1.6}}>
+                    {bkSettings.currency}{price}
+                    {tipAmt>0&&<span style={{color:"var(--gr)"}}> + {bkSettings.currency}{tipAmt} tip</span>}
+                    {bkF.parking>0&&<span style={{color:"var(--bl)"}}> + {bkSettings.currency}{bkF.parking} parking</span>}
+                    {taxAmt>0&&<span style={{color:"#f0a500"}}> + {bkSettings.currency}{taxAmt} tax</span>}
+                  </span>
+                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)"}}>
+                    = {bkSettings.currency}{total}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Payment method */}
+            <div className="fg" style={{marginBottom:10}}>
+              <label className="lbl">💳 {lang==="ru"?"Способ оплаты":"Payment Method"}</label>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {PAYMENT_METHODS.map(pm=>(
+                  <button key={pm.k} onClick={()=>setBkF(f=>({...f,paymentMethod:pm.k}))}
+                    style={{padding:"5px 11px",borderRadius:7,fontSize:11,cursor:"pointer",
+                      border:`1px solid ${bkF.paymentMethod===pm.k?"var(--acc)":"var(--bdr)"}`,
+                      background:bkF.paymentMethod===pm.k?"var(--acc)18":"transparent",
+                      color:bkF.paymentMethod===pm.k?"var(--acc)":"var(--mu)"}}>
+                    {pm.ico} {pm.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Address / notes */}
+            <div className="fg" style={{marginBottom:10}}>
               <label className="lbl">📍 {lang==="ru"?"Адрес / заметки":"Address / notes"}</label>
               <input className="inp" value={bkF.notes} onChange={e=>setBkF(f=>({...f,notes:e.target.value}))} placeholder={lang==="ru"?"Адрес уборки, особые пожелания...":"Cleaning address, special requests..."}/>
             </div>
@@ -3390,7 +3559,7 @@ export default function App() {
               {bkF.id&&<button className="btn btn-d" onClick={()=>{deleteBooking(bkF.id);onClose();}}>🗑</button>}
               <button className="btn btn-p" onClick={()=>{
                 if (!bkF.date) return;
-                saveBooking({...bkF,id:bkF.id||"bk_"+Date.now(),price});
+                saveBooking({...bkF, id:bkF.id||"bk_"+Date.now(), price, tipAmt, total});
                 onClose();
               }}>{lang==="ru"?"Сохранить":"Save"}</button>
             </div>
@@ -3440,7 +3609,12 @@ export default function App() {
             {bk.notes&&<div style={{fontSize:11,color:"var(--mu)",borderTop:"1px solid var(--bdr)",paddingTop:8,marginBottom:12}}>📝 {bk.notes}</div>}
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:12,padding:"3px 9px",borderRadius:5,background:sc+"20",color:sc,fontWeight:600}}>{STATUS_LABELS[bk.status]}</span>
-              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)",marginLeft:"auto"}}>{bkSettings.currency}{bk.price}</span>
+              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)",marginLeft:"auto"}}>
+                {bkSettings.currency}{bk.total||bk.price}
+                {bk.paymentMethod&&<span style={{fontSize:10,color:"var(--mu)",fontWeight:400,marginLeft:4}}>
+                  {bk.paymentMethod==="cc"?"💳":bk.paymentMethod==="cash"?"💵":bk.paymentMethod==="zelle"?"📲":bk.paymentMethod==="venmo"?"📱":"📝"}
+                </span>}
+              </span>
               <button className="btn btn-p btn-sm" onClick={()=>{setBkF(bk);onClose();setBkForm(true);}}>✏️</button>
             </div>
           </div>
