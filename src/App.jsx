@@ -3281,10 +3281,21 @@ function AppInner() {
     const [editCrId,    setEditCrId]  = useState(null);
     const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
     const [clientSearch,  setClientSearch]  = useState("");
-    const [settingsTab,   setSettTab]       = useState("matrix");
+    const [settingsTab,   setSettTab]       = useState("smart");
     const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0,priceOverride:null,durOverride:null,cleanerCount:1};
     const [bkF,  setBkF]  = useState(defBkF);
     const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
+
+    // ── SettingsPanel state — lifted here to survive re-renders ──
+    const SETT_SIZE = 10;
+    const [settLM,  setSettLM]  = useState(()=>Array.from({length:SETT_SIZE},(_,r)=>Array.from({length:SETT_SIZE},(_,c)=>(bkSettings.matrix||[])[r]?.[c]||0)));
+    const [settLDM, setSettLDM] = useState(()=>Array.from({length:SETT_SIZE},(_,r)=>Array.from({length:SETT_SIZE},(_,c)=>(bkSettings.durMatrix||[])[r]?.[c]||0)));
+    const [settLT,  setSettLT]  = useState(bkSettings.cleanTypes||[]);
+    const [settLA,  setSettLA]  = useState(bkSettings.addons||[]);
+    const [settLFD, setSettLFD] = useState(bkSettings.freqDiscounts||{weekly:10,biweekly:5,monthly:3});
+    const [settP1,  setSettP1]  = useState({beds:1,baths:1,price:120,dur:1.33});
+    const [settP2,  setSettP2]  = useState({beds:2,baths:2,price:180,dur:3.0});
+    const [settSaved, setSettSaved] = useState(false); // success flash
 
     const livePrice    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons,bkF.frequency);
     const liveDuration = calcDuration(bkF.beds,bkF.baths,bkF.cleanType,bkF.cleanerCount);
@@ -4051,45 +4062,35 @@ function AppInner() {
 
     // ── Settings ──
     const SettingsPanel = () => {
-      const SIZE=10;
-      const [lm,setLM]   = useState(()=>{
-        const m=bkSettings.matrix||[];
-        // Ensure 10×10
-        return Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>m[r]?.[c]||0));
-      });
-      const [ldm,setLDM] = useState(()=>{
-        const m=bkSettings.durMatrix||[];
-        return Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>m[r]?.[c]||0));
-      });
-      const [lt,setLT]   = useState(bkSettings.cleanTypes||[]);
-      const [la,setLA]   = useState(bkSettings.addons||[]);
-      const [lfd,setLFD] = useState(bkSettings.freqDiscounts||{weekly:10,biweekly:5,monthly:3});
-
-      // Smart setup state
-      const [p1,setP1] = useState({beds:1,baths:1,price:120,dur:1.33});
-      const [p2,setP2] = useState({beds:2,baths:2,price:180,dur:3.0});
+      const SIZE = SETT_SIZE;
+      const lm  = settLM,  setLM  = setSettLM;
+      const ldm = settLDM, setLDM = setSettLDM;
+      const lt  = settLT,  setLT  = setSettLT;
+      const la  = settLA,  setLA  = setSettLA;
+      const lfd = settLFD, setLFD = setSettLFD;
+      const p1  = settP1,  setP1  = setSettP1;
+      const p2  = settP2,  setP2  = setSettP2;
 
       function autoFillMatrix() {
-        // Derive per-bed and per-bath increments from 2 anchor points
-        // price(b,ba) = base + b*pricePerBed + (ba-1)*pricePerBath
-        // Assume equal contribution of bed and bath
         const totalRooms1 = p1.beds + p1.baths;
         const totalRooms2 = p2.beds + p2.baths;
+        if (totalRooms1 === totalRooms2) return;
         const pricePerRoom = (p2.price - p1.price) / (totalRooms2 - totalRooms1);
         const durPerRoom   = (p2.dur   - p1.dur)   / (totalRooms2 - totalRooms1);
-        const basePrice = p1.price - (p1.beds + p1.baths) * pricePerRoom;
-        const baseDur   = p1.dur   - (p1.beds + p1.baths) * durPerRoom;
+        const basePrice    = p1.price - (p1.beds + p1.baths) * pricePerRoom;
+        const baseDur      = p1.dur   - (p1.beds + p1.baths) * durPerRoom;
 
-        const newM  = Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>{
-          const beds=r, baths=c+1;
-          return Math.max(0,Math.round(basePrice + beds*pricePerRoom + baths*pricePerRoom));
-        }));
-        const newDM = Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>{
-          const beds=r, baths=c+1;
-          return Math.max(0,Math.round((baseDur + beds*durPerRoom + baths*durPerRoom)*10)/10);
-        }));
-        setLM(newM); setLDM(newDM);
+        const newM  = Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>
+          Math.max(0, Math.round(basePrice + r*pricePerRoom + (c+1)*pricePerRoom))
+        ));
+        const newDM = Array.from({length:SIZE},(_,r)=>Array.from({length:SIZE},(_,c)=>
+          Math.max(0, Math.round((baseDur + r*durPerRoom + (c+1)*durPerRoom)*10)/10)
+        ));
+        setLM(newM);
+        setLDM(newDM);
         saveBkSettings({matrix:newM, durMatrix:newDM});
+        setSettSaved(true);
+        setTimeout(()=>setSettSaved(false), 3000);
       }
 
       const BL = ["Studio","1 bd","2 bd","3 bd","4 bd","5 bd","6 bd","7 bd","8 bd","9 bd"];
@@ -4178,12 +4179,44 @@ function AppInner() {
                 })()}
               </div>
 
+              {settSaved&&(
+                <div style={{background:"#22c55e15",border:"1px solid #22c55e40",borderRadius:10,padding:"10px 14px",marginBottom:10,
+                  display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#22c55e",fontWeight:600}}>
+                  ✅ {lang==="ru"?"Матрица рассчитана и сохранена!":"Matrix calculated and saved!"}
+                  <button onClick={()=>setSettTab("matrix")} style={{marginLeft:"auto",fontSize:11,background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>
+                    {lang==="ru"?"Смотреть →":"View →"}
+                  </button>
+                </div>
+              )}
+
               <button className="btn btn-p" style={{width:"100%",padding:"11px 0",fontSize:13,fontWeight:700}}
                 onClick={autoFillMatrix}>
                 ⚡ {lang==="ru"?"Рассчитать и заполнить всю матрицу (9×10)":"Calculate & Fill Full Matrix (9×10)"}
               </button>
+
+              {settLM[1]?.[0]>0&&(
+                <div style={{marginTop:12,background:"var(--s2)",borderRadius:10,padding:12}}>
+                  <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.4}}>
+                    {lang==="ru"?"Предпросмотр (первые 4 варианта):":"Preview (first 4 configs):"}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                    {[[1,1],[2,1],[2,2],[3,2]].map(([b,ba])=>{
+                      const pr=settLM[b]?.[ba-1]||0;
+                      const dr=settLDM[b]?.[ba-1]||0;
+                      return (
+                        <div key={`${b}-${ba}`} style={{background:"var(--s1)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                          <div style={{fontSize:10,color:"var(--mu)"}}>{b}bd / {ba}ba</div>
+                          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:"var(--acc)",fontSize:15}}>${pr}</div>
+                          <div style={{fontSize:10,color:"var(--bl)"}}>{dr}h</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
 
           {/* ── PRICE MATRIX ── */}
           {settingsTab==="matrix"&&(
