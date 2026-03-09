@@ -441,6 +441,7 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
   .chat-sb.mob-open{display:flex !important;flex-direction:column;position:fixed;inset:0;z-index:200;background:var(--s1);width:100%;padding:56px 14px 14px;}
   .mob-nav{display:flex !important;}
   .mob-ch-btn{display:flex !important;}
+  .mob-tabs-bar{display:flex !important;}
 }
 .mob-nav{
   display:none;position:fixed;bottom:0;left:0;right:0;height:60px;
@@ -456,6 +457,7 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
 .mob-nb .mi{font-size:21px;line-height:1.2;}
 .mob-nb.act{color:var(--acc);}
 .mob-ch-btn{display:none;}
+.mob-tabs-bar{display:none;}
 `;
 
 /* ─── HELPERS ─── */
@@ -3193,6 +3195,7 @@ function AppInner() {
         {id:"standard",  label:lang==="ru"?"Стандартная":"Standard Clean", mult:1.0},
         {id:"deep",      label:lang==="ru"?"Глубокая":"Deep Clean",         mult:1.5},
         {id:"moveinout", label:lang==="ru"?"Переезд":"Move In/Out",         mult:1.8},
+        {id:"airbnb",    label:"Airbnb",                                    mult:1.3},
       ],
       addons:[
         {id:"fridge",  label:lang==="ru"?"Внутри холодильника":"Inside Fridge", price:45},
@@ -3313,7 +3316,15 @@ function AppInner() {
     const [settLFD, setSettLFD] = useState(bkSettings.freqDiscounts||{weekly:10,biweekly:5,monthly:3});
     const [settP1,  setSettP1]  = useState({beds:1,baths:1,price:120,dur:1.33});
     const [settP2,  setSettP2]  = useState({beds:2,baths:2,price:180,dur:3.0});
-    const [settSaved, setSettSaved] = useState(false); // success flash
+    const [settSaved, setSettSaved] = useState(false);
+    const [settSmartTab, setSettSmartTab] = useState("standard"); // standard | deep | moveinout | airbnb
+    // Per-type anchors for non-standard types
+    const [typeAnchors, setTypeAnchors] = useState({
+      deep:      {p1:{beds:1,baths:1,price:170,dur:2.0}, p2:{beds:2,baths:2,price:250,dur:4.5}},
+      moveinout: {p1:{beds:1,baths:1,price:210,dur:2.5}, p2:{beds:2,baths:2,price:320,dur:5.5}},
+      airbnb:    {p1:{beds:1,baths:1,price:150,dur:1.5}, p2:{beds:2,baths:2,price:220,dur:3.5}},
+    });
+    const [typeSaved, setTypeSaved] = useState({}); // success flash
 
     const livePrice    = calcPrice(bkF.beds,bkF.baths,bkF.cleanType,bkF.addons,bkF.frequency);
     const liveDuration = calcDuration(bkF.beds,bkF.baths,bkF.cleanType,bkF.cleanerCount);
@@ -4139,101 +4150,236 @@ function AppInner() {
           {/* ── SMART SETUP ── */}
           {settingsTab==="smart"&&(
             <div>
-              <div style={{background:"var(--acc)10",border:"1px solid var(--acc)30",borderRadius:12,padding:16,marginBottom:16}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>⚡ {lang==="ru"?"Умная настройка цен":"Smart Price Setup"}</div>
-                <div style={{fontSize:12,color:"var(--mu)",lineHeight:1.6}}>
+              {/* Header */}
+              <div style={{background:"var(--acc)10",border:"1px solid var(--acc)30",borderRadius:12,padding:14,marginBottom:14}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:3}}>⚡ {lang==="ru"?"Умная настройка цен":"Smart Price Setup"}</div>
+                <div style={{fontSize:11,color:"var(--mu)",lineHeight:1.5}}>
                   {lang==="ru"
-                    ?"Введи 2 ориентира — программа рассчитает всю матрицу до 9 спален × 10 ванных автоматически."
-                    :"Enter 2 anchor points — the system auto-fills the entire 9 bed × 10 bath matrix."}
+                    ?"Введи 2 ориентира по каждому типу уборки — система рассчитает цены и множители автоматически."
+                    :"Enter 2 anchor points per clean type — system auto-calculates prices and multipliers."}
                 </div>
               </div>
 
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-                {/* Point 1 */}
-                {[{p:p1,setP:setP1,label:lang==="ru"?"Ориентир 1":"Anchor 1",color:"var(--bl)"},
-                  {p:p2,setP:setP2,label:lang==="ru"?"Ориентир 2":"Anchor 2",color:"var(--acc)"}].map(({p,setP,label,color})=>(
-                  <div key={label} style={{background:"var(--s2)",borderRadius:11,padding:14,border:`1px solid ${color}30`}}>
-                    <div style={{fontSize:11,fontWeight:700,color,marginBottom:10}}>📍 {label}</div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      <div>
-                        <label className="lbl">{lang==="ru"?"Спален":"Beds"}</label>
-                        <select className="inp" value={p.beds} onChange={e=>setP(x=>({...x,beds:+e.target.value}))}>
-                          {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} bd</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="lbl">{lang==="ru"?"Ванных":"Baths"}</label>
-                        <select className="inp" value={p.baths} onChange={e=>setP(x=>({...x,baths:+e.target.value}))}>
-                          {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} ba</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="lbl">💰 {lang==="ru"?"Цена $":"Price $"}</label>
-                        <input type="number" className="inp" value={p.price} onChange={e=>setP(x=>({...x,price:+e.target.value}))} style={{textAlign:"center"}}/>
-                      </div>
-                      <div>
-                        <label className="lbl">⏱ {lang==="ru"?"Время ч":"Hours"}</label>
-                        <input type="number" step="0.1" className="inp" value={p.dur} onChange={e=>setP(x=>({...x,dur:+e.target.value}))} style={{textAlign:"center"}}/>
-                      </div>
+              {/* Type sub-tabs */}
+              {(()=>{
+                const smartTypes = [
+                  {id:"standard",  label:lang==="ru"?"🧹 Стандарт":"🧹 Standard",  color:"var(--bl)"},
+                  {id:"deep",      label:lang==="ru"?"🧽 Дип клининг":"🧽 Deep Clean", color:"#8b5cf6"},
+                  {id:"moveinout", label:lang==="ru"?"📦 Мув ин/аут":"📦 Move In/Out", color:"#f59e0b"},
+                  {id:"airbnb",    label:"🏠 AirBnB",                              color:"#ef4444"},
+                ];
+
+                const curType = settSmartTab;
+                const isStandard = curType === "standard";
+
+                // Get anchors for current type
+                const p1 = isStandard ? settP1 : typeAnchors[curType]?.p1 || {beds:1,baths:1,price:120,dur:1.5};
+                const p2 = isStandard ? settP2 : typeAnchors[curType]?.p2 || {beds:2,baths:2,price:180,dur:3.0};
+                const setP1 = v => isStandard ? setSettP1(v) : setTypeAnchors(a=>({...a,[curType]:{...a[curType],p1:typeof v==="function"?v(a[curType].p1):v}}));
+                const setP2 = v => isStandard ? setSettP2(v) : setTypeAnchors(a=>({...a,[curType]:{...a[curType],p2:typeof v==="function"?v(a[curType].p2):v}}));
+
+                // Calc preview
+                const totalRooms1 = p1.beds + p1.baths;
+                const totalRooms2 = p2.beds + p2.baths;
+                const valid = totalRooms1 !== totalRooms2;
+                const priceStep = valid ? Math.round((p2.price-p1.price)/(totalRooms2-totalRooms1)) : 0;
+                const durStep   = valid ? Math.round((p2.dur-p1.dur)/(totalRooms2-totalRooms1)*10)/10 : 0;
+
+                // For non-standard: compute multiplier vs standard matrix
+                function getMultiplier() {
+                  if (!valid) return null;
+                  const stdP1 = settLM[p1.beds]?.[p1.baths-1] || 1;
+                  const stdP2 = settLM[p2.beds]?.[p2.baths-1] || 1;
+                  const m1 = stdP1 > 0 ? p1.price / stdP1 : 1;
+                  const m2 = stdP2 > 0 ? p2.price / stdP2 : 1;
+                  return Math.round(((m1+m2)/2)*100)/100;
+                }
+
+                function handleCalc() {
+                  if (!valid) return;
+                  if (isStandard) {
+                    autoFillMatrix();
+                  } else {
+                    const mult = getMultiplier();
+                    if (!mult) return;
+                    // Also fill type-specific durMatrix via mult on standard dur
+                    const newTypes = settLT.map(t => t.id === curType ? {...t, mult} : t);
+                    // If airbnb doesn't exist yet, add it
+                    const exists = newTypes.find(t=>t.id===curType);
+                    const finalTypes = exists ? newTypes : [...newTypes, {
+                      id:curType,
+                      label: curType==="airbnb"?"Airbnb":curType==="deep"?(lang==="ru"?"Глубокая":"Deep Clean"):(lang==="ru"?"Переезд":"Move In/Out"),
+                      mult
+                    }];
+                    setSettLT(finalTypes);
+                    saveBkSettings({cleanTypes: finalTypes});
+                    setTypeSaved(s=>({...s,[curType]:true}));
+                    setTimeout(()=>setTypeSaved(s=>({...s,[curType]:false})), 3000);
+                  }
+                }
+
+                const typeColor = smartTypes.find(t=>t.id===curType)?.color||"var(--acc)";
+                const curMult = settLT.find(t=>t.id===curType)?.mult;
+                const savedNow = isStandard ? settSaved : typeSaved[curType];
+
+                return (
+                  <>
+                    {/* Sub-tab buttons */}
+                    <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
+                      {smartTypes.map(({id,label,color})=>(
+                        <button key={id} onClick={()=>setSettSmartTab(id)}
+                          style={{padding:"6px 12px",borderRadius:8,fontSize:11,cursor:"pointer",fontWeight:600,
+                            border:`2px solid ${settSmartTab===id?color:"var(--bdr)"}`,
+                            background:settSmartTab===id?color+"20":"transparent",
+                            color:settSmartTab===id?color:"var(--mu)"}}>
+                          {label}
+                          {id!=="standard"&&settLT.find(t=>t.id===id)&&(
+                            <span style={{marginLeft:5,fontSize:9,opacity:.7}}>×{settLT.find(t=>t.id===id)?.mult}</span>
+                          )}
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                ))}
-              </div>
 
-              {/* Preview */}
-              <div style={{background:"var(--s2)",borderRadius:10,padding:12,marginBottom:14,fontSize:11,color:"var(--mu)"}}>
-                <div style={{fontWeight:600,color:"var(--tx)",marginBottom:6}}>{lang==="ru"?"Предпросмотр прогрессии:":"Preview progression:"}</div>
-                {(()=>{
-                  const totalRooms1=p1.beds+p1.baths, totalRooms2=p2.beds+p2.baths;
-                  if(totalRooms1===totalRooms2) return <div style={{color:"#ef4444"}}>{lang==="ru"?"Ориентиры должны отличаться":"Anchors must differ"}</div>;
-                  const pricePerRoom=Math.round((p2.price-p1.price)/(totalRooms2-totalRooms1));
-                  const durPerRoom=Math.round((p2.dur-p1.dur)/(totalRooms2-totalRooms1)*10)/10;
-                  return (
-                    <div style={{display:"flex",gap:16}}>
-                      <span>📈 {lang==="ru"?"Шаг цены":"Price step"}: <b style={{color:"var(--acc)"}}>+${pricePerRoom}</b> {lang==="ru"?"за комнату":"per room"}</span>
-                      <span>⏱ {lang==="ru"?"Шаг времени":"Duration step"}: <b style={{color:"var(--bl)"}}>+{durPerRoom}h</b> {lang==="ru"?"за комнату":"per room"}</span>
-                    </div>
-                  );
-                })()}
-              </div>
+                    {/* Non-standard info banner */}
+                    {!isStandard&&(
+                      <div style={{background:typeColor+"12",border:`1px solid ${typeColor}30`,borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:11}}>
+                        <span style={{color:typeColor,fontWeight:700}}>
+                          {curType==="deep"?(lang==="ru"?"Глубокая уборка":"Deep Clean"):
+                           curType==="moveinout"?(lang==="ru"?"Переезд (Мув ин/аут)":"Move In/Out"):
+                           "AirBnB"}
+                        </span>
+                        <span style={{color:"var(--mu)",marginLeft:6}}>
+                          {lang==="ru"
+                            ?"— введи 2 примера цены. Система рассчитает множитель относительно Стандарта."
+                            :"— enter 2 price examples. System calculates multiplier vs Standard."}
+                        </span>
+                        {curMult&&<span style={{marginLeft:8,padding:"2px 8px",borderRadius:4,background:typeColor+"20",color:typeColor,fontWeight:700}}>
+                          {lang==="ru"?"Текущий множитель":"Current mult"}: ×{curMult}
+                        </span>}
+                      </div>
+                    )}
 
-              {settSaved&&(
-                <div style={{background:"#22c55e15",border:"1px solid #22c55e40",borderRadius:10,padding:"10px 14px",marginBottom:10,
-                  display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#22c55e",fontWeight:600}}>
-                  ✅ {lang==="ru"?"Матрица рассчитана и сохранена!":"Matrix calculated and saved!"}
-                  <button onClick={()=>setSettTab("matrix")} style={{marginLeft:"auto",fontSize:11,background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>
-                    {lang==="ru"?"Смотреть →":"View →"}
-                  </button>
-                </div>
-              )}
-
-              <button className="btn btn-p" style={{width:"100%",padding:"11px 0",fontSize:13,fontWeight:700}}
-                onClick={autoFillMatrix}>
-                ⚡ {lang==="ru"?"Рассчитать и заполнить всю матрицу (9×10)":"Calculate & Fill Full Matrix (9×10)"}
-              </button>
-
-              {settLM[1]?.[0]>0&&(
-                <div style={{marginTop:12,background:"var(--s2)",borderRadius:10,padding:12}}>
-                  <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.4}}>
-                    {lang==="ru"?"Предпросмотр (первые 4 варианта):":"Preview (first 4 configs):"}
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-                    {[[1,1],[2,1],[2,2],[3,2]].map(([b,ba])=>{
-                      const pr=settLM[b]?.[ba-1]||0;
-                      const dr=settLDM[b]?.[ba-1]||0;
-                      return (
-                        <div key={`${b}-${ba}`} style={{background:"var(--s1)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
-                          <div style={{fontSize:10,color:"var(--mu)"}}>{b}bd / {ba}ba</div>
-                          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:"var(--acc)",fontSize:15}}>${pr}</div>
-                          <div style={{fontSize:10,color:"var(--bl)"}}>{dr}h</div>
+                    {/* Anchor inputs */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                      {[{p:p1,setP:setP1,label:lang==="ru"?"📍 Ориентир 1":"📍 Anchor 1",color:"var(--bl)"},
+                        {p:p2,setP:setP2,label:lang==="ru"?"📍 Ориентир 2":"📍 Anchor 2",color:typeColor}]
+                        .map(({p,setP,label,color})=>(
+                        <div key={label} style={{background:"var(--s2)",borderRadius:11,padding:12,border:`1px solid ${color}25`}}>
+                          <div style={{fontSize:11,fontWeight:700,color,marginBottom:9}}>{label}</div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+                            <div>
+                              <label className="lbl">{lang==="ru"?"Спален":"Beds"}</label>
+                              <select className="inp" value={p.beds} onChange={e=>setP(x=>({...x,beds:+e.target.value}))}>
+                                {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} bd</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="lbl">{lang==="ru"?"Ванных":"Baths"}</label>
+                              <select className="inp" value={p.baths} onChange={e=>setP(x=>({...x,baths:+e.target.value}))}>
+                                {[1,2,3,4,5].map(n=><option key={n} value={n}>{n} ba</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="lbl">💰 {lang==="ru"?"Цена $":"Price $"}</label>
+                              <input type="number" className="inp" value={p.price}
+                                onChange={e=>setP(x=>({...x,price:+e.target.value}))} style={{textAlign:"center"}}/>
+                            </div>
+                            <div>
+                              <label className="lbl">⏱ {lang==="ru"?"Время ч":"Hours"}</label>
+                              <input type="number" step="0.1" className="inp" value={p.dur}
+                                onChange={e=>setP(x=>({...x,dur:+e.target.value}))} style={{textAlign:"center"}}/>
+                            </div>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                      ))}
+                    </div>
+
+                    {/* Preview */}
+                    <div style={{background:"var(--s2)",borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:11}}>
+                      <div style={{fontWeight:600,color:"var(--tx)",marginBottom:5}}>{lang==="ru"?"Предпросмотр:":"Preview:"}</div>
+                      {!valid
+                        ? <span style={{color:"#ef4444"}}>{lang==="ru"?"Ориентиры должны отличаться по кол-ву комнат":"Anchors must differ in room count"}</span>
+                        : <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                            <span>📈 {lang==="ru"?"Шаг цены":"Price step"}: <b style={{color:"var(--acc)"}}>+${priceStep}</b> {lang==="ru"?"за комнату":"per room"}</span>
+                            <span>⏱ {lang==="ru"?"Шаг времени":"Duration step"}: <b style={{color:"var(--bl)"}}>+{durStep}h</b> {lang==="ru"?"за комнату":"per room"}</span>
+                            {!isStandard&&settLM[1]?.[0]>0&&(
+                              <span>✖ {lang==="ru"?"Множитель":"Multiplier"}: <b style={{color:typeColor}}>×{getMultiplier()}</b> {lang==="ru"?"от Стандарта":"vs Standard"}</span>
+                            )}
+                          </div>
+                      }
+                    </div>
+
+                    {/* Success */}
+                    {savedNow&&(
+                      <div style={{background:"#22c55e15",border:"1px solid #22c55e40",borderRadius:10,padding:"9px 14px",marginBottom:10,
+                        display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#22c55e",fontWeight:600}}>
+                        ✅ {isStandard
+                          ? (lang==="ru"?"Матрица рассчитана и сохранена!":"Matrix calculated and saved!")
+                          : (lang==="ru"?"Множитель сохранён!":"Multiplier saved!")}
+                        {isStandard&&<button onClick={()=>setSettTab("matrix")}
+                          style={{marginLeft:"auto",fontSize:11,background:"#22c55e",color:"#fff",border:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>
+                          {lang==="ru"?"Смотреть →":"View →"}
+                        </button>}
+                      </div>
+                    )}
+
+                    {/* Calc button */}
+                    <button style={{width:"100%",padding:"11px 0",fontSize:13,fontWeight:700,cursor:"pointer",
+                      background:typeColor,color:"#fff",border:"none",borderRadius:9}}
+                      onClick={handleCalc}>
+                      ⚡ {isStandard
+                        ? (lang==="ru"?"Рассчитать всю матрицу (9×10)":"Calculate Full Matrix (9×10)")
+                        : (lang==="ru"?`Рассчитать множитель и сохранить`:`Calculate Multiplier & Save`)}
+                    </button>
+
+                    {/* Post-calc preview grid */}
+                    {isStandard&&settLM[1]?.[0]>0&&(
+                      <div style={{marginTop:12,background:"var(--s2)",borderRadius:10,padding:12}}>
+                        <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.4}}>
+                          {lang==="ru"?"Результат — стандартная уборка:":"Result — Standard Clean:"}
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                          {[[1,1],[2,1],[2,2],[3,2]].map(([b,ba])=>{
+                            const pr=settLM[b]?.[ba-1]||0;
+                            const dr=settLDM[b]?.[ba-1]||0;
+                            return (
+                              <div key={`${b}-${ba}`} style={{background:"var(--s1)",borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
+                                <div style={{fontSize:9,color:"var(--mu)"}}>{b}bd/{ba}ba</div>
+                                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:"var(--acc)",fontSize:14}}>${pr}</div>
+                                <div style={{fontSize:9,color:"var(--bl)"}}>{dr}h</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {!isStandard&&settLT.find(t=>t.id===curType)&&settLM[1]?.[0]>0&&(
+                      <div style={{marginTop:12,background:"var(--s2)",borderRadius:10,padding:12}}>
+                        <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.4}}>
+                          {lang==="ru"?"Результат — цены с множителем:":"Result — Prices with multiplier:"}
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                          {[[1,1],[2,1],[2,2],[3,2]].map(([b,ba])=>{
+                            const mult=settLT.find(t=>t.id===curType)?.mult||1;
+                            const pr=Math.round((settLM[b]?.[ba-1]||0)*mult);
+                            const dr=Math.round((settLDM[b]?.[ba-1]||0)*mult*10)/10;
+                            return (
+                              <div key={`${b}-${ba}`} style={{background:"var(--s1)",borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
+                                <div style={{fontSize:9,color:"var(--mu)"}}>{b}bd/{ba}ba</div>
+                                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:typeColor,fontSize:14}}>${pr}</div>
+                                <div style={{fontSize:9,color:"var(--bl)"}}>{dr}h</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
+
 
 
           {/* ── PRICE MATRIX ── */}
@@ -4742,12 +4888,34 @@ function AppInner() {
         </div>
 
         {/* Page title from sidebar sub-nav */}
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
           {tab==="calendar"&&<>📅 {lang==="ru"?"Календарь":"Calendar"}</>}
           {tab==="cleaners"&&<>🧹 {lang==="ru"?"Клинеры":"Cleaners"}</>}
           {tab==="clients"&&<>👤 {lang==="ru"?"Клиенты":"Clients"}</>}
           {tab==="reports"&&<>📊 {lang==="ru"?"Отчёты":"Reports"}</>}
           {tab==="settings"&&<>⚙️ {lang==="ru"?"Настройки":"Settings"}</>}
+        </div>
+
+        {/* Mobile-only horizontal sub-tab bar */}
+        <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,marginBottom:14,
+          scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}
+          className="mob-tabs-bar">
+          {[
+            {k:"calendar", ico:"📅", l:lang==="ru"?"Календарь":"Calendar"},
+            {k:"cleaners", ico:"🧹", l:lang==="ru"?"Клинеры":"Cleaners"},
+            {k:"clients",  ico:"👤", l:lang==="ru"?"Клиенты":"Clients"},
+            {k:"reports",  ico:"📊", l:lang==="ru"?"Отчёты":"Reports"},
+            {k:"settings", ico:"⚙️", l:lang==="ru"?"Настройки":"Settings"},
+          ].map(s=>(
+            <button key={s.k} onClick={()=>setTab(s.k)}
+              style={{flexShrink:0,padding:"6px 12px",borderRadius:20,fontSize:12,cursor:"pointer",
+                fontWeight:tab===s.k?700:400,whiteSpace:"nowrap",
+                border:`1.5px solid ${tab===s.k?"var(--acc)":"var(--bdr)"}`,
+                background:tab===s.k?"var(--acc)":"transparent",
+                color:tab===s.k?"#fff":"var(--mu)"}}>
+              {s.ico} {s.l}
+            </button>
+          ))}
         </div>
 
         {tab==="calendar"&&(
