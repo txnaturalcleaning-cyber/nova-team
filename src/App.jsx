@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { useState, useRef, useEffect, createContext, useContext, Component } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
@@ -544,9 +544,39 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
 }
 
 /* ═══════════════════════════════════════════
+   ERROR BOUNDARY — prevents white screen
+═══════════════════════════════════════════ */
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = {hasError:false,error:null}; }
+  static getDerivedStateFromError(error) { return {hasError:true,error}; }
+  componentDidCatch(error,info) { console.error("App crash:", error, info); }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+        minHeight:"100vh",background:"#0f172a",color:"#fff",fontFamily:"sans-serif",padding:32,gap:16}}>
+        <div style={{fontSize:48}}>⚠️</div>
+        <div style={{fontSize:20,fontWeight:700}}>Что-то пошло не так</div>
+        <div style={{fontSize:13,color:"#94a3b8",maxWidth:420,textAlign:"center"}}>
+          {this.state.error?.message||"Произошла неожиданная ошибка."}
+        </div>
+        <button onClick={()=>{ this.setState({hasError:false,error:null}); }}
+          style={{marginTop:8,padding:"10px 24px",background:"#6366f1",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:600}}>
+          ↺ Перезагрузить приложение
+        </button>
+        <button onClick={()=>{ localStorage.clear(); window.location.reload(); }}
+          style={{padding:"8px 24px",background:"transparent",color:"#ef4444",border:"1px solid #ef444450",borderRadius:8,cursor:"pointer",fontSize:12}}>
+          🗑 Сбросить данные и перезагрузить
+        </button>
+      </div>
+    );
+  }
+}
+
+/* ═══════════════════════════════════════════
    MAIN APP
 ═══════════════════════════════════════════ */
-export default function App() {
+function AppInner() {
   const [lang, setLang]           = useState(()=>localStorage.getItem("nls_lang")||"ru");
   const [theme, setTheme]         = useState(()=>localStorage.getItem("nls_theme")||"dark");
 
@@ -3140,17 +3170,17 @@ export default function App() {
     const emps   = p?.employees||[];
     const bookings  = p?.bookings||[];
     const bkClients = p?.bkClients||[];
-    const bkSettings = p?.bkSettings||{
+    const BK_DEFAULTS = {
       cleanTypes:[
-        {id:"standard",   label:lang==="ru"?"Стандартная":"Standard Clean",  mult:1.0},
-        {id:"deep",       label:lang==="ru"?"Глубокая":"Deep Clean",          mult:1.5},
-        {id:"moveinout",  label:lang==="ru"?"Переезд":"Move In/Out",          mult:1.8},
+        {id:"standard",  label:lang==="ru"?"Стандартная":"Standard Clean", mult:1.0},
+        {id:"deep",      label:lang==="ru"?"Глубокая":"Deep Clean",         mult:1.5},
+        {id:"moveinout", label:lang==="ru"?"Переезд":"Move In/Out",         mult:1.8},
       ],
       addons:[
-        {id:"fridge",   label:lang==="ru"?"Внутри холодильника":"Inside Fridge",  price:45},
-        {id:"oven",     label:lang==="ru"?"Внутри духовки":"Inside Oven",          price:35},
-        {id:"windows",  label:lang==="ru"?"Мытьё окон":"Window Washing",           price:60},
-        {id:"laundry",  label:lang==="ru"?"Глажка/стирка":"Laundry/Ironing",       price:40},
+        {id:"fridge",  label:lang==="ru"?"Внутри холодильника":"Inside Fridge", price:45},
+        {id:"oven",    label:lang==="ru"?"Внутри духовки":"Inside Oven",         price:35},
+        {id:"windows", label:lang==="ru"?"Мытьё окон":"Window Washing",          price:60},
+        {id:"laundry", label:lang==="ru"?"Глажка/стирка":"Laundry/Ironing",      price:40},
       ],
       matrix:[
         [80, 100,120,140,160,175,190,205,220,235],
@@ -3164,27 +3194,36 @@ export default function App() {
         [270,295,320,345,365,380,395,410,425,440],
         [295,320,345,370,390,405,420,435,450,465],
       ],
-      // Duration matrix (in hours, 1 cleaner). Rows=beds 0-9, cols=baths 1-10
       durMatrix:[
-        [1.0, 1.3, 1.5, 1.8, 2.0, 2.2, 2.5, 2.7, 3.0, 3.2],
-        [1.3, 1.7, 2.0, 2.3, 2.5, 2.8, 3.0, 3.3, 3.5, 3.8],
-        [2.0, 2.5, 3.0, 3.3, 3.5, 3.8, 4.0, 4.3, 4.5, 4.8],
-        [2.5, 3.0, 3.5, 4.0, 4.3, 4.5, 4.8, 5.0, 5.3, 5.5],
-        [3.0, 3.5, 4.0, 4.5, 5.0, 5.3, 5.5, 5.8, 6.0, 6.3],
-        [3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.3, 6.5, 6.8, 7.0],
-        [4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.3, 7.5, 7.8],
-        [4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.3, 8.5],
-        [5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.3],
-        [5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5,10.0],
+        [1.0,1.3,1.5,1.8,2.0,2.2,2.5,2.7,3.0,3.2],
+        [1.3,1.7,2.0,2.3,2.5,2.8,3.0,3.3,3.5,3.8],
+        [2.0,2.5,3.0,3.3,3.5,3.8,4.0,4.3,4.5,4.8],
+        [2.5,3.0,3.5,4.0,4.3,4.5,4.8,5.0,5.3,5.5],
+        [3.0,3.5,4.0,4.5,5.0,5.3,5.5,5.8,6.0,6.3],
+        [3.5,4.0,4.5,5.0,5.5,6.0,6.3,6.5,6.8,7.0],
+        [4.0,4.5,5.0,5.5,6.0,6.5,7.0,7.3,7.5,7.8],
+        [4.5,5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.3,8.5],
+        [5.0,5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.3],
+        [5.5,6.0,6.5,7.0,7.5,8.0,8.5,9.0,9.5,10.0],
       ],
-      // Frequency discounts (%)
-      freqDiscounts:{ weekly:10, biweekly:5, monthly:3 },
+      freqDiscounts:{weekly:10,biweekly:5,monthly:3},
       currency:"$",
+    };
+    // Always deep-merge with defaults so no key is ever missing
+    const bkSettings = {
+      ...BK_DEFAULTS,
+      ...(p?.bkSettings||{}),
+      cleanTypes: (p?.bkSettings?.cleanTypes)||BK_DEFAULTS.cleanTypes,
+      addons:     (p?.bkSettings?.addons)||BK_DEFAULTS.addons,
+      freqDiscounts: {...BK_DEFAULTS.freqDiscounts,...((p?.bkSettings?.freqDiscounts)||{})},
+      currency:   p?.bkSettings?.currency||"$",
     };
 
     // ── Helpers ──
     function saveBkSettings(upd) {
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,bkSettings:{...(x.bkSettings||{}),...upd}}:x));
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,
+        bkSettings:{...BK_DEFAULTS,...(x.bkSettings||{}),...upd}
+      }:x));
     }
     function saveBooking(bk) {
       const exists = bookings.find(b=>b.id===bk.id);
@@ -6267,6 +6306,10 @@ export default function App() {
       </div>
     </LangCtx.Provider>
   );
+}
+
+export default function App() {
+  return <ErrorBoundary><AppInner/></ErrorBoundary>;
 }
 
   /* ══════════════════════════════════════════════════════
