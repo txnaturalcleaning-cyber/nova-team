@@ -643,13 +643,30 @@ function AppInner() {
     return [];
   })();
 
+  // ── Firebase helpers: Firestore doesn't support nested arrays ──
+  // Serialize: convert 2D arrays inside bkSettings to JSON strings
+  function serializePartner(p) {
+    if (!p.bkSettings) return p;
+    const bs = {...p.bkSettings};
+    if (bs.matrix)    bs.matrix    = JSON.stringify(bs.matrix);
+    if (bs.durMatrix) bs.durMatrix = JSON.stringify(bs.durMatrix);
+    return {...p, bkSettings: bs};
+  }
+  function deserializePartner(p) {
+    if (!p.bkSettings) return p;
+    const bs = {...p.bkSettings};
+    try { if (typeof bs.matrix    === "string") bs.matrix    = JSON.parse(bs.matrix);    } catch(e){}
+    try { if (typeof bs.durMatrix === "string") bs.durMatrix = JSON.parse(bs.durMatrix); } catch(e){}
+    return {...p, bkSettings: bs};
+  }
+
   // ── Firebase: load & sync partners in real-time ──
   useEffect(()=>{
     const ref = doc(db, "app", "data");
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setPartners(data.partners || []);
+        setPartners((data.partners || []).map(deserializePartner));
         setSaAccounts(data.saAccounts || []);
         if (data.chatMsgs) setChatMsgs(data.chatMsgs);
         // Restore session
@@ -680,7 +697,8 @@ function AppInner() {
     if (!isMounted.current) { isMounted.current = true; return; }
     if (fbLoading) return;
     const ref = doc(db, "app", "data");
-    setDoc(ref, { partners }, { merge: true }).catch(console.error);
+    const serialized = partners.map(serializePartner);
+    setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
 
   // ── Save chatMsgs to Firebase ──
