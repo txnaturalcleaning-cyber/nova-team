@@ -1599,6 +1599,8 @@ function AppInner() {
             </div>
           </div>
         )}
+      </>
+    );
   };
 
   /* ── EMPLOYEES + DEPARTMENTS ── */
