@@ -506,6 +506,13 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
         if (emp) { found={...emp,type:"employee",partnerId:p.id}; break; }
       }
       if (found) { onLogin(found); return; }
+      // Check candidate login (hrCards with lmsEmail/lmsPassword)
+      let foundCandidate = null;
+      for (const p of partners) {
+        const card = (p.hrCards||[]).find(c => c.lmsEmail && c.lmsEmail.toLowerCase()===e && c.lmsPassword===pw);
+        if (card) { foundCandidate = { ...card, type:"candidate", partnerId:p.id }; break; }
+      }
+      if (foundCandidate) { onLogin(foundCandidate); return; }
       setErr(t.wrongCreds); setL(false);
     },600);
   }
@@ -645,9 +652,10 @@ function AppInner() {
   const [dashLogoInput,  setDashLogoInput]  = useState("");
   const [dashLogoEdit,   setDashLogoEdit]   = useState(false);
 
-  const isSA      = currentUser?.type==="superadmin";
-  const isPartner = currentUser?.type==="partner";
-  const isEmp     = currentUser?.type==="employee";
+  const isSA        = currentUser?.type==="superadmin";
+  const isPartner   = currentUser?.type==="partner";
+  const isEmp       = currentUser?.type==="employee";
+  const isCandidate = currentUser?.type==="candidate";
 
   const workspace  = viewPartner || (isPartner ? partners.find(p=>p.id===currentUser.id) : null);
   const empPartner = isEmp ? partners.find(p=>p.id===currentUser.partnerId) : null;
@@ -698,7 +706,9 @@ function AppInner() {
             ? (saved.email===PRIMARY_SA.email || (data.saAccounts||[]).some(a=>a.id===saved.id))
             : saved.type==="partner"
               ? (data.partners||[]).some(p=>p.id===saved.id&&p.status==="active")
-              : (data.partners||[]).some(p=>(p.employees||[]).some(e=>e.id===saved.id&&e.status==="active"));
+              : saved.type==="candidate"
+                ? (data.partners||[]).some(p=>(p.hrCards||[]).some(c=>c.id===saved.id&&c.lmsEmail))
+                : (data.partners||[]).some(p=>(p.employees||[]).some(e=>e.id===saved.id&&e.status==="active"));
           if (stillValid && !currentUser) {
             setCurrentUser(saved);
             // Restore last page — will be validated by myAccess in render
@@ -992,7 +1002,132 @@ function AppInner() {
     );
   }
 
-  /* ════════ PAGES ════════ */
+  /* ── CANDIDATE PORTAL ── */
+  if (isCandidate) {
+    const candPartner = partners.find(p=>p.id===currentUser.partnerId);
+    const myCard      = (candPartner?.hrCards||[]).find(c=>c.id===currentUser.id);
+    if (!myCard) return <div style={{padding:40,textAlign:"center",color:"var(--mu)"}}>Card not found</div>;
+
+    const lmsDone  = myCard.lmsDone||[];
+    const lmsPct   = Math.round(lmsDone.length/LMS_MODULES.length*100);
+    const ru       = lang==="ru";
+
+    function markModule(mid) {
+      const done = lmsDone.includes(mid) ? lmsDone.filter(x=>x!==mid) : [...lmsDone, mid];
+      setPartners(ps=>ps.map(x=>x.id===currentUser.partnerId?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===myCard.id?{...c,lmsDone:done,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
+      // If all done → auto progress to training_completed
+      if (!lmsDone.includes(mid) && done.length===LMS_MODULES.length) {
+        const hist={id:"h_"+Date.now(),text:ru?"✅ Все модули LMS завершены!":"✅ All LMS modules completed!",ts:new Date().toLocaleString(),author:myCard.firstName||"Candidate"};
+        setPartners(ps=>ps.map(x=>x.id===currentUser.partnerId?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===myCard.id?{...c,pipelineStatus:"training_completed",history:[...(c.history||[]),hist]}:c)}:x));
+      }
+    }
+
+    return (
+      <>
+        <style>{S}</style>
+        <div style={{minHeight:"100vh",background:"var(--bg)",display:"flex",flexDirection:"column"}}>
+          {/* Header */}
+          <div style={{background:"var(--s1)",borderBottom:"1px solid var(--bdr)",padding:"0 20px",height:56,display:"flex",alignItems:"center",gap:14}}>
+            {candPartner?.logoUrl
+              ? <img src={candPartner.logoUrl} style={{height:32,borderRadius:6,objectFit:"contain"}} alt="logo"/>
+              : <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)"}}>{candPartner?.companyName||"Nova"}</div>}
+            <div style={{flex:1}}/>
+            <div style={{fontSize:13,color:"var(--mu)"}}>{ru?"Привет,":"Hi,"} <strong>{myCard.firstName}</strong>! 👋</div>
+            <div className="lang-toggle" style={{marginLeft:8}}>
+              <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
+              <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
+            </div>
+            <button onClick={()=>{setCurrentUser(null);setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}
+              style={{marginLeft:10,background:"none",border:"1px solid var(--bdr)",borderRadius:7,padding:"5px 11px",cursor:"pointer",fontSize:12,color:"var(--mu)"}}>
+              {ru?"Выйти":"Log out"}
+            </button>
+          </div>
+
+          <div style={{flex:1,maxWidth:680,margin:"0 auto",padding:"32px 20px 60px",width:"100%"}}>
+            {/* Welcome banner */}
+            <div style={{background:`linear-gradient(135deg,var(--acc),var(--bl))`,borderRadius:16,padding:"22px 26px",marginBottom:28,color:"#fff"}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,marginBottom:6}}>{ru?"Ваш план обучения":"Your Training Plan"}</div>
+              <div style={{fontSize:13,opacity:.85,marginBottom:16}}>{ru?"Пройдите все модули чтобы начать работу":"Complete all modules to start working"}</div>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{flex:1,height:10,background:"rgba(255,255,255,.25)",borderRadius:5,overflow:"hidden"}}>
+                  <div style={{height:"100%",background:"#fff",borderRadius:5,width:lmsPct+"%",transition:"width .5s"}}/>
+                </div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,minWidth:50,textAlign:"right"}}>{lmsPct}%</div>
+              </div>
+              <div style={{fontSize:12,opacity:.75,marginTop:6}}>{lmsDone.length} {ru?"из":"of"} {LMS_MODULES.length} {ru?"модулей завершено":"modules completed"}</div>
+            </div>
+
+            {/* Completion badge */}
+            {lmsPct===100&&(
+              <div style={{background:"var(--gr)15",border:"2px solid var(--gr)",borderRadius:14,padding:"16px 22px",marginBottom:22,display:"flex",alignItems:"center",gap:14}}>
+                <div style={{fontSize:40}}>🎓</div>
+                <div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:"var(--gr)",marginBottom:2}}>{ru?"Обучение завершено!":"Training Complete!"}</div>
+                  <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"HR-менеджер свяжется с вами для следующего шага":"Your HR manager will contact you about the next step"}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Module list */}
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14,color:"var(--tx)"}}>📚 {ru?"Модули обучения":"Training Modules"}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {LMS_MODULES.map((mod,i)=>{
+                const done    = lmsDone.includes(mod.id);
+                const prevDone= i===0 || lmsDone.includes(LMS_MODULES[i-1].id);
+                const score   = (myCard.lmsScores||{})[mod.id];
+                return (
+                  <div key={mod.id}
+                    style={{background:"var(--s1)",border:`1.5px solid ${done?"var(--gr)":"var(--bdr)"}`,borderRadius:14,padding:"16px 18px",
+                      opacity:(!done&&!prevDone)?0.45:1,transition:"all .2s",
+                      boxShadow:done?"0 0 0 0 transparent":"0 2px 8px #0001"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:14}}>
+                      <div onClick={()=>prevDone&&markModule(mod.id)}
+                        style={{width:28,height:28,borderRadius:8,flexShrink:0,cursor:prevDone?"pointer":"not-allowed",
+                          border:`2.5px solid ${done?"var(--gr)":"var(--bdr)"}`,
+                          background:done?"var(--gr)":"transparent",
+                          display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+                        {done&&<span style={{color:"#fff",fontSize:15,fontWeight:700}}>✓</span>}
+                        {!done&&prevDone&&<span style={{fontSize:14}}>○</span>}
+                        {!done&&!prevDone&&<span style={{fontSize:12,color:"var(--mu)"}}>🔒</span>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,fontSize:14,color:done?"var(--mu)":"var(--tx)",textDecoration:done?"line-through":"none",marginBottom:2}}>
+                          {i+1}. {ru?mod.ru:mod.en}
+                        </div>
+                        {!done&&prevDone&&<div style={{fontSize:11,color:"var(--acc)"}}>{ru?"Готов к прохождению →":"Ready to complete →"}</div>}
+                        {done&&<div style={{fontSize:11,color:"var(--gr)"}}>{ru?"✅ Завершён":"✅ Completed"}{score?` • ${score}%`:""}</div>}
+                        {!done&&!prevDone&&<div style={{fontSize:11,color:"var(--mu)"}}>{ru?"Сначала завершите предыдущий модуль":"Complete previous module first"}</div>}
+                      </div>
+                      {done&&(
+                        <div style={{textAlign:"center",flexShrink:0}}>
+                          {score
+                            ? <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:score>=80?"var(--gr)":score>=60?"#f0a500":"var(--rd)"}}>{score}%</div>
+                            : <div style={{fontSize:22}}>✅</div>}
+                        </div>
+                      )}
+                      {!done&&prevDone&&(
+                        <button onClick={()=>markModule(mod.id)}
+                          style={{padding:"8px 18px",borderRadius:9,background:"var(--acc)",color:"#fff",border:"none",
+                            cursor:"pointer",fontSize:13,fontWeight:600,flexShrink:0}}>
+                          {ru?"Завершить":"Complete"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Contact info */}
+            <div style={{marginTop:32,padding:"14px 18px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,fontSize:12,color:"var(--mu)",textAlign:"center"}}>
+              {ru?"Вопросы? Свяжитесь с вашим HR-менеджером":"Questions? Contact your HR manager"}
+              {myCard.hrContact&&<div style={{marginTop:4,fontWeight:600,color:"var(--tx)"}}>{myCard.hrContact}</div>}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   /* ── SA: PARTNERS ── */
   const SAPartners = () => {
@@ -1767,6 +1902,79 @@ function AppInner() {
                 <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Комментарий HR":"HR Comment"}</label>
                 <textarea className="inp" rows={3} value={card.comment||""} onChange={e=>save({comment:e.target.value})} style={{fontSize:13}}/>
               </div>
+            </div>
+
+            {/* ── LMS Access Block ── */}
+            <div style={{marginTop:18,paddingTop:16,borderTop:"1px solid var(--bdr)"}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>
+                🔑 {ru?"Доступ к обучению (LMS)":"LMS Training Access"}
+              </div>
+              {card.lmsEmail ? (
+                <>
+                  <div style={{background:"var(--gr)10",border:"1px solid var(--gr)30",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+                    <div style={{fontSize:12,color:"var(--gr)",fontWeight:600,marginBottom:8}}>✅ {ru?"Доступ выдан":"Access granted"}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}} className="fr">
+                      <div>
+                        <div style={{fontSize:10,color:"var(--mu)",marginBottom:3}}>{ru?"Логин (email)":"Login (email)"}</div>
+                        <div style={{fontFamily:"monospace",fontSize:12,background:"var(--s2)",borderRadius:5,padding:"5px 9px",color:"var(--tx)"}}>{card.lmsEmail}</div>
+                      </div>
+                      <div>
+                        <div style={{fontSize:10,color:"var(--mu)",marginBottom:3}}>{ru?"Пароль":"Password"}</div>
+                        <div style={{fontFamily:"monospace",fontSize:12,background:"var(--s2)",borderRadius:5,padding:"5px 9px",color:"var(--tx)"}}>{card.lmsPassword}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <button className="btn btn-g btn-sm" onClick={()=>{
+                      const companyName = partners.find(p=>p.id===pid)?.companyName||"Nova";
+                      const inviteText = ru
+                        ? `Здравствуйте, ${card.firstName}!\n\nВы приглашены пройти обучение в ${companyName}.\n\nСсылка для входа: https://nova-team-omega.vercel.app\nЛогин: ${card.lmsEmail}\nПароль: ${card.lmsPassword}\n\nПройдите все модули обучения, чтобы начать работу. Если у вас возникнут вопросы, свяжитесь с HR.\n\nС уважением,\n${companyName}`
+                        : `Hello ${card.firstName}!\n\nYou've been invited to complete training at ${companyName}.\n\nLogin: https://nova-team-omega.vercel.app\nEmail: ${card.lmsEmail}\nPassword: ${card.lmsPassword}\n\nComplete all training modules to start working.\n\nBest regards,\n${companyName}`;
+                      navigator.clipboard.writeText(inviteText).then(()=>alert(ru?"Текст скопирован! Вставьте в email или SMS":"Copied! Paste into email or SMS"));
+                    }}>📋 {ru?"Скопировать приглашение":"Copy Invite"}</button>
+                    <button className="btn btn-g btn-sm" onClick={()=>{
+                      const sub=encodeURIComponent(ru?`Приглашение к обучению`:`Training Invitation`);
+                      const companyName=partners.find(p=>p.id===pid)?.companyName||"Nova";
+                      const body=encodeURIComponent(ru?`Здравствуйте, ${card.firstName}!\n\nВы приглашены пройти обучение в ${companyName}.\n\nСсылка: https://nova-team-omega.vercel.app\nЛогин: ${card.lmsEmail}\nПароль: ${card.lmsPassword}`:`Hello ${card.firstName}!\n\nLogin: https://nova-team-omega.vercel.app\nEmail: ${card.lmsEmail}\nPassword: ${card.lmsPassword}`);
+                      window.open(`mailto:${card.email||card.lmsEmail}?subject=${sub}&body=${body}`);
+                    }}>✉️ {ru?"Открыть в почте":"Open in Email"}</button>
+                    <button className="btn btn-g btn-sm" style={{color:"var(--rd)"}} onClick={()=>{
+                      if(window.confirm(ru?"Сбросить доступ? Кандидат не сможет войти.":"Reset access?")) save({lmsEmail:"",lmsPassword:""});
+                    }}>🗑 {ru?"Сбросить доступ":"Reset Access"}</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>
+                    {ru?"Выдайте кандидату логин/пароль для доступа к порталу обучения.":"Give the candidate login credentials to access the training portal."}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}} className="fr">
+                    <div>
+                      <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Email для входа":"Login Email"}</label>
+                      <input className="inp" id={"lms_email_"+card.id} defaultValue={card.email||""} placeholder="candidate@email.com" style={{fontSize:13}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Пароль (авто)":"Password (auto)"}</label>
+                      <div style={{display:"flex",gap:6}}>
+                        <input className="inp" id={"lms_pass_"+card.id}
+                          defaultValue={Math.random().toString(36).slice(2,8).toUpperCase()+"!"+Math.floor(Math.random()*99)}
+                          style={{fontSize:13,fontFamily:"monospace"}}/>
+                      </div>
+                    </div>
+                  </div>
+                  <button className="btn btn-p" onClick={()=>{
+                    const emailEl = document.getElementById("lms_email_"+card.id);
+                    const passEl  = document.getElementById("lms_pass_"+card.id);
+                    if (!emailEl?.value.trim()) { alert(ru?"Введите email":"Enter email"); return; }
+                    const lmsEmail    = emailEl.value.trim().toLowerCase();
+                    const lmsPassword = passEl.value.trim()||"Nova2025!";
+                    save({lmsEmail, lmsPassword, pipelineStatus: card.pipelineStatus==="candidate"||card.pipelineStatus==="contacted"||card.pipelineStatus==="interview_completed"?"training_assigned":card.pipelineStatus});
+                    addHistory(ru?`🔑 Выдан доступ к LMS: ${lmsEmail}`:`🔑 LMS access granted: ${lmsEmail}`);
+                  }}>
+                    🔑 {ru?"Выдать доступ к обучению":"Grant Training Access"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
