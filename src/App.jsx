@@ -4582,6 +4582,388 @@ function AppInner() {
       );
     };
 
+
+    // ─── Settings Tab Components (proper React components to avoid hooks-in-IIFE bug) ───
+
+    const StTip = ({text})=>{
+      const [show,setShow]=React.useState(false);
+      return (
+        <span style={{position:"relative",display:"inline-flex",alignItems:"center",marginLeft:5}}>
+          <span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
+            onClick={()=>setShow(x=>!x)}
+            style={{width:16,height:16,borderRadius:"50%",background:"var(--bdr2)",
+              display:"inline-flex",alignItems:"center",justifyContent:"center",
+              fontSize:10,color:"var(--mu)",cursor:"help",userSelect:"none",flexShrink:0}}>?</span>
+          {show&&<div style={{position:"absolute",bottom:"calc(100% + 5px)",left:"50%",transform:"translateX(-50%)",
+            background:"var(--s2)",border:"1px solid var(--bdr2)",borderRadius:8,
+            padding:"7px 10px",fontSize:11,color:"var(--tx)",whiteSpace:"normal",
+            maxWidth:220,zIndex:999,boxShadow:"0 4px 20px #0003",lineHeight:1.5,minWidth:160}}>
+            {text}
+          </div>}
+        </span>
+      );
+    };
+    const StToggle = ({val,onChange})=>(
+      <div onClick={()=>onChange(!val)}
+        style={{width:38,height:20,borderRadius:10,background:val?"var(--acc)":"var(--bdr2)",
+          cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+        <div style={{position:"absolute",top:2,left:val?18:2,width:16,height:16,borderRadius:"50%",
+          background:"#fff",transition:"left .2s",boxShadow:"0 1px 4px #0004"}}/>
+      </div>
+    );
+    const StRow = ({label,tip,children,last})=>(
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",
+        borderBottom:last?"none":"1px solid var(--bdr)"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:0,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,fontWeight:500}}>{label}</span>
+            {tip&&<StTip text={tip}/>}
+          </div>
+        </div>
+        <div style={{flexShrink:0}}>{children}</div>
+      </div>
+    );
+    const StSecHd = ({icon,title,desc})=>(
+      <div style={{background:"var(--acc)08",border:"1px solid var(--acc)20",borderRadius:10,
+        padding:"10px 14px",marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:13,marginBottom:2}}>{icon} {title}</div>
+        {desc&&<div style={{fontSize:11,color:"var(--mu)"}}>{desc}</div>}
+      </div>
+    );
+    const StNum = ({val,onChange,min=0,max=9999})=>(
+      <input type="number" value={val} min={min} max={max}
+        onChange={e=>onChange(+e.target.value)}
+        style={{width:72,padding:"5px 8px",borderRadius:6,border:"1px solid var(--bdr)",
+          background:"var(--s1)",color:"var(--tx)",fontSize:12,textAlign:"center"}}/>
+    );
+    const StSel = ({val,onChange,opts})=>(
+      <select value={val} onChange={e=>onChange(e.target.value)}
+        style={{padding:"5px 8px",borderRadius:6,border:"1px solid var(--bdr)",
+          background:"var(--s1)",color:"var(--tx)",fontSize:12,cursor:"pointer"}}>
+        {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+      </select>
+    );
+    const StSaveBtn = ({onSave,saved,lang})=>(
+      <div style={{marginTop:16,display:"flex",gap:8,alignItems:"center"}}>
+        <button className="btn btn-p" onClick={onSave}>{lang==="ru"?"💾 Сохранить":"💾 Save Settings"}</button>
+        <span style={{fontSize:11,color:"var(--gr)",opacity:saved?1:0,transition:"opacity .3s"}}>✓ {lang==="ru"?"Сохранено":"Saved"}</span>
+      </div>
+    );
+
+    const StSchedulingTab = ({bs,lang,saveBkSettings,settSaved,setSettSaved})=>{
+      const [asgn,         setAsgn]      = useState(bs.assignmentMode||"auto");
+      const [sameDayEn,    setSDE]       = useState(bs.sameDayEnabled!==false);
+      const [sameDayH,     setSDH]       = useState(bs.sameDayHours||3);
+      const [provAvail,    setProvAv]    = useState(bs.checkProviderAvailability!==false);
+      const [unassignedVis,setUV]        = useState(bs.cleanersCanPickUnassigned||false);
+      const [provAvailRule,setPAR]       = useState(bs.providerAvailRule||"deny");
+      const [recurMo,      setRecMo]     = useState(bs.recurringMonths||6);
+      const [sameClnr,     setSameC]     = useState(bs.sameCleanerRecurring!==false);
+      const [recurAvail,   setRecAvail]  = useState(bs.recurringAvailCheck||"first");
+      const [holidayBlock, setHB]        = useState(bs.holidayBlockClients!==false);
+      const [waitList,     setWL]        = useState(bs.waitlistEnabled||false);
+      const ru = lang==="ru";
+      return (
+        <>
+          <StSecHd icon="📅" title={ru?"Расписание и бронирование":"Scheduling & Booking"}
+            desc={ru?"Управление тем как принимаются и назначаются заявки":"Control how bookings are accepted and assigned"}/>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🤖 {ru?"Назначение клинеров":"Cleaner Assignment"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Как назначаются клинеры":"How Cleaners Are Assigned"}
+              tip={ru?"Авто — система сразу назначает. Принимает — клинер сам решает. В день — должен принять в день уборки":"Auto assigns immediately. Accept — cleaner decides. Same day — must accept day-of"}>
+              <StSel val={asgn} onChange={setAsgn} opts={[["auto",ru?"🤖 Авто":"🤖 Auto"],["accept",ru?"✋ Принимает":"✋ Cleaner accepts"],["same_day",ru?"📅 В день":"📅 Same-day"]]}/>
+            </StRow>
+            <StRow label={ru?"Клинеры видят незанятые заявки":"Cleaners See Unassigned Jobs"}
+              tip={ru?"Клинеры могут сами брать свободные заявки из общего списка":"Cleaners can pick up unassigned jobs themselves"}>
+              <StToggle val={unassignedVis} onChange={setUV}/>
+            </StRow>
+            <StRow label={ru?"Проверять занятость клинера":"Check Cleaner Availability"} last
+              tip={ru?"ВАЖНО: если выключено — возможно двойное бронирование одного клинера":"IMPORTANT: if off — double-booking a cleaner is possible"}>
+              <StToggle val={provAvail} onChange={setProvAv}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>⏰ {ru?"Бронирование в тот же день":"Same-day Booking"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Разрешить бронирование сегодня":"Allow Same-day Booking"}
+              tip={ru?"Клиенты могут оформить заявку на сегодня. Задайте сколько часов должно быть до уборки":"Clients can book for today. Set minimum hours notice"}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <StToggle val={sameDayEn} onChange={setSDE}/>
+                {sameDayEn&&<><StNum val={sameDayH} onChange={setSDH} min={0} max={24}/><span style={{fontSize:11,color:"var(--mu)"}}>{ru?"ч. заранее":"hrs notice"}</span></>}
+              </div>
+            </StRow>
+            <StRow label={ru?"Если клинер недоступен":"If Cleaner Unavailable"} last
+              tip={ru?"Отклонить — запрещает бронирование. Разрешить — создаёт заявку без клинера":"Deny — blocks booking. Allow — creates booking unassigned"}>
+              <StSel val={provAvailRule} onChange={setPAR} opts={[["deny",ru?"🚫 Отклонить":"🚫 Deny"],["allow",ru?"✅ Без клинера":"✅ Unassigned"]]}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🔄 {ru?"Повторяющиеся уборки":"Recurring Bookings"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Создавать расписание на":"Create Schedule For"}
+              tip={ru?"Сколько месяцев вперёд создаёт система бронирования при повторяющихся заявках":"How far ahead the system creates recurring bookings"}>
+              <StSel val={String(recurMo)} onChange={v=>setRecMo(+v)} opts={[["1","1 "+(ru?"мес":"mo")],["3","3 "+(ru?"мес":"mo")],["6","6 "+(ru?"мес":"mo")],["12","12 "+(ru?"мес":"mo")]]}/>
+            </StRow>
+            <StRow label={ru?"Тот же клинер для повторных":"Same Cleaner for Recurring"}
+              tip={ru?"Клиент всегда получает одного и того же клинера — повышает лояльность":"Client always gets the same cleaner — builds loyalty"}>
+              <StToggle val={sameClnr} onChange={setSameC}/>
+            </StRow>
+            <StRow label={ru?"Проверять занятость для повторных":"Availability Check for Recurring"} last
+              tip={ru?"Только первая — быстрее. Все — надёжнее но медленнее":"First only — faster. All — thorough but slower"}>
+              <StSel val={recurAvail} onChange={setRecAvail} opts={[["first",ru?"Только первая":"First only"],["all",ru?"Каждую":"All"]]}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🎄 {ru?"Праздники и очередь":"Holidays & Waitlist"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:4}}>
+            <StRow label={ru?"Блокировать бронирование в праздники":"Block Bookings on Holidays"}
+              tip={ru?"Клиенты не смогут бронировать в праздники. Вы как админ можете создать вручную":"Clients can't book on holidays. As admin you can still create manually"}>
+              <StToggle val={holidayBlock} onChange={setHB}/>
+            </StRow>
+            <StRow label={ru?"Лист ожидания":"Waitlist"} last
+              tip={ru?"Если все слоты заняты — клиент встаёт в очередь и получит уведомление когда откроется место":"When all slots are full, clients join a queue and get notified when a slot opens"}>
+              <StToggle val={waitList} onChange={setWL}/>
+            </StRow>
+          </div>
+          {!provAvail&&<div style={{background:"#f590001a",border:"1px solid #f5900040",borderRadius:8,padding:"8px 12px",fontSize:11,color:"#a06000",marginTop:8}}>⚠️ {ru?"Проверка занятости выключена — возможно двойное бронирование":"Availability check is off — double-booking is possible"}</div>}
+          <StSaveBtn saved={settSaved} lang={lang} onSave={()=>{
+            saveBkSettings({assignmentMode:asgn,sameDayEnabled:sameDayEn,sameDayHours:sameDayH,
+              checkProviderAvailability:provAvail,cleanersCanPickUnassigned:unassignedVis,
+              providerAvailRule:provAvailRule,recurringMonths:recurMo,
+              sameCleanerRecurring:sameClnr,recurringAvailCheck:recurAvail,
+              holidayBlockClients:holidayBlock,waitlistEnabled:waitList});
+            setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
+          }}/>
+        </>
+      );
+    };
+
+    const StCleanersTab = ({bs,lang,saveBkSettings,settSaved,setSettSaved})=>{
+      const [payType,   setPayType]  = useState(bs.payRateType||"percentage");
+      const [payRate,   setPayRate]  = useState(bs.defaultPayRate??50);
+      const [clockIO,   setClockIO]  = useState(bs.clockInOut!==false);
+      const [gps,       setGps]      = useState(bs.gpsTracking!==false);
+      const [autoClkO,  setAutoClkO] = useState(bs.autoClockOut!==false);
+      const [seesPrice, setSeesP]    = useState(bs.cleanerSeesPrice||false);
+      const [seesPhone, setSeesPhone]= useState(bs.cleanerSeesPhone||false);
+      const [seesName,  setSeesName] = useState(bs.cleanerSeesClientName!==false);
+      const [lateMsg,   setLateMsg]  = useState(bs.lateArrivalMsg||(lang==="ru"?"Здравствуйте [[ClientName]]! К сожалению [[CleanerName]] опаздывает на ~30 мин. Приносим извинения.":"Hello [[ClientName]]! Unfortunately [[CleanerName]] is running ~30 min late. We apologize."));
+      const ru = lang==="ru";
+      return (
+        <>
+          <StSecHd icon="👥" title={ru?"Настройки клинеров":"Cleaner Settings"} desc={ru?"Оплата, доступ к данным и трекинг":"Pay rates, data access and tracking"}/>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>💰 {ru?"Оплата клинеров":"Cleaner Pay"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Способ расчёта":"Pay Method"} tip={ru?"% — процент от стоимости. Фиксированная — сумма за уборку. Почасовая — по часам":"% of job price, flat fee per job, or hourly rate"}>
+              <StSel val={payType} onChange={setPayType} opts={[["percentage",ru?"% от заявки":"% of Job"],["flat",ru?"Фиксированная":"Flat Rate"],["hourly",ru?"Почасовая":"Hourly"]]}/>
+            </StRow>
+            <StRow label={payType==="percentage"?(ru?"Ставка (%)":"Rate (%)"):(ru?"Сумма ($)":"Amount ($)")} last
+              tip={ru?"Значение по умолчанию для всех новых клинеров. Менять можно в профиле каждого клинера":"Default for all new cleaners. Can be changed per cleaner in their profile"}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                {payType!=="percentage"&&<span style={{fontSize:12,color:"var(--mu)"}}>$</span>}
+                <StNum val={payRate} onChange={setPayRate} min={0} max={payType==="percentage"?100:9999}/>
+                {payType==="percentage"&&<span style={{fontSize:12,color:"var(--mu)"}}>%</span>}
+              </div>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>📍 {ru?"Трекинг":"Tracking"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label="Clock In / Clock Out" tip={ru?"Клинеры отмечают начало и конец работы. Помогает точно считать время и платить правильно":"Cleaners mark start and end of work for accurate time and pay tracking"}>
+              <StToggle val={clockIO} onChange={setClockIO}/>
+            </StRow>
+            <StRow label={ru?"GPS трекинг":"GPS Tracking"} tip={ru?"Система фиксирует маршрут клинера во время работы":"System tracks cleaner route during work"}>
+              <StToggle val={gps} onChange={setGps}/>
+            </StRow>
+            <StRow label={ru?"Авто Clock-Out (GPS)":"Auto Clock-Out (GPS)"} last tip={ru?"Клинер автоматически выходит из смены при уходе с объекта":"Cleaner auto clocked out when they leave the job location"}>
+              <StToggle val={autoClkO} onChange={setAutoClkO}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🔐 {ru?"Доступ клинера к данным":"Cleaner Data Access"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Видит стоимость уборки":"Sees Job Price"} tip={ru?"Клинер видит сколько стоит уборка":"Cleaner sees the total job price"}>
+              <StToggle val={seesPrice} onChange={setSeesP}/>
+            </StRow>
+            <StRow label={ru?"Видит телефон клиента":"Sees Client Phone"} tip={ru?"Клинер может позвонить клиенту напрямую":"Cleaner can call client directly"}>
+              <StToggle val={seesPhone} onChange={setSeesPhone}/>
+            </StRow>
+            <StRow label={ru?"Видит имя клиента":"Sees Client Name"} last tip={ru?"Клинер видит имя клиента в заявке":"Cleaner sees client name in booking"}>
+              <StToggle val={seesName} onChange={setSeesName}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🕐 {ru?"Сообщение об опоздании":"Late Arrival Message"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:4}}>
+            <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{ru?"Используйте [[ClientName]] и [[CleanerName]] — заменятся автоматически":"Use [[ClientName]] and [[CleanerName]] — replaced automatically"}</div>
+            <textarea value={lateMsg} onChange={e=>setLateMsg(e.target.value)} rows={3}
+              style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1px solid var(--bdr)",
+                background:"var(--s2)",color:"var(--tx)",fontSize:12,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <StSaveBtn saved={settSaved} lang={lang} onSave={()=>{
+            saveBkSettings({payRateType:payType,defaultPayRate:payRate,clockInOut:clockIO,
+              gpsTracking:gps,autoClockOut:autoClkO,cleanerSeesPrice:seesPrice,
+              cleanerSeesPhone:seesPhone,cleanerSeesClientName:seesName,lateArrivalMsg:lateMsg});
+            setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
+          }}/>
+        </>
+      );
+    };
+
+    const StPaymentsTab = ({bs,lang,saveBkSettings,settSaved,setSettSaved})=>{
+      const [payCard,   setPayCard]   = useState(bs.payCard!==false);
+      const [payCash,   setPayCash]   = useState(bs.payCash!==false);
+      const [autoChg,   setAutoChg]   = useState(bs.autoChargeAfterComplete||false);
+      const [canxEn,    setCanxEn]    = useState(bs.cancellationFeeEnabled||false);
+      const [canxAmt,   setCanxAmt]   = useState(bs.cancellationFeeAmount||60);
+      const [canxHrs,   setCanxHrs]   = useState(bs.cancellationFeeHours||24);
+      const [reSchEn,   setReSchEn]   = useState(bs.rescheduleFeeEnabled||false);
+      const [reSchAmt,  setReSchAmt]  = useState(bs.rescheduleFeeAmount||30);
+      const [giftCard,  setGiftCard]  = useState(bs.giftCardEnabled||false);
+      const [giftMin,   setGiftMin]   = useState(bs.giftCardMin||150);
+      const [refEn,     setRefEn]     = useState(bs.referralEnabled||false);
+      const [refAmt,    setRefAmt]    = useState(bs.referralAmount||50);
+      const [descHold,  setDescHold]  = useState(bs.descCardHold||"");
+      const [descCharge,setDescCharge]= useState(bs.descCharge||"");
+      const [descSep,   setDescSep]   = useState(bs.descSeparate||"");
+      const ru = lang==="ru";
+      return (
+        <>
+          <StSecHd icon="💳" title={ru?"Настройки оплаты":"Payment Settings"} desc={ru?"Способы оплаты, штрафы и программы лояльности":"Payment methods, fees and loyalty programs"}/>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>💰 {ru?"Способы оплаты":"Payment Methods"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Банковская карта":"Credit / Debit Card"} tip={ru?"Принимать оплату картой":"Accept card payments"}>
+              <StToggle val={payCard} onChange={setPayCard}/>
+            </StRow>
+            <StRow label={ru?"Наличные / Чек":"Cash / Check"} last tip={ru?"Принимать наличные или чеки на месте":"Accept cash or checks on-site"}>
+              <StToggle val={payCash} onChange={setPayCash}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>⚡ {ru?"Авто-списание":"Auto-charge"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Списывать автоматически после завершения":"Auto-charge after completion"} last
+              tip={ru?"Как только уборка помечена Выполнено — система автоматически списывает оплату":"Once job is marked Done, system auto-charges the client card"}>
+              <StToggle val={autoChg} onChange={setAutoChg}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>❌ {ru?"Штраф за отмену":"Cancellation Fee"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Включить штраф":"Enable Fee"} tip={ru?"Снижает количество отмен в последний момент":"Reduces last-minute cancellations"}>
+              <StToggle val={canxEn} onChange={setCanxEn}/>
+            </StRow>
+            {canxEn&&<>
+              <StRow label={ru?"Сумма штрафа":"Fee Amount"} tip={ru?"Сумма в долларах":"Amount in dollars"}>
+                <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12,color:"var(--mu)"}}>$</span><StNum val={canxAmt} onChange={setCanxAmt}/></div>
+              </StRow>
+              <StRow label={ru?"Применять если отмена за менее чем":"Apply if cancelled within"} last tip={ru?"Штраф если клиент отменил позже этого срока до уборки":"Fee applies if client cancels within this many hours"}>
+                <div style={{display:"flex",alignItems:"center",gap:5}}><StNum val={canxHrs} onChange={setCanxHrs} min={1} max={168}/><span style={{fontSize:11,color:"var(--mu)"}}>{ru?"ч.":"hrs"}</span></div>
+              </StRow>
+            </>}
+            {!canxEn&&<StRow label="" last><span style={{fontSize:11,color:"var(--mu)"}}>{ru?"Отключено":"Disabled"}</span></StRow>}
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🔄 {ru?"Штраф за перенос":"Reschedule Fee"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Включить штраф за перенос":"Enable Reschedule Fee"} tip={ru?"Небольшой штраф сокращает частые переносы":"Small fee reduces frequent reschedules"}>
+              <StToggle val={reSchEn} onChange={setReSchEn}/>
+            </StRow>
+            {reSchEn&&<StRow label={ru?"Сумма":"Amount"} last tip={ru?"Сколько взимается за каждый перенос":"Amount charged per reschedule"}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12,color:"var(--mu)"}}>$</span><StNum val={reSchAmt} onChange={setReSchAmt}/></div>
+            </StRow>}
+            {!reSchEn&&<StRow label="" last><span style={{fontSize:11,color:"var(--mu)"}}>{ru?"Отключено":"Disabled"}</span></StRow>}
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🎁 {ru?"Сертификаты и рефералы":"Gift Cards & Referral"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Подарочные сертификаты":"Gift Cards"} tip={ru?"Клиенты смогут покупать и дарить сертификаты":"Clients can purchase and gift certificates"}>
+              <StToggle val={giftCard} onChange={setGiftCard}/>
+            </StRow>
+            {giftCard&&<StRow label={ru?"Минимальная сумма":"Min Amount"} tip={ru?"Нельзя купить сертификат дешевле этой суммы":"Minimum gift card purchase amount"}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12,color:"var(--mu)"}}>$</span><StNum val={giftMin} onChange={setGiftMin}/></div>
+            </StRow>}
+            <StRow label={ru?"Реферальная программа":"Referral Program"} tip={ru?"Клиент получает бонус за каждого привлечённого — рост без рекламы":"Client earns bonus per referral — grows business without ads"}>
+              <StToggle val={refEn} onChange={setRefEn}/>
+            </StRow>
+            {refEn&&<StRow label={ru?"Бонус (каждой стороне)":"Bonus (each side)"} last tip={ru?"И тот кто пригласил и тот кто пришёл получают этот бонус":"Both referrer and referred each get this credit"}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12,color:"var(--mu)"}}>$</span><StNum val={refAmt} onChange={setRefAmt}/></div>
+            </StRow>}
+            {!refEn&&<StRow label="" last><span style={{fontSize:11,color:"var(--mu)"}}>{ru?"Отключено":"Disabled"}</span></StRow>}
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>📝 {ru?"Описание платежей в банке":"Bank Statement Text"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:4}}>
+            <div style={{fontSize:11,color:"var(--mu)",marginBottom:10}}>{ru?"Текст который клиент видит в выписке банка — используйте название вашей компании":"Text clients see on bank statement — use your company name"}</div>
+            {[[descHold,setDescHold,ru?"Блокировка карты":"Card Hold",ru?"Появляется когда деньги заморожены до начала уборки":"Shown when card is held before job"],[descCharge,setDescCharge,ru?"Списание за уборку":"Booking Charge",ru?"Появляется при оплате за уборку":"Shown when payment is charged"],[descSep,setDescSep,ru?"Отдельная транзакция":"Separate Charge",ru?"Появляется при отдельном списании (штраф, доп. услуга)":"Shown for separate charges like fees or add-ons"]].map(([v,fn,label,tip],i,arr)=>(
+              <StRow key={i} label={label} tip={tip} last={i===arr.length-1}>
+                <input className="inp" style={{fontSize:11,width:180,padding:"5px 8px"}} value={v} onChange={e=>fn(e.target.value)} placeholder={ru?"Введите текст...":"Enter text..."}/>
+              </StRow>
+            ))}
+          </div>
+          <div style={{background:"var(--acc)08",border:"1px solid var(--acc)20",borderRadius:8,padding:"8px 12px",fontSize:11,color:"var(--acc)",marginTop:8,marginBottom:4}}>
+            💳 {ru?"Платёжный шлюз (Stripe, Square) подключается в разделе Аккаунт → Платежи":"Payment gateway (Stripe, Square) connected in Account → Payments"}
+          </div>
+          <StSaveBtn saved={settSaved} lang={lang} onSave={()=>{
+            saveBkSettings({payCard,payCash,autoChargeAfterComplete:autoChg,
+              cancellationFeeEnabled:canxEn,cancellationFeeAmount:canxAmt,cancellationFeeHours:canxHrs,
+              rescheduleFeeEnabled:reSchEn,rescheduleFeeAmount:reSchAmt,
+              giftCardEnabled:giftCard,giftCardMin:giftMin,referralEnabled:refEn,referralAmount:refAmt,
+              descCardHold:descHold,descCharge,descSeparate:descSep});
+            setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
+          }}/>
+        </>
+      );
+    };
+
+    const StClientsTab = ({bs,lang,saveBkSettings,settSaved,setSettSaved})=>{
+      const [canReschedule,setCanR]     = useState(bs.clientCanReschedule||false);
+      const [reschMsg,     setReschMsg] = useState(bs.clientRescheduleMsg||(lang==="ru"?"Для переноса позвоните нам: (512) 872-3212":"To reschedule, please call: (512) 872-3212"));
+      const [canCancel,    setCanC]     = useState(bs.clientCanCancel||false);
+      const [cancelMsg,    setCancelMsg]= useState(bs.clientCancelMsg||(lang==="ru"?"Для отмены позвоните нам: (512) 872-3212":"To cancel, please contact us: (512) 872-3212"));
+      const [smsOptIn,     setSms]      = useState(bs.smsOptInDefault!==false);
+      const [showProvider, setShowP]    = useState(bs.showProviderToClient!==false);
+      const [showRating,   setShowR]    = useState(bs.showRatingToClient!==false);
+      const [reviewExt,    setRevExt]   = useState(bs.reviewExternalEnabled||false);
+      const ru = lang==="ru";
+      return (
+        <>
+          <StSecHd icon="👤" title={ru?"Настройки клиентов":"Client Settings"} desc={ru?"Управление тем что видят и могут делать клиенты":"Control what clients see and can do"}/>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>🔄 {ru?"Перенос и отмена":"Reschedule & Cancel"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Клиент может переносить сам":"Client Can Reschedule"} tip={ru?"Если выключено — клиент увидит сообщение с инструкцией как связаться с вами":"If off — client sees message with your contact info"}>
+              <StToggle val={canReschedule} onChange={setCanR}/>
+            </StRow>
+            {!canReschedule&&<StRow label={ru?"Сообщение при переносе":"Reschedule Message"} tip={ru?"Это увидит клиент когда попытается перенести":"Shown to client when they try to reschedule"}>
+              <input className="inp" value={reschMsg} onChange={e=>setReschMsg(e.target.value)} style={{fontSize:11,width:200}}/>
+            </StRow>}
+            <StRow label={ru?"Клиент может отменять сам":"Client Can Cancel"} tip={ru?"Если выключено — клиент увидит ваш контакт для звонка":"If off — client sees your contact to call"}>
+              <StToggle val={canCancel} onChange={setCanC}/>
+            </StRow>
+            {!canCancel&&<StRow label={ru?"Сообщение при отмене":"Cancel Message"} last tip={ru?"Это увидит клиент когда попытается отменить":"Shown to client when they try to cancel"}>
+              <input className="inp" value={cancelMsg} onChange={e=>setCancelMsg(e.target.value)} style={{fontSize:11,width:200}}/>
+            </StRow>}
+            {(canReschedule&&canCancel)&&<StRow label="" last><span/></StRow>}
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>👁 {ru?"Видимость данных":"Data Visibility"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
+            <StRow label={ru?"Клиент видит имя клинера":"Client Sees Cleaner Name"} tip={ru?"Повышает доверие — клиент знает кто придёт":"Builds trust — client knows who is coming"}>
+              <StToggle val={showProvider} onChange={setShowP}/>
+            </StRow>
+            <StRow label={ru?"Клиент видит рейтинг клинера":"Client Sees Cleaner Rating"} tip={ru?"Рейтинг клинера в деталях заявки клиента":"Cleaner rating shown in client booking details"}>
+              <StToggle val={showRating} onChange={setShowR}/>
+            </StRow>
+            <StRow label={ru?"SMS уведомления по умолчанию":"SMS Opt-in Default"} last tip={ru?"Чекбокс SMS включён по умолчанию при бронировании":"SMS checkbox is checked by default during booking"}>
+              <StToggle val={smsOptIn} onChange={setSms}/>
+            </StRow>
+          </div>
+          <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>⭐ {ru?"Отзывы":"Reviews"}</div>
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:4}}>
+            <StRow label={ru?"Предлагать отзыв на Google/Yelp":"Suggest External Review"} last tip={ru?"После уборки система предложит клиенту оставить отзыв — мощно работает на репутацию":"After job, system prompts client to review on Google, Yelp etc."}>
+              <StToggle val={reviewExt} onChange={setRevExt}/>
+            </StRow>
+          </div>
+          <StSaveBtn saved={settSaved} lang={lang} onSave={()=>{
+            saveBkSettings({clientCanReschedule:canReschedule,clientRescheduleMsg:reschMsg,
+              clientCanCancel:canCancel,clientCancelMsg:cancelMsg,
+              smsOptInDefault:smsOptIn,showProviderToClient:showProvider,
+              showRatingToClient:showRating,reviewExternalEnabled:reviewExt});
+            setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
+          }}/>
+        </>
+      );
+    };
+
+
     // ── Settings ──
     const SettingsPanel = () => {
       const SIZE = SETT_SIZE;
@@ -5011,561 +5393,13 @@ function AppInner() {
               </div>
             </div>
           )}
-
-          {/* ──────────────────────────────────────────────────────────────
-              NEW SETTINGS TABS — Scheduling / Cleaners / Payments / Clients
-          ────────────────────────────────────────────────────────────── */}
-
-          {/* Inline helpers */}
-          {(()=>{
-            // Tooltip component (inline function)
-            const Tip = ({text})=>{
-              const [show,setShow]=useState(false);
-              return (
-                <span style={{position:"relative",display:"inline-flex",alignItems:"center",marginLeft:5}}>
-                  <span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
-                    onClick={()=>setShow(x=>!x)}
-                    style={{width:16,height:16,borderRadius:"50%",background:"var(--bdr2)",
-                      display:"inline-flex",alignItems:"center",justifyContent:"center",
-                      fontSize:10,color:"var(--mu)",cursor:"help",userSelect:"none",flexShrink:0}}>?</span>
-                  {show&&<div style={{position:"absolute",bottom:"calc(100% + 5px)",left:"50%",transform:"translateX(-50%)",
-                    background:"var(--s2)",border:"1px solid var(--bdr2)",borderRadius:8,
-                    padding:"7px 10px",fontSize:11,color:"var(--tx)",whiteSpace:"normal",
-                    maxWidth:220,zIndex:999,boxShadow:"0 4px 20px #0003",lineHeight:1.5,minWidth:160}}>
-                    {text}
-                  </div>}
-                </span>
-              );
-            };
-
-            // Toggle switch
-            const Toggle = ({val,onChange})=>(
-              <div onClick={()=>onChange(!val)}
-                style={{width:38,height:20,borderRadius:10,background:val?"var(--acc)":"var(--bdr2)",
-                  cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
-                <div style={{position:"absolute",top:2,left:val?18:2,width:16,height:16,borderRadius:"50%",
-                  background:"#fff",transition:"left .2s",boxShadow:"0 1px 4px #0004"}}/>
-              </div>
-            );
-
-            // Row helper
-            const Row = ({label,tip,children,last})=>(
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 0",
-                borderBottom:last?"none":"1px solid var(--bdr)"}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:0,flexWrap:"wrap"}}>
-                    <span style={{fontSize:13,fontWeight:500}}>{label}</span>
-                    {tip&&<Tip text={tip}/>}
-                  </div>
-                </div>
-                <div style={{flexShrink:0}}>{children}</div>
-              </div>
-            );
-
-            // Section header
-            const SecHd = ({icon,title,desc})=>(
-              <div style={{background:"var(--acc)08",border:"1px solid var(--acc)20",borderRadius:10,
-                padding:"10px 14px",marginBottom:12}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:2}}>{icon} {title}</div>
-                {desc&&<div style={{fontSize:11,color:"var(--mu)"}}>{desc}</div>}
-              </div>
-            );
-
-            // Number input
-            const Num = ({val,onChange,min=0,max=9999,step=1,style={}})=>(
-              <input type="number" value={val} min={min} max={max} step={step}
-                onChange={e=>onChange(+e.target.value)}
-                style={{width:72,padding:"5px 8px",borderRadius:6,border:"1px solid var(--bdr)",
-                  background:"var(--s1)",color:"var(--tx)",fontSize:12,textAlign:"center",...style}}/>
-            );
-
-            // Select
-            const Sel = ({val,onChange,opts})=>(
-              <select value={val} onChange={e=>onChange(e.target.value)}
-                style={{padding:"5px 8px",borderRadius:6,border:"1px solid var(--bdr)",
-                  background:"var(--s1)",color:"var(--tx)",fontSize:12,cursor:"pointer"}}>
-                {opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-              </select>
-            );
-
-            // Save button
-            const SaveBtn = ({onSave})=>(
-              <div style={{marginTop:16,display:"flex",gap:8,alignItems:"center"}}>
-                <button className="btn btn-p" onClick={onSave}>{lang==="ru"?"💾 Сохранить":"💾 Save Settings"}</button>
-                <span style={{fontSize:11,color:"var(--gr)",opacity:settSaved?1:0,transition:"opacity .3s"}}>✓ {lang==="ru"?"Сохранено":"Saved"}</span>
-              </div>
-            );
-
-            const bs = bkSettings; // shorthand
-
-            // ── 📅 SCHEDULING TAB ──
-            if (settingsTab==="scheduling") {
-              const [asgn,      setAsgn]   = useState(bs.assignmentMode||"auto");
-              const [sameDayEn, setSDE]    = useState(bs.sameDayEnabled!==false);
-              const [sameDayH,  setSDH]    = useState(bs.sameDayHours||3);
-              const [provAvail, setProvAv] = useState(bs.checkProviderAvailability!==false);
-              const [unassignedVis,setUV]  = useState(bs.cleanersCanPickUnassigned||false);
-              const [provAvailRule,setPAR] = useState(bs.providerAvailRule||"deny");
-              const [recurMo,   setRecMo]  = useState(bs.recurringMonths||6);
-              const [sameClnr,  setSameC]  = useState(bs.sameCleanerRecurring!==false);
-              const [recurAvail,setRecAvail]= useState(bs.recurringAvailCheck||"first");
-              const [holidayBlock,setHB]   = useState(bs.holidayBlockClients!==false);
-              const [waitList,  setWL]     = useState(bs.waitlistEnabled||false);
-              return (
-                <>
-                  <SecHd icon="📅" title={lang==="ru"?"Расписание и бронирование":"Scheduling & Booking"}
-                    desc={lang==="ru"?"Управление тем как принимаются и назначаются заявки":"Control how bookings are accepted and assigned"}/>
-
-                  {/* Assignment */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🤖 {lang==="ru"?"Назначение клинеров":"Cleaner Assignment"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Как назначаются клинеры":"How Cleaners Are Assigned"}
-                      tip={lang==="ru"?"Авто — система сразу назначает клинера. Клинер принимает/отклоняет — клинер сам решает браться за заказ или нет. Только в день — клинер должен принять заявку в день уборки":"Auto — system assigns immediately. Accept/Decline — cleaner decides. Same day — cleaner must accept day-of"}>
-                      <Sel val={asgn} onChange={setAsgn} opts={[
-                        ["auto",      lang==="ru"?"🤖 Автоматически":"🤖 Auto-assign"],
-                        ["accept",    lang==="ru"?"✋ Клинер принимает":"✋ Cleaner accepts"],
-                        ["same_day",  lang==="ru"?"📅 Только в день":"📅 Same-day accept"],
-                      ]}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Клинеры видят незанятые заявки":"Cleaners See Unassigned Jobs"}
-                      tip={lang==="ru"?"Если включено — клинеры могут сами брать свободные заявки из общего списка. Помогает заполнять расписание без участия админа":"If on — cleaners can pick up unassigned jobs themselves. Helps fill schedule without admin involvement"}>
-                      <Toggle val={unassignedVis} onChange={setUV}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Проверять занятость клинера":"Check Cleaner Availability"} last
-                      tip={lang==="ru"?"Система проверяет свободен ли клинер прежде чем назначить заказ. ВАЖНО: если выключено — система может назначить двух клиентов одному клинеру в одно время":"System checks if cleaner is free before assigning. IMPORTANT: if off — system may double-book a cleaner"}>
-                      <Toggle val={provAvail} onChange={setProvAv}/>
-                    </Row>
-                  </div>
-
-                  {/* Same-day */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    ⏰ {lang==="ru"?"Бронирование в тот же день":"Same-day Booking"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Разрешить бронирование сегодня":"Allow Same-day Booking"}
-                      tip={lang==="ru"?"Клиенты могут оформить заявку на сегодня. Можно задать сколько часов должно быть до уборки — чтобы клинер успел подготовиться":"Clients can book for today. Set minimum hours notice so cleaners have time to prepare"}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <Toggle val={sameDayEn} onChange={setSDE}/>
-                        {sameDayEn&&<>
-                          <Num val={sameDayH} onChange={setSDH} min={0} max={24}/>
-                          <span style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"ч. заранее":"hrs notice"}</span>
-                        </>}
-                      </div>
-                    </Row>
-                    <Row label={lang==="ru"?"Если клинер недоступен — что делать":"If Cleaner Unavailable"} last
-                      tip={lang==="ru"?"Отклонить — запрещает бронирование если нет свободного клинера. Разрешить — создаёт заявку без клинера (вы назначите вручную)":"Deny — blocks booking if no cleaner available. Allow — creates booking unassigned (you assign manually)"}>
-                      <Sel val={provAvailRule} onChange={setPAR} opts={[
-                        ["deny",  lang==="ru"?"🚫 Отклонить":"🚫 Deny booking"],
-                        ["allow", lang==="ru"?"✅ Создать без клинера":"✅ Create unassigned"],
-                      ]}/>
-                    </Row>
-                  </div>
-
-                  {/* Recurring */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🔄 {lang==="ru"?"Повторяющиеся уборки":"Recurring Bookings"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Создавать расписание на":"Create Schedule For"}
-                      tip={lang==="ru"?"Сколько месяцев вперёд система создаёт бронирования при повторяющихся заявках. 6 месяцев — оптимальный вариант для большинства бизнесов":"How far ahead the system creates recurring bookings. 6 months is optimal for most businesses"}>
-                      <Sel val={String(recurMo)} onChange={v=>setRecMo(+v)} opts={[
-                        ["1","1 "+(lang==="ru"?"месяц":"month")],
-                        ["3","3 "+(lang==="ru"?"месяца":"months")],
-                        ["6","6 "+(lang==="ru"?"месяцев":"months")],
-                        ["12","12 "+(lang==="ru"?"месяцев":"months")],
-                      ]}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Тот же клинер для повторных":"Same Cleaner for Recurring"}
-                      tip={lang==="ru"?"Клиент всегда получает одного и того же клинера. Это повышает лояльность клиентов — им нравится когда приходит знакомый человек":"Client always gets the same cleaner. This builds loyalty — clients prefer seeing a familiar face"}>
-                      <Toggle val={sameClnr} onChange={setSameC}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Проверять занятость для повторных":"Availability Check for Recurring"} last
-                      tip={lang==="ru"?"Только первая — система проверяет доступность только для первой уборки. Все — проверяет каждую уборку в серии. Рекомендуем 'только первая' для скорости":"First only — checks availability for first booking only. All — checks every booking in series. We recommend 'First only' for speed"}>
-                      <Sel val={recurAvail} onChange={setRecAvail} opts={[
-                        ["first",lang==="ru"?"Только первая":"First booking only"],
-                        ["all",  lang==="ru"?"Каждую":"All bookings"],
-                      ]}/>
-                    </Row>
-                  </div>
-
-                  {/* Holidays & Waitlist */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🎄 {lang==="ru"?"Праздники и очередь":"Holidays & Waitlist"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:4}}>
-                    <Row label={lang==="ru"?"Блокировать бронирование в праздники":"Block Bookings on Holidays"}
-                      tip={lang==="ru"?"Клиенты не смогут бронировать в праздничные дни. Вы как администратор всегда можете создать заявку вручную":"Clients won't be able to book on holidays. You as admin can always create bookings manually"}>
-                      <Toggle val={holidayBlock} onChange={setHB}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Лист ожидания":"Waitlist"} last
-                      tip={lang==="ru"?"Если все слоты заняты — клиент встаёт в очередь и автоматически получит уведомление когда откроется место. Помогает не терять клиентов в пиковое время":"If all slots are taken, clients join a queue and get auto-notified when a slot opens. Helps retain clients during busy periods"}>
-                      <Toggle val={waitList} onChange={setWL}/>
-                    </Row>
-                  </div>
-
-                  {/* Tip box */}
-                  {!provAvail&&<div style={{background:"#f590001a",border:"1px solid #f5900040",borderRadius:8,padding:"8px 12px",fontSize:11,color:"#a06000",marginTop:8}}>
-                    ⚠️ {lang==="ru"?"Внимание: проверка занятости клинера выключена — возможно двойное бронирование одного клинера":"Warning: cleaner availability check is off — double-booking is possible"}
-                  </div>}
-                  {!waitList&&<div style={{background:"var(--acc)08",border:"1px solid var(--acc)20",borderRadius:8,padding:"8px 12px",fontSize:11,color:"var(--acc)",marginTop:8}}>
-                    💡 {lang==="ru"?"Совет: включите лист ожидания — это позволяет не терять клиентов когда все слоты заняты":"Tip: enable the waitlist — it prevents losing clients when all slots are full"}
-                  </div>}
-
-                  <SaveBtn onSave={()=>{
-                    saveBkSettings({assignmentMode:asgn,sameDayEnabled:sameDayEn,sameDayHours:sameDayH,
-                      checkProviderAvailability:provAvail,cleanersCanPickUnassigned:unassignedVis,
-                      providerAvailRule:provAvailRule,recurringMonths:recurMo,
-                      sameCleanerRecurring:sameClnr,recurringAvailCheck:recurAvail,
-                      holidayBlockClients:holidayBlock,waitlistEnabled:waitList});
-                    setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
-                  }}/>
-                </>
-              );
-            }
-
-            // ── 👥 CLEANERS TAB ──
-            if (settingsTab==="cleaners") {
-              const [payType,  setPayType]   = useState(bs.payRateType||"percentage");
-              const [payRate,  setPayRate]   = useState(bs.defaultPayRate??50);
-              const [clockIO,  setClockIO]   = useState(bs.clockInOut!==false);
-              const [gps,      setGps]       = useState(bs.gpsTracking!==false);
-              const [autoClkO, setAutoClkO]  = useState(bs.autoClockOut!==false);
-              const [seesPrice,setSeesP]     = useState(bs.cleanerSeesPrice||false);
-              const [seesPhone,setSeesPhone] = useState(bs.cleanerSeesPhone||false);
-              const [seesName, setSeesName]  = useState(bs.cleanerSeesClientName!==false);
-              const [lateMsg,  setLateMsg]   = useState(bs.lateArrivalMsg||
-                (lang==="ru"?"Здравствуйте [[ClientName]]! К сожалению [[CleanerName]] опаздывает на ~30 минут. Приносим извинения."
-                           :"Hello [[ClientName]]! Unfortunately [[CleanerName]] is running ~30 min late. We apologize."));
-              return (
-                <>
-                  <SecHd icon="👥" title={lang==="ru"?"Настройки клинеров":"Cleaner Settings"}
-                    desc={lang==="ru"?"Оплата, доступ и отслеживание местоположения клинеров":"Pay rates, permissions and location tracking for cleaners"}/>
-
-                  {/* Pay */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8,marginTop:4}}>
-                    {lang==="ru"?"💰 Оплата клинеров":"💰 Cleaner Pay"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Способ расчёта":"Pay Method"}
-                      tip={lang==="ru"?"% — клинер получает процент от стоимости уборки. Фиксированная — фиксированная сумма за уборку. Почасовая — по часам работы":"% — cleaner earns a % of job price. Fixed — flat fee per job. Hourly — per hour worked"}>
-                      <Sel val={payType} onChange={setPayType} opts={[
-                        ["percentage",lang==="ru"?"% от заявки":"% of Job"],
-                        ["flat",      lang==="ru"?"Фиксированная":"Flat Rate"],
-                        ["hourly",    lang==="ru"?"Почасовая":"Hourly"],
-                      ]}/>
-                    </Row>
-                    <Row label={payType==="percentage"?(lang==="ru"?"Ставка по умолчанию (%)":"Default Rate (%)")
-                               :payType==="flat"?(lang==="ru"?"Сумма по умолчанию ($)":"Default Amount ($)")
-                               :(lang==="ru"?"Почасовая ставка ($)":"Hourly Rate ($)")} last
-                      tip={lang==="ru"?"Это значение по умолчанию для всех новых клинеров. Для каждого клинера можно задать индивидуальную ставку в его профиле":"Default value for all new cleaners. You can set individual rates in each cleaner's profile"}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        {payType!=="percentage"&&<span style={{fontSize:12,color:"var(--mu)"}}>$</span>}
-                        <Num val={payRate} onChange={setPayRate} min={0} max={payType==="percentage"?100:9999}/>
-                        {payType==="percentage"&&<span style={{fontSize:12,color:"var(--mu)"}}>%</span>}
-                      </div>
-                    </Row>
-                  </div>
-
-                  {/* Tracking */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    {lang==="ru"?"📍 Отслеживание":"📍 Tracking"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Clock In / Clock Out":"Clock In / Clock Out"}
-                      tip={lang==="ru"?"Клинеры отмечают начало и конец работы. Помогает точно считать время и платить правильно":"Cleaners mark start and end of work. Helps track time accurately and pay correctly"}>
-                      <Toggle val={clockIO} onChange={setClockIO}/>
-                    </Row>
-                    <Row label={lang==="ru"?"GPS отслеживание":"GPS Tracking"}
-                      tip={lang==="ru"?"Система фиксирует маршрут клинера во время работы. Можно видеть где находится клинер":"System tracks cleaner's route during work. You can see where they are in real time"}>
-                      <Toggle val={gps} onChange={setGps}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Авто Clock-Out (по геолокации)":"Auto Clock-Out (by GPS)"} last
-                      tip={lang==="ru"?"Клинер автоматически выходит из смены когда уходит с объекта. Удобно если клинер забывает нажать кнопку":"Cleaner is automatically clocked out when they leave the job location. Useful if they forget to clock out"}>
-                      <Toggle val={autoClkO} onChange={setAutoClkO}/>
-                    </Row>
-                  </div>
-
-                  {/* Permissions */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    {lang==="ru"?"🔐 Доступ клинера к данным":"🔐 Cleaner Data Access"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Видит стоимость уборки":"Sees Job Price"}
-                      tip={lang==="ru"?"Клинер видит сколько стоит уборка. Отключите если не хотите раскрывать ценообразование":"Cleaner sees the total price of the job. Disable if you don't want to reveal pricing"}>
-                      <Toggle val={seesPrice} onChange={setSeesP}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Видит телефон клиента":"Sees Client Phone"}
-                      tip={lang==="ru"?"Клинер может позвонить клиенту напрямую. Если выключено — контакт только через офис":"Cleaner can call client directly. If off — contact only through office"}>
-                      <Toggle val={seesPhone} onChange={setSeesPhone}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Видит имя клиента":"Sees Client Name"} last
-                      tip={lang==="ru"?"Клинер видит полное имя клиента в заявке":"Cleaner sees the client's name in the booking"}>
-                      <Toggle val={seesName} onChange={setSeesName}/>
-                    </Row>
-                  </div>
-
-                  {/* Late arrival message */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🕐 {lang==="ru"?"Сообщение об опоздании":"Late Arrival Message"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:4}}>
-                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>
-                      {lang==="ru"?"Используйте [[ClientName]] и [[CleanerName]] как переменные — они заменятся автоматически"
-                                 :"Use [[ClientName]] and [[CleanerName]] as variables — they'll be replaced automatically"}
-                    </div>
-                    <textarea value={lateMsg} onChange={e=>setLateMsg(e.target.value)} rows={3}
-                      style={{width:"100%",padding:"8px 10px",borderRadius:7,border:"1px solid var(--bdr)",
-                        background:"var(--s2)",color:"var(--tx)",fontSize:12,resize:"vertical",
-                        fontFamily:"inherit",boxSizing:"border-box"}}/>
-                  </div>
-                  <SaveBtn onSave={()=>{
-                    saveBkSettings({payRateType:payType,defaultPayRate:payRate,clockInOut:clockIO,
-                      gpsTracking:gps,autoClockOut:autoClkO,cleanerSeesPrice:seesPrice,
-                      cleanerSeesPhone:seesPhone,cleanerSeesClientName:seesName,lateArrivalMsg:lateMsg});
-                    setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
-                  }}/>
-                </>
-              );
-            }
-
-            // ── 💳 PAYMENTS TAB ──
-            if (settingsTab==="payments") {
-              const [payCard,  setPayCard]  = useState(bs.payCard!==false);
-              const [payCash,  setPayCash]  = useState(bs.payCash!==false);
-              const [autoChg,  setAutoChg]  = useState(bs.autoChargeAfterComplete||false);
-              const [canxEn,   setCanxEn]   = useState(bs.cancellationFeeEnabled||false);
-              const [canxAmt,  setCanxAmt]  = useState(bs.cancellationFeeAmount||60);
-              const [canxHrs,  setCanxHrs]  = useState(bs.cancellationFeeHours||24);
-              const [reSchEn,  setReSchEn]  = useState(bs.rescheduleFeeEnabled||false);
-              const [reSchAmt, setReSchAmt] = useState(bs.rescheduleFeeAmount||30);
-              const [giftCard, setGiftCard] = useState(bs.giftCardEnabled||false);
-              const [giftMin,  setGiftMin]  = useState(bs.giftCardMin||150);
-              const [refEn,    setRefEn]    = useState(bs.referralEnabled||false);
-              const [refAmt,   setRefAmt]   = useState(bs.referralAmount||50);
-              return (
-                <>
-                  <SecHd icon="💳" title={lang==="ru"?"Настройки оплаты":"Payment Settings"}
-                    desc={lang==="ru"?"Способы оплаты, штрафы и специальные программы":"Payment methods, fees and special programs"}/>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    {lang==="ru"?"💰 Способы оплаты":"💰 Payment Methods"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Банковская карта":"Credit / Debit Card"}
-                      tip={lang==="ru"?"Принимать оплату картой через подключённый платёжный шлюз":"Accept card payments via connected payment gateway"}>
-                      <Toggle val={payCard} onChange={setPayCard}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Наличные / Чек":"Cash / Check"} last
-                      tip={lang==="ru"?"Принимать наличные или чеки при оплате на месте":"Accept cash or checks on-site"}>
-                      <Toggle val={payCash} onChange={setPayCash}/>
-                    </Row>
-                  </div>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    ⚡ {lang==="ru"?"Авто-зарядка":"Auto-charge"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Списывать автоматически после завершения":"Auto-charge after completion"} last
-                      tip={lang==="ru"?"Как только уборка помечена 'Выполнено' — система автоматически списывает оплату с карты клиента":"Once a job is marked Done, the system automatically charges the client's card"}>
-                      <Toggle val={autoChg} onChange={setAutoChg}/>
-                    </Row>
-                  </div>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    ❌ {lang==="ru"?"Штраф за отмену":"Cancellation Fee"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Включить штраф за отмену":"Enable Cancellation Fee"}
-                      tip={lang==="ru"?"Если клиент отменяет слишком поздно — взимается штраф. Это снижает количество отмен в последний момент":"If client cancels too late, a fee is charged. Reduces last-minute cancellations"}>
-                      <Toggle val={canxEn} onChange={setCanxEn}/>
-                    </Row>
-                    {canxEn&&<>
-                      <Row label={lang==="ru"?"Размер штрафа":"Fee Amount"}
-                        tip={lang==="ru"?"Сумма в долларах которую спишем при отмене":"Dollar amount to charge on cancellation"}>
-                        <div style={{display:"flex",alignItems:"center",gap:5}}>
-                          <span style={{fontSize:12,color:"var(--mu)"}}>$</span>
-                          <Num val={canxAmt} onChange={setCanxAmt}/>
-                        </div>
-                      </Row>
-                      <Row label={lang==="ru"?"Применять если отмена за менее чем":"Apply if cancelled less than"} last
-                        tip={lang==="ru"?"Штраф применяется только если клиент отменил позже указанного срока до уборки":"Fee applies only if client cancels after this many hours before the job"}>
-                        <div style={{display:"flex",alignItems:"center",gap:5}}>
-                          <Num val={canxHrs} onChange={setCanxHrs} min={1} max={168}/>
-                          <span style={{fontSize:12,color:"var(--mu)"}}>{lang==="ru"?"часов до уборки":"hours before job"}</span>
-                        </div>
-                      </Row>
-                    </>}
-                    {!canxEn&&<Row label={""} last><span style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"Отключено":"Disabled"}</span></Row>}
-                  </div>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🔄 {lang==="ru"?"Штраф за перенос":"Rescheduling Fee"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Включить штраф за перенос":"Enable Reschedule Fee"}
-                      tip={lang==="ru"?"Небольшой штраф за перенос уборки сокращает частые переносы и помогает планированию":"Small fee for rescheduling reduces frequent changes and helps planning"}>
-                      <Toggle val={reSchEn} onChange={setReSchEn}/>
-                    </Row>
-                    {reSchEn&&<Row label={lang==="ru"?"Размер штрафа за перенос":"Reschedule Fee Amount"} last
-                      tip={lang==="ru"?"Сколько взимается за каждый перенос":"How much is charged for each reschedule"}>
-                      <div style={{display:"flex",alignItems:"center",gap:5}}>
-                        <span style={{fontSize:12,color:"var(--mu)"}}>$</span>
-                        <Num val={reSchAmt} onChange={setReSchAmt}/>
-                      </div>
-                    </Row>}
-                    {!reSchEn&&<Row label={""} last><span style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"Отключено":"Disabled"}</span></Row>}
-                  </div>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🎁 {lang==="ru"?"Подарочные сертификаты и реферальная программа":"Gift Cards & Referral"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:4}}>
-                    <Row label={lang==="ru"?"Подарочные сертификаты":"Gift Cards"}
-                      tip={lang==="ru"?"Клиенты смогут покупать и дарить подарочные сертификаты на уборку":"Clients can purchase and gift cleaning certificates"}>
-                      <Toggle val={giftCard} onChange={setGiftCard}/>
-                    </Row>
-                    {giftCard&&<Row label={lang==="ru"?"Минимальная сумма сертификата":"Min Gift Card Amount"}
-                      tip={lang==="ru"?"Нельзя купить сертификат дешевле этой суммы":"Minimum amount for a gift card purchase"}>
-                      <div style={{display:"flex",alignItems:"center",gap:5}}>
-                        <span style={{fontSize:12,color:"var(--mu)"}}>$</span>
-                        <Num val={giftMin} onChange={setGiftMin}/>
-                      </div>
-                    </Row>}
-                    <Row label={lang==="ru"?"Реферальная программа":"Referral Program"}
-                      tip={lang==="ru"?"Клиент получает бонус за каждого привлечённого нового клиента — хорошо работает на рост без рекламы":"Client earns a bonus for each referred new customer — grows business without ads"}>
-                      <Toggle val={refEn} onChange={setRefEn}/>
-                    </Row>
-                    {refEn&&<Row label={lang==="ru"?"Бонус за реферал (каждой стороне)":"Referral Bonus (each side)"} last
-                      tip={lang==="ru"?"И тот кто пригласил и тот кто пришёл — оба получают этот бонус":"Both the referrer and the referred each get this amount as credit"}>
-                      <div style={{display:"flex",alignItems:"center",gap:5}}>
-                        <span style={{fontSize:12,color:"var(--mu)"}}>$</span>
-                        <Num val={refAmt} onChange={setRefAmt}/>
-                      </div>
-                    </Row>}
-                    {!refEn&&<Row label={""} last><span style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"Отключено":"Disabled"}</span></Row>}
-                  </div>
-
-                  {/* Payment descriptions */}
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    📝 {lang==="ru"?"Описание платежей в банке":"Bank Statement Descriptions"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:4}}>
-                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:10}}>
-                      {lang==="ru"?"Текст который клиент видит в выписке своего банка. Используйте название вашей компании чтобы клиент узнал платёж":"Text clients see on their bank statement. Use your company name so clients recognize the charge"}
-                    </div>
-                    {[
-                      ["descCardHold",  lang==="ru"?"Блокировка карты":"Card Hold",       lang==="ru"?"Появляется когда деньги заморожены до начала уборки":"Appears when funds are held before job starts"],
-                      ["descCharge",    lang==="ru"?"Списание за уборку":"Booking Charge", lang==="ru"?"Появляется при списании оплаты за выполненную уборку":"Appears when payment is charged after job completion"],
-                      ["descSeparate",  lang==="ru"?"Отдельная транзакция":"Separate Charge",lang==="ru"?"Появляется при отдельном списании (доп. услуга, штраф)":"Appears for separate charges like add-ons or fees"],
-                    ].map(([key,label,tip],i,arr)=>(
-                      <Row key={key} label={label} tip={tip} last={i===arr.length-1}>
-                        <input className="inp" style={{fontSize:11,width:190,padding:"5px 8px"}}
-                          defaultValue={bs[key]||""}
-                          onBlur={e=>{const u={};u[key]=e.target.value;saveBkSettings(u);}}
-                          placeholder={lang==="ru"?"Введите текст...":"Enter text..."}/>
-                      </Row>
-                    ))}
-                  </div>
-                  <div style={{background:"var(--acc)08",border:"1px solid var(--acc)20",borderRadius:8,padding:"8px 12px",fontSize:11,color:"var(--acc)",marginTop:8,marginBottom:4}}>
-                    💳 {lang==="ru"?"Платёжный шлюз (Stripe, Square) подключается в разделе Аккаунт → Платежи":"Payment gateway (Stripe, Square) is connected in Account → Payments"}
-                  </div>
-                  <SaveBtn onSave={()=>{
-                    saveBkSettings({payCard,payCash,autoChargeAfterComplete:autoChg,
-                      cancellationFeeEnabled:canxEn,cancellationFeeAmount:canxAmt,cancellationFeeHours:canxHrs,
-                      rescheduleFeeEnabled:reSchEn,rescheduleFeeAmount:reSchAmt,
-                      giftCardEnabled:giftCard,giftCardMin:giftMin,referralEnabled:refEn,referralAmount:refAmt});
-                    setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
-                  }}/>
-                </>
-              );
-            }
-
-            // ── 👤 CLIENTS TAB ──
-            if (settingsTab==="clients") {
-              const [canReschedule,setCanR]  = useState(bs.clientCanReschedule||false);
-              const [reschMsg,     setReschMsg] = useState(bs.clientRescheduleMsg||
-                (lang==="ru"?"Для переноса уборки позвоните нам: (512) 872-3212":"To reschedule, please call us: (512) 872-3212"));
-              const [canCancel,    setCanC]  = useState(bs.clientCanCancel||false);
-              const [cancelMsg,    setCancelMsg] = useState(bs.clientCancelMsg||
-                (lang==="ru"?"Для отмены уборки позвоните нам: (512) 872-3212":"To cancel, please contact us: (512) 872-3212"));
-              const [smsOptIn,     setSms]   = useState(bs.smsOptInDefault!==false);
-              const [showProvider, setShowP] = useState(bs.showProviderToClient!==false);
-              const [showRating,   setShowR] = useState(bs.showRatingToClient!==false);
-              const [reviewExternal,setRevExt] = useState(bs.reviewExternalEnabled||false);
-              return (
-                <>
-                  <SecHd icon="👤" title={lang==="ru"?"Настройки клиентов":"Client Settings"}
-                    desc={lang==="ru"?"Управление тем что могут делать клиенты и что они видят":"Control what clients can do and what they see"}/>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    🔄 {lang==="ru"?"Перенос и отмена":"Reschedule & Cancellation"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Клиент может переносить самостоятельно":"Client Can Reschedule"}
-                      tip={lang==="ru"?"Если включено — клиент может сам перенести уборку в личном кабинете. Если выключено — увидит сообщение с инструкциями как связаться с вами":"If on — client can reschedule in their portal. If off — they'll see a message with instructions to contact you"}>
-                      <Toggle val={canReschedule} onChange={setCanR}/>
-                    </Row>
-                    {!canReschedule&&<Row label={lang==="ru"?"Сообщение при попытке перенести":"Message When Reschedule Disabled"}
-                      tip={lang==="ru"?"Это сообщение увидит клиент если попытается перенести уборку":"This message appears when client tries to reschedule"}>
-                      <input className="inp" value={reschMsg} onChange={e=>setReschMsg(e.target.value)} style={{fontSize:11,width:200}}/>
-                    </Row>}
-                    <Row label={lang==="ru"?"Клиент может отменять самостоятельно":"Client Can Cancel"}
-                      tip={lang==="ru"?"Если включено — клиент сам отменяет уборку. Если выключено — он увидит контакт для звонка":"If on — client can cancel in their portal. If off — they'll see contact info to call you"}>
-                      <Toggle val={canCancel} onChange={setCanC}/>
-                    </Row>
-                    {!canCancel&&<Row label={lang==="ru"?"Сообщение при попытке отменить":"Message When Cancel Disabled"} last
-                      tip={lang==="ru"?"Это сообщение увидит клиент если попытается отменить уборку":"This message appears when client tries to cancel"}>
-                      <input className="inp" value={cancelMsg} onChange={e=>setCancelMsg(e.target.value)} style={{fontSize:11,width:200}}/>
-                    </Row>}
-                    {(canReschedule||canCancel)&&<Row label={""} last><span/></Row>}
-                  </div>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    👁 {lang==="ru"?"Видимость данных":"Data Visibility"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:14}}>
-                    <Row label={lang==="ru"?"Клиент видит имя клинера":"Client Sees Cleaner Name"}
-                      tip={lang==="ru"?"Клиент видит кто придёт на уборку. Повышает доверие к сервису":"Client sees who is coming to clean. Increases trust in your service"}>
-                      <Toggle val={showProvider} onChange={setShowP}/>
-                    </Row>
-                    <Row label={lang==="ru"?"Клиент видит рейтинг клинера":"Client Sees Cleaner Rating"}
-                      tip={lang==="ru"?"Рейтинг клинера отображается в деталях заявки клиента":"Cleaner's rating is shown in the client's booking details"}>
-                      <Toggle val={showRating} onChange={setShowR}/>
-                    </Row>
-                    <Row label={lang==="ru"?"SMS-уведомления включены по умолчанию":"SMS Opt-in Default"} last
-                      tip={lang==="ru"?"Чекбокс 'Получать SMS' включён по умолчанию при бронировании. Клиент может отключить":"SMS opt-in checkbox is checked by default during booking. Client can uncheck"}>
-                      <Toggle val={smsOptIn} onChange={setSms}/>
-                    </Row>
-                  </div>
-
-                  <div style={{fontWeight:600,fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>
-                    ⭐ {lang==="ru"?"Отзывы":"Reviews"}
-                  </div>
-                  <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"0 16px",marginBottom:4}}>
-                    <Row label={lang==="ru"?"Предлагать оставить отзыв на внешних площадках":"Suggest External Review"} last
-                      tip={lang==="ru"?"После выполнения уборки система предложит клиенту оставить отзыв на Google, Yelp и т.д. Мощно работает на репутацию":"After job completion, system prompts client to leave a review on Google, Yelp etc. Great for reputation growth"}>
-                      <Toggle val={reviewExternal} onChange={setRevExt}/>
-                    </Row>
-                  </div>
-                  <SaveBtn onSave={()=>{
-                    saveBkSettings({clientCanReschedule:canReschedule,clientRescheduleMsg:reschMsg,
-                      clientCanCancel:canCancel,clientCancelMsg:cancelMsg,
-                      smsOptInDefault:smsOptIn,showProviderToClient:showProvider,
-                      showRatingToClient:showRating,reviewExternalEnabled:reviewExternal});
-                    setSettSaved(true); setTimeout(()=>setSettSaved(false),3000);
-                  }}/>
-                </>
-              );
-            }
-
-            return null;
-          })()}
+          {settingsTab==="scheduling"&&<StSchedulingTab bs={bkSettings} lang={lang} saveBkSettings={saveBkSettings} settSaved={settSaved} setSettSaved={setSettSaved}/>}
+          {settingsTab==="cleaners"  &&<StCleanersTab   bs={bkSettings} lang={lang} saveBkSettings={saveBkSettings} settSaved={settSaved} setSettSaved={setSettSaved}/>}
+          {settingsTab==="payments"  &&<StPaymentsTab   bs={bkSettings} lang={lang} saveBkSettings={saveBkSettings} settSaved={settSaved} setSettSaved={setSettSaved}/>}
+          {settingsTab==="clients"   &&<StClientsTab    bs={bkSettings} lang={lang} saveBkSettings={saveBkSettings} settSaved={settSaved} setSettSaved={setSettSaved}/>}
         </>
       );
     };
-
     // ── Reports ──
     const Reports = () => {
       const [period,setPeriod]=useState("month");
