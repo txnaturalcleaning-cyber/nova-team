@@ -619,6 +619,10 @@ function AppInner() {
   const [modal,       setModal]       = useState(null);
   const [chatChannel, setChatChannel] = useState("general");
   const [chatMsgs,    setChatMsgs]    = useState({});
+  // lastRead: { [channelKey]: lastReadMsgId } — persisted in localStorage
+  const [lastRead, setLastRead] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem("nls_lastRead")||"{}"); } catch{ return {}; }
+  });
   const [kbView,      setKbView]      = useState(null);
   const [kbFilter,    setKbFilter]    = useState("all");
   const [bookingTab,  setBookingTab]  = useState("calendar");
@@ -722,6 +726,36 @@ function AppInner() {
   }, [saAccounts]);
 
   useEffect(()=>{ chatEndRef.current?.scrollIntoView({behavior:"smooth"}); },[chatMsgs,chatChannel]);
+
+  // Auto-mark read when chat page is active and new messages arrive
+  useEffect(()=>{
+    if (page!=="chat"||!currentUser) return;
+    const pid = viewPartner?.id||(isSA?"nce_main":activePart?.id||"sa");
+    const key = pid+"_"+chatChannel;
+    const msgs = chatMsgs[key]||[];
+    if (msgs.length) markRead(key, msgs);
+  }, [page, chatChannel, chatMsgs]);
+
+  // ── Persist lastRead to localStorage ──
+  useEffect(()=>{ localStorage.setItem("nls_lastRead", JSON.stringify(lastRead)); }, [lastRead]);
+
+  // Mark all messages in a channel key as read
+  function markRead(channelKey, msgs) {
+    if (!msgs||!msgs.length) return;
+    const lastId = msgs[msgs.length-1].id;
+    setLastRead(prev=>({...prev,[channelKey]:lastId}));
+  }
+
+  // Count unread in a channel key for current user
+  function countUnread(channelKey) {
+    const msgs = chatMsgs[channelKey]||[];
+    if (!msgs.length) return 0;
+    const lastId = lastRead[channelKey];
+    if (!lastId) return msgs.filter(m=>m.authorId!==currentUser?.id).length;
+    const idx = msgs.findIndex(m=>m.id===lastId);
+    if (idx===-1) return msgs.filter(m=>m.authorId!==currentUser?.id).length;
+    return msgs.slice(idx+1).filter(m=>m.authorId!==currentUser?.id).length;
+  }
 
   function updatePartner(id, upd) { setPartners(ps=>ps.map(p=>p.id===id?{...p,...upd}:p)); }
   function getPartner(id) { return partners.find(p=>p.id===id); }
@@ -1769,6 +1803,65 @@ function AppInner() {
     );
   };
 
+  /* ── AUDIO MESSAGE PLAYER — works on iOS/Android ── */
+  const AudioMsg = ({src, mimeType}) => {
+    const [playing, setPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [error, setError] = useState(false);
+    const audioRef = useRef(null);
+
+    function toggle() {
+      const a = audioRef.current;
+      if (!a) return;
+      if (playing) { a.pause(); setPlaying(false); }
+      else {
+        // On iOS, play must be triggered directly in user gesture handler
+        a.play().then(()=>setPlaying(true)).catch(err=>{
+          console.error("Audio play error:", err);
+          setError(true);
+        });
+      }
+    }
+
+    function fmt(s) {
+      if (!s||isNaN(s)) return "0:00";
+      return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+    }
+
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",
+        background:"var(--s3)",borderRadius:10,marginBottom:4,minWidth:180,maxWidth:220}}>
+        <audio ref={audioRef} src={src} preload="metadata"
+          onTimeUpdate={e=>setProgress(e.target.currentTime)}
+          onLoadedMetadata={e=>setDuration(e.target.duration)}
+          onEnded={()=>{setPlaying(false);setProgress(0);}}
+          onError={()=>setError(true)}
+          style={{display:"none"}}/>
+        <button onClick={toggle}
+          style={{width:32,height:32,borderRadius:"50%",border:"none",cursor:"pointer",flexShrink:0,
+            background:"var(--acc)",color:"#fff",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {error ? "⚠" : playing ? "⏸" : "▶"}
+        </button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{height:3,borderRadius:2,background:"var(--bdr)",marginBottom:3,cursor:"pointer"}}
+            onClick={e=>{
+              const a=audioRef.current; if(!a||!duration) return;
+              const rect=e.currentTarget.getBoundingClientRect();
+              a.currentTime=(e.clientX-rect.left)/rect.width*duration;
+            }}>
+            <div style={{height:3,borderRadius:2,background:"var(--acc)",
+              width:`${duration>0?Math.min(progress/duration*100,100):0}%`,transition:"width .1s"}}/>
+          </div>
+          <div style={{fontSize:9,color:"var(--mu)",display:"flex",justifyContent:"space-between"}}>
+            <span>{fmt(progress)}</span>
+            <span>{fmt(duration)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   /* ── CHAT ── */
   const Chat = () => {
     const pid = viewPartner?.id||(isSA?"nce_main":activeWS?.id||"sa");
@@ -1815,20 +1908,40 @@ function AppInner() {
 
     async function startRec() {
       try {
-        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-        const mr=new MediaRecorder(stream);
-        chunks.current=[];
-        mr.ondataavailable=e=>chunks.current.push(e.data);
-        mr.onstop=()=>{
-          const blob=new Blob(chunks.current,{type:"audio/webm"});
-          pushMsg({type:"audio", content:URL.createObjectURL(blob)});
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        // Pick MIME type supported by this browser (iOS needs mp4/aac, Android/Chrome supports webm)
+        const mimeType = [
+          "audio/mp4",
+          "audio/aac",
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/ogg;codecs=opus",
+          "audio/ogg",
+        ].find(t => MediaRecorder.isTypeSupported(t)) || "";
+        const mr = new MediaRecorder(stream, mimeType ? {mimeType} : {});
+        chunks.current = [];
+        mr.ondataavailable = e => { if(e.data.size>0) chunks.current.push(e.data); };
+        mr.onstop = () => {
+          const blob = new Blob(chunks.current, {type: mr.mimeType||"audio/webm"});
+          // Convert to base64 so it survives Firebase/state and works on mobile playback
+          const reader = new FileReader();
+          reader.onload = ev => {
+            pushMsg({type:"audio", content:ev.target.result, mimeType:blob.type});
+          };
+          reader.readAsDataURL(blob);
           stream.getTracks().forEach(t=>t.stop());
         };
-        mr.start(); setMrec(mr); setRec(true);
-      } catch { alert(lang==="ru"?"Нет доступа к микрофону":"No microphone access"); }
+        mr.start(250); // collect data every 250ms for reliability
+        setMrec(mr); setRec(true);
+      } catch(err) {
+        alert(lang==="ru"
+          ? "Нет доступа к микрофону. Разрешите доступ в настройках браузера."
+          : "No microphone access. Please allow it in browser settings.");
+        console.error(err);
+      }
     }
 
-    function stopRec(){mrec?.stop();setRec(false);setMrec(null);}
+    function stopRec() { mrec?.stop(); setRec(false); setMrec(null); }
 
     const curCh = channels.find(c=>c.id===chatChannel)||channels[0];
     const [showChSb, setShowChSb] = useState(false);
@@ -1853,14 +1966,29 @@ function AppInner() {
           <div style={{fontSize:10,color:"var(--mu2)",textTransform:"uppercase",letterSpacing:.8,padding:"8px 8px 4px",fontWeight:600}}>
             {t.channels}
           </div>
-          {channels.map(ch=>(
-            <div key={ch.id}
-              className={`chat-ch ${chatChannel===ch.id?"act":""}`}
-              onClick={()=>setChatChannel(ch.id)}>
-              <span style={{flexShrink:0}}>{ch.icon}</span>
-              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{ch.label}</span>
-            </div>
-          ))}
+          {channels.map(ch=>{
+            const chKey = pid+"_"+ch.id;
+            const chUnread = countUnread(chKey);
+            return (
+              <div key={ch.id}
+                className={`chat-ch ${chatChannel===ch.id?"act":""}`}
+                onClick={()=>{
+                  setChatChannel(ch.id);
+                  markRead(chKey, chatMsgs[chKey]||[]);
+                  setShowChSb(false);
+                }}>
+                <span style={{flexShrink:0}}>{ch.icon}</span>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12,flex:1}}>{ch.label}</span>
+                {chUnread>0&&(
+                  <span style={{flexShrink:0,minWidth:18,height:18,background:"#ef4444",color:"#fff",
+                    borderRadius:9,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",
+                    justifyContent:"center",padding:"0 4px",lineHeight:1}}>
+                    {chUnread>99?"99+":chUnread}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           {(isSA||isPartner)&&(
             <button
               className="btn btn-g btn-sm"
@@ -1901,7 +2029,7 @@ function AppInner() {
                       <img src={m.content} alt="" style={{maxWidth:200,maxHeight:180,borderRadius:8,display:"block",cursor:"pointer",marginBottom:4}} onClick={()=>window.open(m.content)}/>
                     )}
                     {m.type==="audio"&&(
-                      <audio controls src={m.content} style={{maxWidth:210,height:34,display:"block",marginBottom:4}}/>
+                      <AudioMsg src={m.content} mimeType={m.mimeType}/>
                     )}
                     {m.type==="file"&&(
                       <a href={m.content} download={m.fileName}
@@ -5976,6 +6104,16 @@ function AppInner() {
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
   const pendingT  = (activePart?.tasks||[]).filter(x=>x.status!=="done").length;
+  // Total unread across all accessible chat channels
+  const totalUnread = (() => {
+    if (!currentUser) return 0;
+    const pid = viewPartner?.id||(isSA?"nce_main":activePart?.id||"sa");
+    const allCh = [
+      {id:"general"},{id:"cleaners"},{id:"managers"},{id:"announcements"},
+      ...(activePart?.departments||[]).map(d=>({id:"dept_"+d.id})),
+    ];
+    return allCh.reduce((sum,ch)=>sum+countUnread(pid+"_"+ch.id),0);
+  })();
 
   const useBranding = viewPartner&&["Pro","VIP"].includes(viewPartner?.plan);
   const brandName   = useBranding?viewPartner.companyName:"Nova Launch System";
@@ -6058,6 +6196,7 @@ function AppInner() {
                     <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
                       <span className="ni">{p.icon}</span>{p.label}
                       {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
+                      {p.key==="chat"&&totalUnread>0&&<span className="cnt" style={{background:"#ef4444",color:"#fff"}}>{totalUnread>99?"99+":totalUnread}</span>}
                     </button>
                   );
                 })}
@@ -6090,8 +6229,25 @@ function AppInner() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="mob-nav">
           {navPages.slice(0,5).map(p=>(
-            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
-              <span className="mi">{p.icon}</span>
+            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}
+              style={{position:"relative"}}>
+              <span className="mi" style={{position:"relative"}}>
+                {p.icon}
+                {p.key==="chat"&&totalUnread>0&&(
+                  <span style={{position:"absolute",top:-4,right:-6,minWidth:16,height:16,
+                    background:"#ef4444",color:"#fff",borderRadius:8,fontSize:9,fontWeight:700,
+                    display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>
+                    {totalUnread>99?"99+":totalUnread}
+                  </span>
+                )}
+                {p.key==="tasks"&&pendingT>0&&(
+                  <span style={{position:"absolute",top:-4,right:-6,minWidth:16,height:16,
+                    background:"var(--acc)",color:"#000",borderRadius:8,fontSize:9,fontWeight:700,
+                    display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",lineHeight:1}}>
+                    {pendingT}
+                  </span>
+                )}
+              </span>
               <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%"}}>{p.label}</span>
             </button>
           ))}
