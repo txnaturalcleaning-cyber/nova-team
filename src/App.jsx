@@ -651,6 +651,7 @@ function AppInner() {
   const [dashCalMonth,   setDashCalMonth]   = useState(new Date());
   const [dashLogoInput,  setDashLogoInput]  = useState("");
   const [dashLogoEdit,   setDashLogoEdit]   = useState(false);
+  const [selDeptId,      setSelDeptId]      = useState(null); // lifted — prevents reset on setPartners
 
   const isSA        = currentUser?.type==="superadmin";
   const isPartner   = currentUser?.type==="partner";
@@ -2792,7 +2793,8 @@ function AppInner() {
     const brs   = p?.branches||[];
     const canEdit = isSA||isPartner;
     const lim   = PLAN_LIMITS[p?.plan]?.employees||10;
-    const [selDept, setSelDept] = useState(null); // clicked dept id
+    const selDept = selDeptId;  // lifted to AppInner to survive setPartners re-renders
+    const setSelDept = setSelDeptId;
 
     if (selDept) {
       const dept   = depts.find(d=>d.id===selDept);
@@ -8161,7 +8163,7 @@ function AppInner() {
                     );
                   }
                   return (
-                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}>
+                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments")setSelDeptId(null);}}>
                       <span className="ni">{p.icon}</span>{p.label}
                       {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
                       {p.key==="chat"&&totalUnread>0&&<span className="cnt" style={{background:"#ef4444",color:"#fff"}}>{totalUnread>99?"99+":totalUnread}</span>}
@@ -8197,7 +8199,7 @@ function AppInner() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="mob-nav">
           {navPages.slice(0,5).map(p=>(
-            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);}}
+            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments")setSelDeptId(null);}}
               style={{position:"relative"}}>
               <span className="mi" style={{position:"relative"}}>
                 {p.icon}
@@ -8235,7 +8237,7 @@ function AppInner() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {navPages.map(p=>(
                   <button key={p.key} className="btn btn-g" style={{justifyContent:"flex-start",gap:10,padding:"12px 14px"}}
-                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);}}>
+                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);if(p.key!=="departments")setSelDeptId(null);}}>
                     <span style={{fontSize:18}}>{p.icon}</span>
                     <span style={{fontSize:13}}>{p.label}</span>
                   </button>
