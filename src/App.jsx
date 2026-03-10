@@ -1607,6 +1607,974 @@ function AppInner() {
     );
   };
 
+
+  /* ═══════════════════════════════════════════════════════════════════
+     EMPLOYEE LIFECYCLE CRM — shared pipeline across HR / Supervisor / Operations
+     One card, three workspaces, unified status flow
+  ═══════════════════════════════════════════════════════════════════ */
+
+  // ── Pipeline status master list ──
+  const ELC_PIPELINE = [
+    {id:"candidate",           label:{ru:"Новый кандидат",    en:"New Candidate"},       ws:"hr",  color:"#94a3b8"},
+    {id:"contacted",           label:{ru:"Связались",          en:"Contacted"},            ws:"hr",  color:"#3b82f6"},
+    {id:"interview_scheduled", label:{ru:"Интервью назначено", en:"Interview Scheduled"},  ws:"hr",  color:"#f0a500"},
+    {id:"interview_completed", label:{ru:"Интервью прошло",    en:"Interview Completed"},  ws:"hr",  color:"#a855f7"},
+    {id:"training_assigned",   label:{ru:"Обучение назначено", en:"Training Assigned"},    ws:"hr",  color:"#06b6d4"},
+    {id:"student_lms",         label:{ru:"Студент LMS",        en:"Student (LMS)"},        ws:"hr",  color:"#ec4899"},
+    {id:"training_completed",  label:{ru:"Обучение завершено", en:"Training Completed"},   ws:"hr",  color:"#22c55e"},
+    {id:"trainee_assigned",    label:{ru:"Стажёр назначен",    en:"Trainee Assigned"},     ws:"sv",  color:"#f97316"},
+    {id:"trainee_in_progress", label:{ru:"На стажировке",      en:"Trainee In Progress"},  ws:"sv",  color:"#3b82f6"},
+    {id:"trainee_evaluation",  label:{ru:"Оценка",             en:"Evaluation"},           ws:"sv",  color:"#f0a500"},
+    {id:"supervisor_approved", label:{ru:"Одобрен",            en:"Supervisor Approved"},  ws:"sv",  color:"#22c55e"},
+    {id:"ready_for_operations",label:{ru:"Готов к работе",     en:"Ready for Operations"}, ws:"ops", color:"#f0a500"},
+    {id:"active_worker",       label:{ru:"Активный клинер",    en:"Active Worker"},        ws:"ops", color:"#22c55e"},
+    {id:"rejected",            label:{ru:"Отклонён",           en:"Rejected"},             ws:"hr",  color:"#ef4444"},
+    {id:"archived",            label:{ru:"Архив",              en:"Archived"},             ws:"hr",  color:"#64748b"},
+  ];
+  const plStatus = (id) => ELC_PIPELINE.find(s=>s.id===id)||ELC_PIPELINE[0];
+  const plLabel  = (id, ru) => { const s=plStatus(id); return ru?s.label.ru:s.label.en; };
+
+  const LMS_MODULES = [
+    {id:"basic",    ru:"Базовая уборка",        en:"Basic Cleaning"},
+    {id:"deep",     ru:"Генеральная уборка",    en:"Deep Cleaning"},
+    {id:"movein",   ru:"Уборка после переезда", en:"Move-out Cleaning"},
+    {id:"chem",     ru:"Безопасность химии",    en:"Chemical Safety"},
+    {id:"equip",    ru:"Оборудование",          en:"Equipment"},
+    {id:"photo",    ru:"Фото до/после",         en:"Before/After Photos"},
+    {id:"client",   ru:"Общение с клиентом",    en:"Customer Communication"},
+    {id:"rules",    ru:"Правила компании",       en:"Company Rules"},
+  ];
+
+  const DOCS_LIST = [
+    {id:"id",         ru:"Удостоверение личности", en:"ID / Passport"},
+    {id:"work_auth",  ru:"Разрешение на работу",   en:"Work Authorization"},
+    {id:"contract",   ru:"Договор подряда",        en:"Contractor Agreement"},
+    {id:"w9",         ru:"Форма W-9",              en:"W-9 Form"},
+    {id:"bgcheck",    ru:"Проверка биографии",     en:"Background Check"},
+    {id:"photo_id",   ru:"Фото сотрудника",        en:"Employee Photo"},
+  ];
+
+  // ── Dept type detection ──
+  function deptWorkspaceType(name="") {
+    const n = name.toLowerCase();
+    if (/hr|кадры|рекрут|hiring|recruit/.test(n))              return "hr";
+    if (/supervisor|супервайзер|трейни|trainee/.test(n))        return "sv";
+    if (/operat|операцион|менеджер.*операц/.test(n))            return "ops";
+    return "generic";
+  }
+
+  /* ─── SHARED: Candidate Card helper ─── */
+  const CandidateCard = ({card, dept, pid, onBack, lang:ru_mode, allCards}) => {
+    const ru = ru_mode==="ru";
+    const [tab, setTab] = useState("profile");
+    const [histInput, setHistInput] = useState("");
+    const [noteText, setNoteText]   = useState("");
+
+    function save(patch) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===card.id?{...c,...patch,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
+    }
+    function addHistory(text) {
+      const note={id:"h_"+Date.now(),text,ts:new Date().toLocaleString(),author:currentUser?.name||"System"};
+      save({history:[...(card.history||[]),note]});
+    }
+    function moveTo(status) {
+      const prev = plLabel(card.pipelineStatus||"candidate", ru);
+      const next = plLabel(status, ru);
+      save({pipelineStatus:status});
+      addHistory(`📋 ${ru?"Статус":"Status"}: ${prev} → ${next}`);
+    }
+
+    const st = plStatus(card.pipelineStatus||"candidate");
+    const TABS = [
+      {id:"profile",   ico:"👤", label:ru?"Профиль":"Profile"},
+      {id:"interview", ico:"🗓", label:ru?"Интервью":"Interview"},
+      {id:"lms",       ico:"📚", label:"LMS"},
+      {id:"docs",      ico:"📄", label:ru?"Документы":"Documents"},
+      {id:"history",   ico:"🕐", label:ru?"История":"History"},
+    ];
+    const lmsDone = card.lmsDone||[];
+    const lmsPct  = Math.round(lmsDone.length/LMS_MODULES.length*100);
+
+    return (
+      <>
+        {/* Back + status */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+          <button onClick={onBack}
+            style={{background:"none",border:"none",cursor:"pointer",color:"var(--mu)",fontSize:13,display:"flex",alignItems:"center",gap:4,padding:0}}>
+            ← {ru?"Назад":"Back"}
+          </button>
+          <div style={{flex:1}}/>
+          <select value={card.pipelineStatus||"candidate"} onChange={e=>moveTo(e.target.value)}
+            style={{padding:"5px 10px",borderRadius:7,border:`1.5px solid ${st.color}`,
+              background:"var(--s1)",color:st.color,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+            {ELC_PIPELINE.map(s=><option key={s.id} value={s.id}>{ru?s.label.ru:s.label.en}</option>)}
+          </select>
+        </div>
+
+        {/* Header card */}
+        <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+            <Av name={(card.firstName||"?")} size="av-lg" color={dept.color}/>
+            <div style={{flex:1,minWidth:120}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20}}>{card.firstName} {card.lastName}</div>
+              <div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>{card.phone}{card.email?` • ${card.email}`:""}</div>
+              {card.city&&<div style={{fontSize:11,color:"var(--mu)",marginTop:1}}>📍 {card.city}{card.language?` • 🗣 ${card.language}`:""}</div>}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,background:st.color+"18",border:`1px solid ${st.color}40`,borderRadius:8,padding:"5px 11px"}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:st.color}}/>
+                <span style={{fontSize:11,fontWeight:700,color:st.color}}>{ru?st.label.ru:st.label.en}</span>
+              </div>
+              <div style={{fontSize:10,color:"var(--mu)"}}>{ru?"Создан":"Created"}: {card.createdAt}</div>
+            </div>
+          </div>
+          {/* LMS mini progress if relevant */}
+          {lmsDone.length>0&&(
+            <div style={{marginTop:12,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flex:1,height:5,background:"var(--s2)",borderRadius:3,overflow:"hidden"}}>
+                <div style={{height:"100%",background:"var(--gr)",borderRadius:3,width:lmsPct+"%",transition:"width .4s"}}/>
+              </div>
+              <span style={{fontSize:10,color:"var(--mu)",fontWeight:600}}>LMS {lmsPct}%</span>
+            </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
+          {TABS.map(tb=>(
+            <button key={tb.id} onClick={()=>setTab(tb.id)}
+              style={{padding:"6px 13px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",
+                border:`1.5px solid ${tab===tb.id?"var(--acc)":"var(--bdr)"}`,
+                background:tab===tb.id?"var(--acc)":"transparent",color:tab===tb.id?"#fff":"var(--mu)"}}>
+              {tb.ico} {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Profile ── */}
+        {tab==="profile"&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="fr">
+              {[["firstName",ru?"Имя *":"First Name *"],["lastName",ru?"Фамилия":"Last Name"],
+                ["phone",ru?"Телефон":"Phone"],["email","Email"],
+                ["city",ru?"Город":"City"],["language",ru?"Язык":"Language"],
+                ["experience",ru?"Опыт уборки":"Cleaning Experience"],["transport",ru?"Транспорт":"Transport"],
+              ].map(([f,l])=>(
+                <div key={f}><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{l}</label>
+                  <input className="inp" value={card[f]||""} onChange={e=>save({[f]:e.target.value})} style={{fontSize:13}}/></div>
+              ))}
+              <div style={{gridColumn:"1/-1"}}>
+                <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Комментарий HR":"HR Comment"}</label>
+                <textarea className="inp" rows={3} value={card.comment||""} onChange={e=>save({comment:e.target.value})} style={{fontSize:13}}/>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Interview ── */}
+        {tab==="interview"&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}} className="fr">
+              <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Дата интервью":"Interview Date"}</label>
+                <input className="inp" type="date" value={card.interviewDate||""} onChange={e=>save({interviewDate:e.target.value})}/></div>
+              <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Формат":"Format"}</label>
+                <select className="inp" value={card.interviewFormat||""} onChange={e=>save({interviewFormat:e.target.value})}>
+                  <option value="">—</option>
+                  <option value="zoom">Zoom</option>
+                  <option value="phone">{ru?"Телефон":"Phone"}</option>
+                  <option value="in_person">{ru?"Лично":"In Person"}</option>
+                </select></div>
+              <div style={{gridColumn:"1/-1"}}>
+                <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Заметки интервью":"Interview Notes"}</label>
+                <textarea className="inp" rows={4} value={card.interviewNotes||""} onChange={e=>save({interviewNotes:e.target.value})} style={{fontSize:13}}/>
+              </div>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:8}}>{ru?"Решение":"Decision"}</label>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {[["hired",ru?"✅ Принят":"✅ Hired","var(--gr)"],
+                  ["rejected",ru?"❌ Отклонён":"❌ Rejected","var(--rd)"],
+                  ["postponed",ru?"⏸ Отложен":"⏸ Postponed","var(--mu)"]].map(([v,l,c])=>(
+                  <button key={v} onClick={()=>{save({interviewDecision:v});addHistory(`🗓 ${l}`);if(v==="hired")moveTo("training_assigned");if(v==="rejected")moveTo("rejected");}}
+                    style={{padding:"8px 18px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",
+                      border:`1.5px solid ${card.interviewDecision===v?c:"var(--bdr)"}`,
+                      background:card.interviewDecision===v?c+"20":"transparent",color:card.interviewDecision===v?c:"var(--mu)"}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── LMS ── */}
+        {tab==="lms"&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:13}}>📚 {ru?"Модули обучения":"Training Modules"}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:lmsPct===100?"var(--gr)":"var(--acc)"}}>{lmsPct}%</div>
+            </div>
+            <div style={{height:6,background:"var(--s2)",borderRadius:3,overflow:"hidden",marginBottom:16}}>
+              <div style={{height:"100%",background:lmsPct===100?"var(--gr)":"var(--acc)",borderRadius:3,width:lmsPct+"%",transition:"width .4s"}}/>
+            </div>
+            {LMS_MODULES.map((mod,i)=>{
+              const done  = lmsDone.includes(mod.id);
+              const score = (card.lmsScores||{})[mod.id];
+              return (
+                <div key={mod.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid var(--bdr)"}}>
+                  <div onClick={()=>{const nd=done?lmsDone.filter(x=>x!==mod.id):[...lmsDone,mod.id];save({lmsDone:nd});if(!done&&[...lmsDone,mod.id].length===LMS_MODULES.length){moveTo("training_completed");}}}
+                    style={{width:22,height:22,borderRadius:6,border:`2px solid ${done?"var(--gr)":"var(--bdr)"}`,
+                      background:done?"var(--gr)":"transparent",cursor:"pointer",flexShrink:0,
+                      display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {done&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}
+                  </div>
+                  <div style={{flex:1,fontSize:13,color:done?"var(--mu)":"var(--tx)",textDecoration:done?"line-through":"none"}}>{ru?mod.ru:mod.en}</div>
+                  {done&&(
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      <input type="number" min={0} max={100} value={score||""} placeholder="—"
+                        onChange={e=>save({lmsScores:{...(card.lmsScores||{}),[mod.id]:+e.target.value}})}
+                        style={{width:54,padding:"3px 7px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:12,textAlign:"center"}}/>
+                      <span style={{fontSize:11,color:"var(--mu)"}}>%</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {lmsDone.length===LMS_MODULES.length&&card.pipelineStatus!=="training_completed"&&(
+              <div style={{marginTop:14,padding:"10px 14px",background:"var(--gr)10",border:"1px solid var(--gr)40",borderRadius:8,display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:12,color:"var(--gr)"}}>✅ {ru?"Все модули завершены! Переведите статус:":"All modules done! Change status:"}</span>
+                <button className="btn btn-p btn-sm" onClick={()=>moveTo("training_completed")}>{ru?"Обучение завершено":"Mark Complete"}</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Documents ── */}
+        {tab==="docs"&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:14}}>📄 {ru?"Документы кандидата":"Candidate Documents"}</div>
+            {DOCS_LIST.map(doc=>{
+              const status=(card.documents||{})[doc.id]||"pending";
+              const colors={pending:"var(--mu)",received:"var(--bl)",verified:"var(--gr)",missing:"var(--rd)"};
+              return (
+                <div key={doc.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid var(--bdr)"}}>
+                  <div style={{flex:1,fontSize:13}}>{ru?doc.ru:doc.en}</div>
+                  <select value={status} onChange={e=>{save({documents:{...(card.documents||{}),[doc.id]:e.target.value}});}}
+                    style={{padding:"5px 9px",borderRadius:6,border:`1.5px solid ${colors[status]||"var(--bdr)"}`,
+                      background:"var(--s1)",color:colors[status]||"var(--tx)",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                    <option value="pending">{ru?"⏳ Ожидается":"⏳ Pending"}</option>
+                    <option value="received">{ru?"📥 Получен":"📥 Received"}</option>
+                    <option value="verified">{ru?"✅ Проверен":"✅ Verified"}</option>
+                    <option value="missing">{ru?"❌ Отсутствует":"❌ Missing"}</option>
+                  </select>
+                </div>
+              );
+            })}
+            <div style={{marginTop:12,padding:"8px 12px",background:"var(--s2)",borderRadius:7,fontSize:11,color:"var(--mu)"}}>
+              ✅ {ru?"Проверено":"Verified"}: {Object.values(card.documents||{}).filter(v=>v==="verified").length}/{DOCS_LIST.length}
+              &nbsp;•&nbsp;❌ {ru?"Отсутствует":"Missing"}: {Object.values(card.documents||{}).filter(v=>v==="missing").length}
+            </div>
+          </div>
+        )}
+
+        {/* ── History ── */}
+        {tab==="history"&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+            <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>🕐 {ru?"История и активность":"Activity Timeline"}</div>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              <input className="inp" value={histInput} onChange={e=>setHistInput(e.target.value)}
+                placeholder={ru?"Добавить заметку...":"Add note..."} style={{flex:1,fontSize:13}}
+                onKeyDown={e=>{if(e.key==="Enter"&&histInput.trim()){addHistory("💬 "+histInput.trim());setHistInput("");}}}/>
+              <button className="btn btn-p btn-sm" onClick={()=>{if(histInput.trim()){addHistory("💬 "+histInput.trim());setHistInput("");}}}>{ru?"Добавить":"Add"}</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:360,overflowY:"auto"}}>
+              {[...(card.history||[])].reverse().map(h=>(
+                <div key={h.id} style={{display:"flex",gap:10,padding:"8px 11px",background:"var(--s2)",borderRadius:8}}>
+                  <div style={{flex:1,fontSize:12}}>{h.text}</div>
+                  <div style={{fontSize:10,color:"var(--mu)",flexShrink:0,whiteSpace:"nowrap"}}>{h.ts}</div>
+                </div>
+              ))}
+              {!(card.history||[]).length&&<div style={{textAlign:"center",padding:24,color:"var(--mu)",fontSize:12}}>{ru?"История пуста":"No activity yet"}</div>}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  /* ─────────────────── HR WORKSPACE ─────────────────── */
+  const HRWorkspace = ({dept, p, pid, onBack}) => {
+    const ru = lang==="ru";
+    const allCards = p?.hrCards||[];
+    // HR manages all non-active candidates (up to trainee_assigned)
+    const HR_COLS = ELC_PIPELINE.filter(s=>["candidate","contacted","interview_scheduled","interview_completed","training_assigned","student_lms","training_completed","archived","rejected"].includes(s.id));
+    const readyForSV = allCards.filter(c=>c.pipelineStatus==="ready_for_trainee"||c.pipelineStatus==="trainee_assigned");
+
+    const [hrTab,      setHrTab]     = useState("dashboard");
+    const [openCard,   setOpenCard]  = useState(null);
+    const [dragOver,   setDragOver]  = useState(null);
+    const [showNew,    setShowNew]   = useState(false);
+    const [newF,       setNewF]      = useState({firstName:"",lastName:"",phone:"",email:"",language:"",city:"",experience:"",transport:"",comment:""});
+
+    const openC = openCard ? allCards.find(c=>c.id===openCard) : null;
+
+    function addCandidate(){
+      if(!newF.firstName.trim()) return;
+      const item={...newF,id:"hr_"+Date.now(),deptId:dept.id,pipelineStatus:"candidate",tag:"Cleaner-Candidate",status:"active",
+        notes:[],history:[{id:"h_"+Date.now(),text:ru?"Кандидат добавлен":"Candidate added",ts:new Date().toLocaleString(),author:currentUser?.name||"HR"}],
+        documents:{},lmsDone:[],lmsScores:{},createdAt:new Date().toISOString().split("T")[0]};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:[...(x.hrCards||[]),item]}:x));
+      setNewF({firstName:"",lastName:"",phone:"",email:"",language:"",city:"",experience:"",transport:"",comment:""});
+      setShowNew(false);
+    }
+    function moveCard(cardId,status){
+      const c=allCards.find(x=>x.id===cardId);
+      const prev=plLabel(c?.pipelineStatus||"candidate",ru);
+      const next=plLabel(status,ru);
+      const hist={id:"h_"+Date.now(),text:`📋 ${ru?"Статус":"Status"}: ${prev} → ${next}`,ts:new Date().toLocaleString(),author:currentUser?.name||"HR"};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===cardId?{...c,pipelineStatus:status,history:[...(c.history||[]),hist],updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
+    }
+
+    // Dashboard stats
+    const byStatus = s => allCards.filter(c=>c.pipelineStatus===s).length;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const interviews = allCards.filter(c=>c.interviewDate===todayStr);
+    const missingDocs = allCards.filter(c=>Object.values(c.documents||{}).includes("missing")).length;
+
+    return (
+      <>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+          <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"var(--mu)",fontSize:13,padding:0}}>
+            ← {ru?"Все отделы":"All departments"}
+          </button>
+          <div style={{flex:1}}/>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"7px 13px"}}>
+            <span style={{fontSize:20}}>{dept.icon}</span>
+            <div>
+              <div style={{fontWeight:700,fontSize:12,color:dept.color}}>{dept.name}</div>
+              <div style={{fontSize:10,color:"var(--mu)"}}>HR Workspace</div>
+            </div>
+            <div style={{marginLeft:8,fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)"}}>{allCards.length}</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        {!openC&&(
+          <div style={{display:"flex",gap:5,marginBottom:16,flexWrap:"wrap"}}>
+            {[{id:"dashboard",ico:"📊",l:ru?"Дашборд":"Dashboard"},{id:"pipeline",ico:"🔄",l:"Pipeline"},
+              {id:"lms",ico:"📚",l:"LMS"},{id:"candidates",ico:"👥",l:ru?"Все кандидаты":"All Candidates"}].map(tb=>(
+              <button key={tb.id} onClick={()=>setHrTab(tb.id)}
+                style={{padding:"7px 13px",borderRadius:9,fontSize:11,fontWeight:600,cursor:"pointer",
+                  border:`1.5px solid ${hrTab===tb.id?"var(--acc)":"var(--bdr)"}`,
+                  background:hrTab===tb.id?"var(--acc)":"transparent",color:hrTab===tb.id?"#fff":"var(--mu)"}}>
+                {tb.ico} {tb.l}
+              </button>
+            ))}
+            <button className="btn btn-p btn-sm" style={{marginLeft:"auto"}} onClick={()=>setShowNew(true)}>
+              + {ru?"Новый кандидат":"New Candidate"}
+            </button>
+          </div>
+        )}
+
+        {/* New candidate modal */}
+        {showNew&&(
+          <div className="ovl" onClick={()=>setShowNew(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">👤 {ru?"Новый кандидат":"New Candidate"}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}} className="fr">
+                {[["firstName",ru?"Имя *":"First Name *"],["lastName",ru?"Фамилия":"Last Name"],["phone",ru?"Телефон":"Phone"],["email","Email"],["city",ru?"Город":"City"],["language",ru?"Язык":"Language"],["experience",ru?"Опыт":"Experience"],["transport",ru?"Транспорт":"Transport"]].map(([f,l])=>(
+                  <div key={f}><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{l}</label>
+                    <input className="inp" value={newF[f]||""} onChange={e=>setNewF(x=>({...x,[f]:e.target.value}))} style={{fontSize:13}}/></div>
+                ))}
+              </div>
+              <div style={{marginTop:12,display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button className="btn btn-g" onClick={()=>setShowNew(false)}>{ru?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={addCandidate}>{ru?"Добавить":"Add"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Open candidate card */}
+        {openC&&(
+          <CandidateCard card={openC} dept={dept} pid={pid} lang={lang} allCards={allCards}
+            onBack={()=>setOpenCard(null)}/>
+        )}
+
+        {/* Dashboard */}
+        {!openC&&hrTab==="dashboard"&&(
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}} className="kpi-row">
+              {[
+                {ico:"👤",l:ru?"Новых кандидатов":"New Candidates",v:byStatus("candidate"),c:"var(--acc)"},
+                {ico:"🗓",l:ru?"Интервью сегодня":"Interviews Today",v:interviews.length,c:"var(--bl)"},
+                {ico:"📚",l:ru?"На обучении LMS":"In LMS",v:byStatus("student_lms"),c:"#a855f7"},
+                {ico:"🎯",l:ru?"Ждут супервайзера":"Awaiting Supervisor",v:byStatus("training_completed"),c:"var(--gr)"},
+              ].map((s,i)=>(
+                <div key={i} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 14px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.4}}>{s.l}</span>
+                    <span style={{fontSize:15}}>{s.ico}</span>
+                  </div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}} className="cal-ai-row">
+              {/* Pipeline summary */}
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>📊 Pipeline</div>
+                {HR_COLS.filter(s=>!["archived","rejected"].includes(s.id)).map(s=>{
+                  const cnt=allCards.filter(c=>c.pipelineStatus===s.id).length;
+                  return cnt>0?(
+                    <div key={s.id} onClick={()=>{setHrTab("pipeline");}} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,cursor:"pointer"}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                      <div style={{flex:1,fontSize:12}}>{ru?s.label.ru:s.label.en}</div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,color:s.color}}>{cnt}</div>
+                    </div>
+                  ):null;
+                })}
+                {!allCards.length&&<div style={{fontSize:12,color:"var(--mu)",textAlign:"center",padding:"10px 0"}}>{ru?"Нет кандидатов":"No candidates yet"}</div>}
+              </div>
+              {/* Today */}
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>📅 {ru?"Сегодня":"Today"}</div>
+                {interviews.map(c=>(
+                  <div key={c.id} onClick={()=>setOpenCard(c.id)}
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--bdr)",cursor:"pointer"}}>
+                    <span style={{fontSize:14}}>🗓</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:600}}>{c.firstName} {c.lastName}</div>
+                      <div style={{fontSize:10,color:"var(--mu)"}}>{c.interviewFormat||"interview"}</div>
+                    </div>
+                  </div>
+                ))}
+                {allCards.filter(c=>c.pipelineStatus==="student_lms").slice(0,3).map(c=>(
+                  <div key={c.id} onClick={()=>setOpenCard(c.id)}
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--bdr)",cursor:"pointer"}}>
+                    <span style={{fontSize:14}}>📚</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:600}}>{c.firstName} {c.lastName}</div>
+                      <div style={{fontSize:10,color:"var(--mu)"}}>LMS {Math.round(((c.lmsDone||[]).length/LMS_MODULES.length)*100)}%</div>
+                    </div>
+                  </div>
+                ))}
+                {!interviews.length&&!allCards.filter(c=>c.pipelineStatus==="student_lms").length&&(
+                  <div style={{fontSize:12,color:"var(--mu)",textAlign:"center",padding:"10px 0"}}>{ru?"Нет активностей":"Nothing scheduled"}</div>
+                )}
+              </div>
+            </div>
+            {/* Missing docs alert */}
+            {missingDocs>0&&(
+              <div style={{background:"var(--rd)10",border:"1px solid var(--rd)30",borderRadius:10,padding:"10px 14px",fontSize:12,color:"var(--rd)",marginBottom:14}}>
+                ⚠️ {missingDocs} {ru?`кандидатов с отсутствующими документами`:`candidates with missing documents`}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pipeline kanban */}
+        {!openC&&hrTab==="pipeline"&&(
+          <div style={{overflowX:"auto",paddingBottom:8}}>
+            <div style={{display:"flex",gap:10,minWidth:(HR_COLS.filter(c=>!["archived","rejected"].includes(c.id)).length*215)+"px"}}>
+              {HR_COLS.filter(c=>!["archived","rejected"].includes(c.id)).map(col=>{
+                const colCards=allCards.filter(c=>(c.pipelineStatus||"candidate")===col.id);
+                return (
+                  <div key={col.id} style={{width:205,flexShrink:0,background:"var(--s2)",borderRadius:12,padding:10,
+                      outline:dragOver===col.id?`2px solid ${col.color}`:"2px solid transparent",transition:"outline .1s"}}
+                    onDragOver={e=>{e.preventDefault();setDragOver(col.id);}}
+                    onDragLeave={()=>setDragOver(null)}
+                    onDrop={e=>{const id=e.dataTransfer.getData("cid");if(id)moveCard(id,col.id);setDragOver(null);}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:9}}>
+                      <div style={{width:9,height:9,borderRadius:"50%",background:col.color}}/>
+                      <div style={{fontSize:10,fontWeight:700,color:col.color,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ru?col.label.ru:col.label.en}</div>
+                      <div style={{fontSize:9,color:"var(--mu)",background:"var(--s1)",borderRadius:8,padding:"1px 5px",fontWeight:700}}>{colCards.length}</div>
+                    </div>
+                    {colCards.map(c=>(
+                      <div key={c.id} draggable onDragStart={e=>e.dataTransfer.setData("cid",c.id)}
+                        onClick={()=>setOpenCard(c.id)}
+                        style={{background:"var(--s1)",borderRadius:8,padding:"9px 11px",cursor:"pointer",marginBottom:7,
+                          border:"1px solid var(--bdr)",boxShadow:"0 1px 3px #0001"}}
+                        onMouseEnter={e=>e.currentTarget.style.borderColor=col.color}
+                        onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                        <div style={{fontWeight:600,fontSize:12,marginBottom:2}}>{c.firstName} {c.lastName}</div>
+                        {c.phone&&<div style={{fontSize:10,color:"var(--mu)",marginBottom:2}}>📞 {c.phone}</div>}
+                        {c.city&&<div style={{fontSize:10,color:"var(--mu)"}}>📍 {c.city}</div>}
+                        {c.pipelineStatus==="student_lms"&&(
+                          <div style={{marginTop:6,height:3,background:"var(--s2)",borderRadius:2,overflow:"hidden"}}>
+                            <div style={{height:"100%",background:"var(--gr)",width:Math.round(((c.lmsDone||[]).length/LMS_MODULES.length)*100)+"%"}}/>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {!colCards.length&&(
+                      <div style={{textAlign:"center",fontSize:10,color:"var(--mu2)",padding:"12px 0",border:"1px dashed var(--bdr)",borderRadius:7}}>
+                        {ru?"Перетащите":"Drop here"}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* LMS overview */}
+        {!openC&&hrTab==="lms"&&(
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>📚 {ru?"Прогресс LMS":"LMS Progress"}</div>
+            {allCards.filter(c=>(c.lmsDone||[]).length>0||["student_lms","training_assigned","training_completed"].includes(c.pipelineStatus)).map(c=>{
+              const pct=Math.round(((c.lmsDone||[]).length/LMS_MODULES.length)*100);
+              return (
+                <div key={c.id} onClick={()=>{setOpenCard(c.id);}}
+                  style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--bdr)",cursor:"pointer"}}>
+                  <Av name={c.firstName||"?"} color={dept.color}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{c.firstName} {c.lastName}</div>
+                    <div style={{height:5,background:"var(--s2)",borderRadius:3,overflow:"hidden",marginTop:5,width:160}}>
+                      <div style={{height:"100%",background:pct===100?"var(--gr)":"var(--acc)",borderRadius:3,width:pct+"%",transition:"width .3s"}}/>
+                    </div>
+                  </div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:pct===100?"var(--gr)":"var(--acc)"}}>{pct}%</div>
+                </div>
+              );
+            })}
+            {!allCards.filter(c=>(c.lmsDone||[]).length>0).length&&(
+              <div style={{textAlign:"center",padding:32,color:"var(--mu)",fontSize:12}}>{ru?"Никто ещё не начал обучение":"No one started LMS yet"}</div>
+            )}
+          </div>
+        )}
+
+        {/* All candidates table */}
+        {!openC&&hrTab==="candidates"&&(
+          <div className="card">
+            <div className="card-hd"><div className="card-t">👥 {ru?"Все кандидаты":"All Candidates"}</div><Bdg cls="b-mu">{allCards.length}</Bdg></div>
+            <div className="tw">
+              <table>
+                <thead><tr><th>{ru?"Имя":"Name"}</th><th>{ru?"Телефон":"Phone"}</th><th>{ru?"Город":"City"}</th><th>LMS</th><th>{ru?"Статус":"Status"}</th><th></th></tr></thead>
+                <tbody>
+                  {allCards.map(c=>{
+                    const st=plStatus(c.pipelineStatus||"candidate");
+                    const pct=Math.round(((c.lmsDone||[]).length/LMS_MODULES.length)*100);
+                    return (
+                      <tr key={c.id} style={{cursor:"pointer"}} onClick={()=>setOpenCard(c.id)}>
+                        <td><div className="flex-c"><Av name={c.firstName||"?"} color={dept.color}/><div><div style={{fontWeight:600,fontSize:13}}>{c.firstName} {c.lastName}</div><div style={{fontSize:11,color:"var(--mu)"}}>{c.email}</div></div></div></td>
+                        <td style={{fontSize:12,color:"var(--mu)"}}>{c.phone}</td>
+                        <td style={{fontSize:12,color:"var(--mu)"}}>{c.city}</td>
+                        <td>
+                          {(c.lmsDone||[]).length>0?(
+                            <div style={{display:"flex",alignItems:"center",gap:5}}>
+                              <div style={{width:50,height:4,background:"var(--s2)",borderRadius:2,overflow:"hidden"}}>
+                                <div style={{height:"100%",background:pct===100?"var(--gr)":"var(--acc)",width:pct+"%"}}/>
+                              </div>
+                              <span style={{fontSize:10,color:"var(--mu)"}}>{pct}%</span>
+                            </div>
+                          ):<span style={{fontSize:10,color:"var(--mu2)"}}>—</span>}
+                        </td>
+                        <td><div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",background:st.color}}/><span style={{fontSize:11,color:st.color,fontWeight:600}}>{ru?st.label.ru:st.label.en}</span></div></td>
+                        <td><button className="btn btn-g btn-sm" onClick={e=>{e.stopPropagation();setOpenCard(c.id);}}>→</button></td>
+                      </tr>
+                    );
+                  })}
+                  {!allCards.length&&<tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{ru?"Кандидатов нет":"No candidates yet"}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  /* ─────────────────── SUPERVISOR WORKSPACE ─────────────────── */
+  const SupervisorWorkspace = ({dept, p, pid, onBack}) => {
+    const ru = lang==="ru";
+    const allCards = p?.hrCards||[];
+    const trainees = allCards.filter(c=>["trainee_assigned","trainee_in_progress","trainee_evaluation","supervisor_approved","ready_for_operations","training_completed"].includes(c.pipelineStatus));
+
+    const [svTab,  setSvTab]  = useState("dashboard");
+    const [openT,  setOpenT]  = useState(null);
+    const [showSession, setShowSession] = useState(false);
+    const [sessF, setSessF] = useState({date:"",location:"",duration:"",supervisorNotes:"",evalResult:"",arrived:"",late:"",absent:"",uniform:"",supplies:"",ready:"",bathroom:"",kitchen:"",floors:"",dust:"",details:"",communication:"",attitude:"",speed:""});
+
+    const trainee = openT ? allCards.find(c=>c.id===openT) : null;
+
+    function saveTCard(id, patch) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===id?{...c,...patch,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
+    }
+    function addSession(){
+      if(!sessF.date||!trainee) return;
+      const sess={...sessF,id:"sess_"+Date.now(),supervisor:currentUser?.name||"Supervisor"};
+      const hist={id:"h_"+Date.now(),text:`🎯 ${ru?"Стажировка":"Session"}: ${sessF.date}${sessF.evalResult?" — "+sessF.evalResult:""}`,ts:new Date().toLocaleString(),author:currentUser?.name||"Supervisor"};
+      const newStatus = sessF.evalResult==="recommended"?"ready_for_operations":sessF.evalResult==="not_recommended"?"rejected":"trainee_in_progress";
+      saveTCard(trainee.id,{trainingSessions:[...(trainee.trainingSessions||[]),sess],pipelineStatus:newStatus,history:[...(trainee.history||[]),hist]});
+      setSessF({date:"",location:"",duration:"",supervisorNotes:"",evalResult:"",arrived:"",late:"",absent:"",uniform:"",supplies:"",ready:"",bathroom:"",kitchen:"",floors:"",dust:"",details:"",communication:"",attitude:"",speed:""});
+      setShowSession(false);
+    }
+
+    const SECTS=[
+      {s:ru?"Прибытие":"Arrival",fields:[["arrived",ru?"Вовремя":"On time"],["late",ru?"Опоздал":"Late"],["absent",ru?"Отсутствовал":"Absent"]]},
+      {s:ru?"Подготовка":"Prep",fields:[["uniform",ru?"Форма одежды":"Uniform"],["supplies",ru?"Расходники":"Supplies"],["ready",ru?"Готов к работе":"Ready"]]},
+      {s:ru?"Качество":"Quality",fields:[["bathroom",ru?"Ванная":"Bathroom"],["kitchen",ru?"Кухня":"Kitchen"],["floors",ru?"Полы":"Floors"],["dust",ru?"Пыль":"Dust"],["details",ru?"Детали":"Details"]]},
+      {s:ru?"Поведение":"Behavior",fields:[["communication",ru?"Общение":"Communication"],["attitude",ru?"Отношение":"Attitude"],["speed",ru?"Скорость обучения":"Learning speed"]]},
+    ];
+    const ratingOpts=[["good",ru?"✅ Хорошо":"✅ Good"],["ok",ru?"🟡 Норм":"🟡 OK"],["poor",ru?"❌ Плохо":"❌ Poor"]];
+
+    return (
+      <>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+          <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"var(--mu)",fontSize:13,padding:0}}>
+            ← {ru?"Все отделы":"All departments"}
+          </button>
+          <div style={{flex:1}}/>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"7px 13px"}}>
+            <span style={{fontSize:20}}>{dept.icon}</span>
+            <div>
+              <div style={{fontWeight:700,fontSize:12,color:dept.color}}>{dept.name}</div>
+              <div style={{fontSize:10,color:"var(--mu)"}}>Supervisor Workspace</div>
+            </div>
+          </div>
+        </div>
+
+        {!trainee&&(
+          <div style={{display:"flex",gap:5,marginBottom:16,flexWrap:"wrap"}}>
+            {[{id:"dashboard",ico:"📊",l:ru?"Дашборд":"Dashboard"},{id:"trainees",ico:"🎯",l:ru?"Стажёры":"Trainees"}].map(tb=>(
+              <button key={tb.id} onClick={()=>setSvTab(tb.id)}
+                style={{padding:"7px 13px",borderRadius:9,fontSize:11,fontWeight:600,cursor:"pointer",
+                  border:`1.5px solid ${svTab===tb.id?"var(--acc)":"var(--bdr)"}`,
+                  background:svTab===tb.id?"var(--acc)":"transparent",color:svTab===tb.id?"#fff":"var(--mu)"}}>
+                {tb.ico} {tb.l}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Open trainee card */}
+        {trainee&&(
+          <>
+            <button onClick={()=>setOpenT(null)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--mu)",fontSize:13,padding:0,marginBottom:14}}>
+              ← {ru?"Все стажёры":"All trainees"}
+            </button>
+            <CandidateCard card={trainee} dept={dept} pid={pid} lang={lang} allCards={allCards} onBack={()=>setOpenT(null)}/>
+            <div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}>
+              <button className="btn btn-p" onClick={()=>setShowSession(true)}>+ {ru?"Добавить сессию":"Add Session"}</button>
+            </div>
+            <div style={{fontWeight:700,fontSize:13,margin:"14px 0 10px"}}>📋 {ru?"Сессии стажировки":"Training Sessions"}</div>
+            {(trainee.trainingSessions||[]).length===0&&(
+              <div style={{textAlign:"center",padding:32,color:"var(--mu)",fontSize:12,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12}}>
+                {ru?"Сессий пока нет":"No sessions yet"}
+              </div>
+            )}
+            {[...(trainee.trainingSessions||[])].reverse().map(s=>{
+              const res=s.evalResult;
+              const rc=res==="recommended"?"var(--gr)":res==="not_recommended"?"var(--rd)":res==="continue"?"var(--bl)":"var(--acc)";
+              const rl=res==="recommended"?(ru?"✅ Рекомендован":"✅ Recommended"):res==="not_recommended"?(ru?"❌ Не рекомендован":"❌ Not Recommended"):res==="continue"?(ru?"🔄 Продолжить":"🔄 Continue"):(ru?"📚 Доп. обучение":"📚 Extra Training");
+              return (
+                <div key={s.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:14,marginBottom:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700}}>📅 {s.date}</div>
+                    {s.location&&<div style={{fontSize:12,color:"var(--mu)"}}>📍 {s.location}</div>}
+                    {s.duration&&<div style={{fontSize:12,color:"var(--mu)"}}>⏱ {s.duration}h</div>}
+                    {s.supervisor&&<div style={{fontSize:12,color:"var(--mu)"}}>👤 {s.supervisor}</div>}
+                    {res&&<div style={{background:rc+"15",border:`1px solid ${rc}40`,borderRadius:6,padding:"3px 9px",fontSize:11,fontWeight:700,color:rc}}>{rl}</div>}
+                  </div>
+                  {s.supervisorNotes&&<div style={{fontSize:12,color:"var(--mu)",background:"var(--s2)",borderRadius:7,padding:"7px 10px",fontStyle:"italic"}}>{s.supervisorNotes}</div>}
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
+                    {[["bathroom",ru?"Ванная":"Bath"],["kitchen",ru?"Кухня":"Kitchen"],["floors",ru?"Полы":"Floors"],["communication",ru?"Общение":"Comm"],["attitude",ru?"Отношение":"Attitude"]].map(([f,l])=>
+                      s[f]?(<div key={f} style={{background:"var(--s2)",borderRadius:5,padding:"2px 8px",fontSize:10,color:"var(--mu)"}}>{s[f]==="good"?"✅":s[f]==="ok"?"🟡":"❌"} {l}</div>):null
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* Dashboard */}
+        {!trainee&&svTab==="dashboard"&&(
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}} className="kpi-row">
+              {[
+                {ico:"👤",l:ru?"Назначено":"Assigned",v:trainees.filter(c=>c.pipelineStatus==="trainee_assigned").length,c:"var(--acc)"},
+                {ico:"🎯",l:ru?"На стажировке":"In Progress",v:trainees.filter(c=>c.pipelineStatus==="trainee_in_progress").length,c:"var(--bl)"},
+                {ico:"📋",l:ru?"На оценке":"Evaluation",v:trainees.filter(c=>c.pipelineStatus==="trainee_evaluation").length,c:"#f0a500"},
+                {ico:"✅",l:ru?"Одобрено":"Recommended",v:trainees.filter(c=>["supervisor_approved","ready_for_operations"].includes(c.pipelineStatus)).length,c:"var(--gr)"},
+              ].map((s,i)=>(
+                <div key={i} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 14px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.4}}>{s.l}</span>
+                    <span style={{fontSize:15}}>{s.ico}</span>
+                  </div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px"}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🎯 {ru?"Стажёры":"Trainees"}</div>
+              {trainees.map(c=>{
+                const st=plStatus(c.pipelineStatus);
+                return (
+                  <div key={c.id} onClick={()=>{setOpenT(c.id);setSvTab("trainees");}}
+                    style={{display:"flex",alignItems:"center",gap:12,padding:"9px 0",borderBottom:"1px solid var(--bdr)",cursor:"pointer"}}>
+                    <Av name={c.firstName||"?"} color={dept.color}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{c.firstName} {c.lastName}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{(c.trainingSessions||[]).length} {ru?"сессий":"sessions"}</div>
+                    </div>
+                    <div style={{background:st.color+"15",border:`1px solid ${st.color}40`,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,color:st.color}}>{ru?st.label.ru:st.label.en}</div>
+                  </div>
+                );
+              })}
+              {!trainees.length&&<div style={{textAlign:"center",padding:28,color:"var(--mu)",fontSize:12}}>{ru?"HR передаст стажёров когда обучение будет завершено":"HR will transfer trainees after LMS completion"}</div>}
+            </div>
+          </>
+        )}
+
+        {/* Trainees list */}
+        {!trainee&&svTab==="trainees"&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+            {trainees.map(c=>{
+              const st=plStatus(c.pipelineStatus);
+              return (
+                <div key={c.id} onClick={()=>setOpenT(c.id)}
+                  style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:14,cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=dept.color}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                    <Av name={c.firstName||"?"} color={dept.color} size="av-lg"/>
+                    <div><div style={{fontWeight:700,fontSize:14}}>{c.firstName} {c.lastName}</div><div style={{fontSize:11,color:"var(--mu)"}}>{c.phone}</div></div>
+                  </div>
+                  <div style={{display:"flex",gap:10,fontSize:11,color:"var(--mu)",marginBottom:8}}>
+                    <span>📅 {(c.trainingSessions||[]).length} {ru?"сессий":"sessions"}</span>
+                    {c.city&&<span>📍 {c.city}</span>}
+                  </div>
+                  <div style={{background:st.color+"15",border:`1px solid ${st.color}40`,borderRadius:6,padding:"4px 8px",fontSize:10,fontWeight:700,color:st.color,display:"inline-block"}}>{ru?st.label.ru:st.label.en}</div>
+                </div>
+              );
+            })}
+            {!trainees.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}><div style={{fontSize:36,marginBottom:8}}>🎯</div><div style={{fontSize:12}}>{ru?"Стажёров нет":"No trainees yet"}</div></div>}
+          </div>
+        )}
+
+        {/* Session report modal */}
+        {showSession&&(
+          <div className="ovl" onClick={()=>setShowSession(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:540}}>
+              <div className="modal-t">📋 {ru?"Отчёт о стажировке":"Training Session Report"}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}} className="fr">
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Дата":"Date"}</label><input className="inp" type="date" value={sessF.date} onChange={e=>setSessF(f=>({...f,date:e.target.value}))}/></div>
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Длит. (ч)":"Hrs"}</label><input className="inp" type="number" step="0.5" value={sessF.duration} onChange={e=>setSessF(f=>({...f,duration:e.target.value}))}/></div>
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Адрес":"Location"}</label><input className="inp" value={sessF.location} onChange={e=>setSessF(f=>({...f,location:e.target.value}))}/></div>
+              </div>
+              {SECTS.map(sec=>(
+                <div key={sec.s} style={{marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>{sec.s}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}} className="fr">
+                    {sec.fields.map(([f,l])=>(
+                      <div key={f} style={{display:"flex",alignItems:"center",gap:6,background:"var(--s2)",borderRadius:7,padding:"6px 10px"}}>
+                        <span style={{fontSize:12,flex:1}}>{l}</span>
+                        <select value={sessF[f]||""} onChange={e=>setSessF(x=>({...x,[f]:e.target.value}))}
+                          style={{padding:"2px 4px",borderRadius:5,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:11,cursor:"pointer"}}>
+                          <option value="">—</option>
+                          {ratingOpts.map(([v,lv])=><option key={v} value={v}>{lv}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Заметки супервайзера":"Supervisor Notes"}</label>
+                <textarea className="inp" rows={3} value={sessF.supervisorNotes} onChange={e=>setSessF(f=>({...f,supervisorNotes:e.target.value}))}/>
+              </div>
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:8}}>{ru?"Итог стажировки":"Evaluation"}</label>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {[["continue",ru?"🔄 Продолжить":"🔄 Continue","var(--bl)"],["extra",ru?"📚 Доп. обучение":"📚 Extra Training","var(--acc)"],["recommended",ru?"✅ Рекомендован":"✅ Recommended","var(--gr)"],["not_recommended",ru?"❌ Не рекомендован":"❌ Not Recommended","var(--rd)"]].map(([v,l,c])=>(
+                    <button key={v} onClick={()=>setSessF(f=>({...f,evalResult:v}))}
+                      style={{padding:"9px 10px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",textAlign:"left",
+                        border:`1.5px solid ${sessF.evalResult===v?c:"var(--bdr)"}`,
+                        background:sessF.evalResult===v?c+"18":"transparent",color:sessF.evalResult===v?c:"var(--mu)"}}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button className="btn btn-g" onClick={()=>setShowSession(false)}>{ru?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={addSession}>{ru?"Сохранить":"Save Report"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  /* ─────────────────── OPERATIONS WORKSPACE ─────────────────── */
+  const OperationsWorkspace = ({dept, p, pid, onBack}) => {
+    const ru = lang==="ru";
+    const allCards = p?.hrCards||[];
+    const ready    = allCards.filter(c=>c.pipelineStatus==="ready_for_operations");
+    const active   = allCards.filter(c=>c.pipelineStatus==="active_worker");
+    const [openW,  setOpenW]  = useState(null);
+    const [opsTab, setOpsTab] = useState("dashboard");
+
+    const worker = openW ? allCards.find(c=>c.id===openW) : null;
+
+    function saveW(id, patch) {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===id?{...c,...patch,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
+    }
+    function activateWorker(id) {
+      const hist={id:"h_"+Date.now(),text:ru?"✅ Допущен к работе (Operations)":"✅ Cleared for work (Operations)",ts:new Date().toLocaleString(),author:currentUser?.name||"Operations"};
+      const card=allCards.find(c=>c.id===id);
+      saveW(id,{pipelineStatus:"active_worker",tag:"Cleaner-Active",history:[...(card?.history||[]),hist]});
+    }
+
+    return (
+      <>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+          <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"var(--mu)",fontSize:13,padding:0}}>
+            ← {ru?"Все отделы":"All departments"}
+          </button>
+          <div style={{flex:1}}/>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:10,padding:"7px 13px"}}>
+            <span style={{fontSize:20}}>{dept.icon}</span>
+            <div><div style={{fontWeight:700,fontSize:12,color:dept.color}}>{dept.name}</div><div style={{fontSize:10,color:"var(--mu)"}}>Operations Workspace</div></div>
+          </div>
+        </div>
+
+        {!worker&&(
+          <div style={{display:"flex",gap:5,marginBottom:16,flexWrap:"wrap"}}>
+            {[{id:"dashboard",ico:"📊",l:ru?"Дашборд":"Dashboard"},{id:"ready",ico:"⚡",l:ru?"Готовы":"Ready"},{id:"active",ico:"✅",l:ru?"Активные":"Active"}].map(tb=>(
+              <button key={tb.id} onClick={()=>setOpsTab(tb.id)}
+                style={{padding:"7px 13px",borderRadius:9,fontSize:11,fontWeight:600,cursor:"pointer",
+                  border:`1.5px solid ${opsTab===tb.id?"var(--acc)":"var(--bdr)"}`,
+                  background:opsTab===tb.id?"var(--acc)":"transparent",color:opsTab===tb.id?"#fff":"var(--mu)"}}>
+                {tb.ico} {tb.l}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {worker&&(
+          <>
+            <button onClick={()=>setOpenW(null)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--mu)",fontSize:13,padding:0,marginBottom:14}}>← {ru?"Назад":"Back"}</button>
+            <CandidateCard card={worker} dept={dept} pid={pid} lang={lang} allCards={allCards} onBack={()=>setOpenW(null)}/>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginTop:14}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>⚙️ {ru?"Операционные данные":"Operations Setup"}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="fr">
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Район работы":"Work Area"}</label>
+                  <input className="inp" value={worker.opsArea||""} onChange={e=>saveW(worker.id,{opsArea:e.target.value})} placeholder={ru?"Напр. North Austin":"e.g. North Austin"}/></div>
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Команда":"Team"}</label>
+                  <input className="inp" value={worker.opsTeam||""} onChange={e=>saveW(worker.id,{opsTeam:e.target.value})} placeholder={ru?"Команда A":"Team A"}/></div>
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Доступность":"Availability"}</label>
+                  <select className="inp" value={worker.opsAvailability||""} onChange={e=>saveW(worker.id,{opsAvailability:e.target.value})}>
+                    <option value="">—</option>
+                    <option value="full_time">{ru?"Полный день":"Full Time"}</option>
+                    <option value="part_time">{ru?"Частичная":"Part Time"}</option>
+                    <option value="weekends">{ru?"Выходные":"Weekends"}</option>
+                    <option value="on_demand">{ru?"По запросу":"On Demand"}</option>
+                  </select></div>
+                <div><label style={{fontSize:11,color:"var(--mu)",fontWeight:600,display:"block",marginBottom:4}}>{ru?"Начало работы":"Start Date"}</label>
+                  <input className="inp" type="date" value={worker.opsStartDate||""} onChange={e=>saveW(worker.id,{opsStartDate:e.target.value})}/></div>
+              </div>
+              {worker.pipelineStatus==="ready_for_operations"&&(
+                <button className="btn btn-p" style={{marginTop:14,width:"100%",justifyContent:"center"}}
+                  onClick={()=>activateWorker(worker.id)}>
+                  ✅ {ru?"Допустить к работе — Active Worker":"Clear for Work — Mark Active"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {!worker&&opsTab==="dashboard"&&(
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}} className="kpi-row">
+              {[
+                {ico:"⚡",l:ru?"Готовы к работе":"Ready for Work",v:ready.length,c:"var(--acc)"},
+                {ico:"✅",l:ru?"Активные клинеры":"Active Workers",v:active.length,c:"var(--gr)"},
+                {ico:"🗓",l:ru?"Первая уборка назначена":"First Job Assigned",v:allCards.filter(c=>c.opsStartDate).length,c:"var(--bl)"},
+                {ico:"👥",l:ru?"Всего в системе":"Total in System",v:allCards.length,c:"var(--mu)"},
+              ].map((s,i)=>(
+                <div key={i} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 14px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.4}}>{s.l}</span>
+                    <span style={{fontSize:15}}>{s.ico}</span>
+                  </div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            {ready.length>0&&(
+              <div style={{background:"var(--acc)10",border:"1px solid var(--acc)40",borderRadius:12,padding:"12px 16px",marginBottom:14}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>⚡ {ru?"Готовы к допуску":"Ready to Activate"} ({ready.length})</div>
+                {ready.map(c=>(
+                  <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid var(--bdr)"}}>
+                    <Av name={c.firstName||"?"} color={dept.color}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13}}>{c.firstName} {c.lastName}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{c.phone} {c.city&&`• ${c.city}`}</div>
+                    </div>
+                    <button className="btn btn-g btn-sm" onClick={()=>setOpenW(c.id)}>{ru?"Открыть":"Open"}</button>
+                    <button className="btn btn-p btn-sm" onClick={()=>activateWorker(c.id)}>✅ {ru?"Допустить":"Activate"}</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {!worker&&opsTab==="ready"&&(
+          <div className="card">
+            <div className="card-hd"><div className="card-t">⚡ {ru?"Готовы к работе":"Ready Workers"}</div><Bdg cls="b-acc">{ready.length}</Bdg></div>
+            <div className="tw"><table>
+              <thead><tr><th>{ru?"Имя":"Name"}</th><th>{ru?"Телефон":"Phone"}</th><th>{ru?"Город":"City"}</th><th></th></tr></thead>
+              <tbody>
+                {ready.map(c=>(
+                  <tr key={c.id}>
+                    <td><div className="flex-c"><Av name={c.firstName||"?"} color={dept.color}/><span style={{fontWeight:600}}>{c.firstName} {c.lastName}</span></div></td>
+                    <td style={{fontSize:12,color:"var(--mu)"}}>{c.phone}</td>
+                    <td style={{fontSize:12,color:"var(--mu)"}}>{c.city}</td>
+                    <td style={{display:"flex",gap:6}}>
+                      <button className="btn btn-g btn-sm" onClick={()=>setOpenW(c.id)}>{ru?"Настроить":"Setup"}</button>
+                      <button className="btn btn-p btn-sm" onClick={()=>activateWorker(c.id)}>✅</button>
+                    </td>
+                  </tr>
+                ))}
+                {!ready.length&&<tr><td colSpan={4} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{ru?"Нет готовых":"None ready"}</td></tr>}
+              </tbody>
+            </table></div>
+          </div>
+        )}
+
+        {!worker&&opsTab==="active"&&(
+          <div className="card">
+            <div className="card-hd"><div className="card-t">✅ {ru?"Активные клинеры":"Active Workers"}</div><Bdg cls="b-gr">{active.length}</Bdg></div>
+            <div className="tw"><table>
+              <thead><tr><th>{ru?"Имя":"Name"}</th><th>{ru?"Район":"Area"}</th><th>{ru?"Команда":"Team"}</th><th>{ru?"Доступность":"Avail."}</th><th></th></tr></thead>
+              <tbody>
+                {active.map(c=>(
+                  <tr key={c.id} style={{cursor:"pointer"}} onClick={()=>setOpenW(c.id)}>
+                    <td><div className="flex-c"><Av name={c.firstName||"?"} color="var(--gr)"/><span style={{fontWeight:600}}>{c.firstName} {c.lastName}</span></div></td>
+                    <td style={{fontSize:12,color:"var(--mu)"}}>{c.opsArea||"—"}</td>
+                    <td style={{fontSize:12,color:"var(--mu)"}}>{c.opsTeam||"—"}</td>
+                    <td><Bdg cls="b-gr" style={{fontSize:10}}>{c.opsAvailability||"—"}</Bdg></td>
+                    <td><button className="btn btn-g btn-sm">→</button></td>
+                  </tr>
+                ))}
+                {!active.length&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{ru?"Нет активных клинеров":"No active workers yet"}</td></tr>}
+              </tbody>
+            </table></div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+
   /* ── EMPLOYEES + DEPARTMENTS ── */
   const Employees = () => {
     const pid   = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
@@ -1619,7 +2587,16 @@ function AppInner() {
     const [selDept, setSelDept] = useState(null); // clicked dept id
 
     if (selDept) {
-      const dept    = depts.find(d=>d.id===selDept);
+      const dept   = depts.find(d=>d.id===selDept);
+      if (!dept) { setSelDept(null); return null; }
+      const wsType = deptWorkspaceType(dept.name||"");
+
+      // ── Route to specialised workspace ──
+      if (wsType==="hr")  return <HRWorkspace  dept={dept} p={p} pid={pid} onBack={()=>setSelDept(null)}/>;
+      if (wsType==="sv")  return <SupervisorWorkspace dept={dept} p={p} pid={pid} onBack={()=>setSelDept(null)}/>;
+      if (wsType==="ops") return <OperationsWorkspace dept={dept} p={p} pid={pid} onBack={()=>setSelDept(null)}/>;
+
+      // ── Generic dept: show members ──
       const branch  = brs.find(b=>b.id===dept?.branchId);
       const members = emps.filter(e=>e.deptId===selDept);
       return (
@@ -1630,19 +2607,19 @@ function AppInner() {
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:18,marginBottom:18}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               <div style={{fontSize:36}}>{dept?.icon}</div>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:dept?.color}}>{dept?.name}</div>
-                  <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+                  {canEdit&&<div style={{display:"flex",gap:4}}>
                     <button className="btn btn-g btn-sm" style={{padding:"3px 7px",fontSize:11}} title={t.edit}
                       onClick={e=>{e.stopPropagation();setDF({name:dept.name,icon:dept.icon,color:dept.color,branchId:dept.branchId||"",_editId:dept.id});setModal("dept");}}>✏️</button>
                     <button className="btn btn-d btn-sm" style={{padding:"3px 7px",fontSize:11}} title={t.delete}
-                      onClick={e=>{e.stopPropagation();if(window.confirm(lang==="ru"?`Удалить отдел "${dept.name}"?`:`Delete department "${dept.name}"?`))deleteDept(dept.id);}}>×</button>
-                  </div>
+                      onClick={e=>{e.stopPropagation();if(window.confirm(lang==="ru"?`Удалить отдел?`:`Delete department?`))deleteDept(dept.id);}}>×</button>
+                  </div>}
                 </div>
                 {branch&&<div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>📍 {branch.name}{branch.city?`, ${branch.city}`:""}</div>}
               </div>
-              <div style={{marginLeft:"auto",textAlign:"right"}}>
+              <div style={{textAlign:"right"}}>
                 <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"var(--acc)"}}>{members.length}</div>
                 <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
               </div>
