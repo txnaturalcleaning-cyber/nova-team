@@ -640,7 +640,7 @@ function AppInner() {
   });
   const [kbView,      setKbView]      = useState(null);
   const [kbFilter,    setKbFilter]    = useState("all");
-  const [bookingTab,  setBookingTab]  = useState("calendar");
+  const [bookingTab,  setBookingTab]  = useState(()=>localStorage.getItem("nls_bkTab")||"calendar");
   const [bkExpanded,  setBkExpanded]  = useState(false);
   const chatEndRef = useRef(null);
 
@@ -651,7 +651,35 @@ function AppInner() {
   const [dashCalMonth,   setDashCalMonth]   = useState(new Date());
   const [dashLogoInput,  setDashLogoInput]  = useState("");
   const [dashLogoEdit,   setDashLogoEdit]   = useState(false);
-  const [selDeptId,      setSelDeptId]      = useState(null); // lifted — prevents reset on setPartners
+  // Dept / workspace state — persisted so page refresh keeps position
+  const [selDeptId,      setSelDeptId]      = useState(()=>localStorage.getItem("nls_selDept")||null);
+  // HR Workspace lifted state
+  const [hrTab,          setHrTab]          = useState(()=>localStorage.getItem("nls_hrTab")||"dashboard");
+  const [hrOpenCard,     setHrOpenCard]     = useState(()=>localStorage.getItem("nls_hrCard")||null);
+  const [hrDragOver,     setHrDragOver]     = useState(null);
+  const [hrShowNew,      setHrShowNew]      = useState(false);
+  const [hrNewF,         setHrNewF]         = useState({firstName:"",lastName:"",phone:"",email:"",language:"",city:"",experience:"",transport:"",comment:""});
+  const [hrCardTab,      setHrCardTab]      = useState(()=>localStorage.getItem("nls_hrCardTab")||"profile");
+  const [hrHistInput,    setHrHistInput]    = useState("");
+  // Supervisor Workspace lifted state
+  const [svTab,          setSvTab]          = useState(()=>localStorage.getItem("nls_svTab")||"dashboard");
+  const [svOpenT,        setSvOpenT]        = useState(()=>localStorage.getItem("nls_svCard")||null);
+  const [svShowSession,  setSvShowSession]  = useState(false);
+  const [svSessF,        setSvSessF]        = useState({date:"",location:"",duration:"",supervisorNotes:"",evalResult:"",arrived:"",late:"",absent:"",uniform:"",supplies:"",ready:"",bathroom:"",kitchen:"",floors:"",dust:"",details:"",communication:"",attitude:"",speed:""});
+  // Operations Workspace lifted state
+  const [opsTab,         setOpsTab]         = useState(()=>localStorage.getItem("nls_opsTab")||"dashboard");
+  const [opsOpenW,       setOpsOpenW]       = useState(()=>localStorage.getItem("nls_opsCard")||null);
+
+  // ── Persist workspace navigation to localStorage ──
+  useEffect(()=>{ if(bookingTab) localStorage.setItem("nls_bkTab", bookingTab); }, [bookingTab]);
+  useEffect(()=>{ localStorage.setItem("nls_selDept",   selDeptId||""); }, [selDeptId]);
+  useEffect(()=>{ localStorage.setItem("nls_hrTab",     hrTab); }, [hrTab]);
+  useEffect(()=>{ localStorage.setItem("nls_hrCard",    hrOpenCard||""); }, [hrOpenCard]);
+  useEffect(()=>{ localStorage.setItem("nls_hrCardTab", hrCardTab); }, [hrCardTab]);
+  useEffect(()=>{ localStorage.setItem("nls_svTab",     svTab); }, [svTab]);
+  useEffect(()=>{ localStorage.setItem("nls_svCard",    svOpenT||""); }, [svOpenT]);
+  useEffect(()=>{ localStorage.setItem("nls_opsTab",    opsTab); }, [opsTab]);
+  useEffect(()=>{ localStorage.setItem("nls_opsCard",   opsOpenW||""); }, [opsOpenW]);
 
   const isSA        = currentUser?.type==="superadmin";
   const isPartner   = currentUser?.type==="partner";
@@ -998,7 +1026,7 @@ function AppInner() {
       <>
         <style>{S}</style>
         <LoginScreen partners={partners} saAccounts={saAccounts} lang={lang} setLang={setLang}
-          onLogin={u=>{setCurrentUser(u);setPage("dashboard");setDoc(doc(db,"app","data"),{session:u},{merge:true}).catch(console.error);}}/>
+          onLogin={u=>{setCurrentUser(u);const savedPage=localStorage.getItem("nls_page");setPage(savedPage&&savedPage!=="dashboard"?savedPage:"dashboard");setDoc(doc(db,"app","data"),{session:u},{merge:true}).catch(console.error);}}/>
       </>
     );
   }
@@ -1038,7 +1066,7 @@ function AppInner() {
               <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
               <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
             </div>
-            <button onClick={()=>{setCurrentUser(null);setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}
+            <button onClick={()=>{["nls_page","nls_bkTab","nls_selDept","nls_hrTab","nls_hrCard","nls_hrCardTab","nls_svTab","nls_svCard","nls_opsTab","nls_opsCard"].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}
               style={{marginLeft:10,background:"none",border:"1px solid var(--bdr)",borderRadius:7,padding:"5px 11px",cursor:"pointer",fontSize:12,color:"var(--mu)"}}>
               {ru?"Выйти":"Log out"}
             </button>
@@ -1802,9 +1830,10 @@ function AppInner() {
   /* ─── SHARED: Candidate Card helper ─── */
   const CandidateCard = ({card, dept, pid, onBack, lang:ru_mode, allCards}) => {
     const ru = ru_mode==="ru";
-    const [tab, setTab] = useState("profile");
-    const [histInput, setHistInput] = useState("");
-    const [noteText, setNoteText]   = useState("");
+    // state lifted to AppInner
+    const tab = hrCardTab, setTab = setHrCardTab;
+    const histInput = hrHistInput, setHistInput = setHrHistInput;
+    const [noteText, setNoteText] = useState("");
 
     function save(patch) {
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===card.id?{...c,...patch,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
@@ -2119,11 +2148,11 @@ function AppInner() {
     const HR_COLS = ELC_PIPELINE.filter(s=>["candidate","contacted","interview_scheduled","interview_completed","training_assigned","student_lms","training_completed","archived","rejected"].includes(s.id));
     const readyForSV = allCards.filter(c=>c.pipelineStatus==="ready_for_trainee"||c.pipelineStatus==="trainee_assigned");
 
-    const [hrTab,      setHrTab]     = useState("dashboard");
-    const [openCard,   setOpenCard]  = useState(null);
-    const [dragOver,   setDragOver]  = useState(null);
-    const [showNew,    setShowNew]   = useState(false);
-    const [newF,       setNewF]      = useState({firstName:"",lastName:"",phone:"",email:"",language:"",city:"",experience:"",transport:"",comment:""});
+    // state lifted to AppInner
+    const openCard = hrOpenCard, setOpenCard = setHrOpenCard;
+    const dragOver = hrDragOver, setDragOver = setHrDragOver;
+    const showNew  = hrShowNew,  setShowNew  = setHrShowNew;
+    const newF     = hrNewF,     setNewF     = setHrNewF;
 
     const openC = openCard ? allCards.find(c=>c.id===openCard) : null;
 
@@ -2402,10 +2431,10 @@ function AppInner() {
     const allCards = p?.hrCards||[];
     const trainees = allCards.filter(c=>["trainee_assigned","trainee_in_progress","trainee_evaluation","supervisor_approved","ready_for_operations","training_completed"].includes(c.pipelineStatus));
 
-    const [svTab,  setSvTab]  = useState("dashboard");
-    const [openT,  setOpenT]  = useState(null);
-    const [showSession, setShowSession] = useState(false);
-    const [sessF, setSessF] = useState({date:"",location:"",duration:"",supervisorNotes:"",evalResult:"",arrived:"",late:"",absent:"",uniform:"",supplies:"",ready:"",bathroom:"",kitchen:"",floors:"",dust:"",details:"",communication:"",attitude:"",speed:""});
+    // state lifted to AppInner
+    const openT = svOpenT, setOpenT = setSvOpenT;
+    const showSession = svShowSession, setShowSession = setSvShowSession;
+    const sessF = svSessF, setSessF = setSvSessF;
 
     const trainee = openT ? allCards.find(c=>c.id===openT) : null;
 
@@ -2627,8 +2656,8 @@ function AppInner() {
     const allCards = p?.hrCards||[];
     const ready    = allCards.filter(c=>c.pipelineStatus==="ready_for_operations");
     const active   = allCards.filter(c=>c.pipelineStatus==="active_worker");
-    const [openW,  setOpenW]  = useState(null);
-    const [opsTab, setOpsTab] = useState("dashboard");
+    // state lifted to AppInner
+    const openW = opsOpenW, setOpenW = setOpsOpenW;
 
     const worker = openW ? allCards.find(c=>c.id===openW) : null;
 
@@ -8163,7 +8192,7 @@ function AppInner() {
                     );
                   }
                   return (
-                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments")setSelDeptId(null);}}>
+                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}>
                       <span className="ni">{p.icon}</span>{p.label}
                       {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
                       {p.key==="chat"&&totalUnread>0&&<span className="cnt" style={{background:"#ef4444",color:"#fff"}}>{totalUnread>99?"99+":totalUnread}</span>}
@@ -8190,7 +8219,7 @@ function AppInner() {
               </div>
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
-              onClick={()=>{localStorage.removeItem("nls_page");setCurrentUser(null);setViewPartner(null);setPage("dashboard");setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
+              onClick={()=>{['nls_page','nls_bkTab','nls_selDept','nls_hrTab','nls_hrCard','nls_hrCardTab','nls_svTab','nls_svCard','nls_opsTab','nls_opsCard'].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
               ⏏ {IC.logout} {t.logout}
             </button>
           </div>
@@ -8199,7 +8228,7 @@ function AppInner() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="mob-nav">
           {navPages.slice(0,5).map(p=>(
-            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments")setSelDeptId(null);}}
+            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}
               style={{position:"relative"}}>
               <span className="mi" style={{position:"relative"}}>
                 {p.icon}
@@ -8237,7 +8266,7 @@ function AppInner() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {navPages.map(p=>(
                   <button key={p.key} className="btn btn-g" style={{justifyContent:"flex-start",gap:10,padding:"12px 14px"}}
-                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);if(p.key!=="departments")setSelDeptId(null);}}>
+                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}>
                     <span style={{fontSize:18}}>{p.icon}</span>
                     <span style={{fontSize:13}}>{p.label}</span>
                   </button>
@@ -8260,7 +8289,7 @@ function AppInner() {
               </div>
               <div style={{marginTop:10}}>
                 <button className="btn btn-d" style={{width:"100%",justifyContent:"center"}}
-                  onClick={()=>{localStorage.removeItem("nls_page");setCurrentUser(null);setViewPartner(null);setPage("dashboard");setModal(null);}}>
+                  onClick={()=>{['nls_page','nls_bkTab','nls_selDept','nls_hrTab','nls_hrCard','nls_hrCardTab','nls_svTab','nls_svCard','nls_opsTab','nls_opsCard'].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);setModal(null);}}>
                   ⏏ {t.logout}
                 </button>
               </div>
@@ -8671,7 +8700,3 @@ function AppInner() {
 export default function App() {
   return <ErrorBoundary><AppInner/></ErrorBoundary>;
 }
-
-  /* ══════════════════════════════════════════════════════
-     HR STAFF CARDS — карточки сотрудников (внутри HR отдела)
-  ══════════════════════════════════════════════════════ */
