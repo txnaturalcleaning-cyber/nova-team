@@ -8192,7 +8192,7 @@ function AppInner() {
                     );
                   }
                   return (
-                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}>
+                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}>
                       <span className="ni">{p.icon}</span>{p.label}
                       {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
                       {p.key==="chat"&&totalUnread>0&&<span className="cnt" style={{background:"#ef4444",color:"#fff"}}>{totalUnread>99?"99+":totalUnread}</span>}
@@ -8219,7 +8219,7 @@ function AppInner() {
               </div>
             </div>
             <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center"}}
-              onClick={()=>{['nls_page','nls_bkTab','nls_selDept','nls_hrTab','nls_hrCard','nls_hrCardTab','nls_svTab','nls_svCard','nls_opsTab','nls_opsCard'].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
+              onClick={()=>{["nls_page","nls_bkTab","nls_selDept","nls_hrTab","nls_hrCard","nls_hrCardTab","nls_svTab","nls_svCard","nls_opsTab","nls_opsCard"].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);setDoc(doc(db,"app","data"),{session:null},{merge:true}).catch(console.error);}}>
               ⏏ {IC.logout} {t.logout}
             </button>
           </div>
@@ -8228,7 +8228,7 @@ function AppInner() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="mob-nav">
           {navPages.slice(0,5).map(p=>(
-            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}
+            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}
               style={{position:"relative"}}>
               <span className="mi" style={{position:"relative"}}>
                 {p.icon}
@@ -8289,7 +8289,7 @@ function AppInner() {
               </div>
               <div style={{marginTop:10}}>
                 <button className="btn btn-d" style={{width:"100%",justifyContent:"center"}}
-                  onClick={()=>{['nls_page','nls_bkTab','nls_selDept','nls_hrTab','nls_hrCard','nls_hrCardTab','nls_svTab','nls_svCard','nls_opsTab','nls_opsCard'].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);setModal(null);}}>
+                  onClick={()=>{["nls_page","nls_bkTab","nls_selDept","nls_hrTab","nls_hrCard","nls_hrCardTab","nls_svTab","nls_svCard","nls_opsTab","nls_opsCard"].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);setModal(null);}}>
                   ⏏ {t.logout}
                 </button>
               </div>
