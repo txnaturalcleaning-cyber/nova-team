@@ -1125,49 +1125,7 @@ function AppInner() {
 
   /* ── DASHBOARD ── */
   const Dashboard = () => {
-    if (isSA&&!viewPartner) {
-      const totalE=partners.reduce((s,p)=>s+(p.employees||[]).length,0);
-      const rev=partners.filter(p=>p.status==="active").reduce((s,p)=>s+(PLAN_LIMITS[p.plan]?.price||0),0);
-      return (
-        <>
-          <div className="stats">
-            {[
-              {l:t.totalPartners,  v:partners.length,                                sub:`${partners.filter(p=>p.status==="active").length} ${t.activePartners}`, c:"var(--acc)"},
-              {l:t.totalEmployees, v:totalE,                                         sub:t.inAllCompanies,c:"var(--bl)"},
-              {l:t.monthlyRevenue, v:`$${rev.toLocaleString()}`,                     sub:t.byActivePlans, c:"var(--gr)"},
-              {l:t.blockedCount,   v:partners.filter(p=>p.status==="blocked").length,sub:t.partners,      c:"var(--rd)"},
-            ].map((s,i)=>(
-              <div className="stat" key={i}>
-                <div className="stat-l">{s.l}</div>
-                <div className="stat-v" style={{color:s.c}}>{s.v}</div>
-                <div className="stat-s">{s.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div className="card">
-            <div className="card-hd"><div className="card-t">{t.allPartners}</div></div>
-            <div className="tw">
-              <table>
-                <thead><tr><th>{t.company}</th><th>{t.plan}</th><th>{t.empCount}</th><th>{t.createdAt}</th><th>{t.status}</th><th>{t.actions}</th></tr></thead>
-                <tbody>
-                  {partners.map(p=>(
-                    <tr key={p.id}>
-                      <td><div className="flex-c"><div style={{fontSize:18}}>{p.logo||"🏢"}</div><div><div style={{fontWeight:500}}>{p.companyName}</div><div style={{fontSize:11,color:"var(--mu)"}}>{p.email}</div></div></div></td>
-                      <td><Bdg cls={planBdg(p.plan)}>{p.plan} — ${PLAN_LIMITS[p.plan]?.price}/mo</Bdg></td>
-                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600}}>{(p.employees||[]).length}</td>
-                      <td style={{color:"var(--mu)",fontSize:12}}>{p.createdAt}</td>
-                      <td><Bdg cls={p.status==="active"?"b-gr":"b-rd"}>{p.status==="active"?t.active:t.blocked}</Bdg></td>
-                      <td><button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button></td>
-                    </tr>
-                  ))}
-                  {!partners.length&&<tr><td colSpan={6} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{t.noPartners}</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      );
-    }
+    // SA partners mini-block rendered at bottom of dashboard (see below)
     const ws=activeWS; const emps=ws?.employees||[]; const tasks=ws?.tasks||[]; const depts=ws?.departments||[];
     const myPid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
     const myLogo = getPartner(myPid)?.logoUrl||"";
@@ -1591,8 +1549,56 @@ function AppInner() {
             ))}
           </div>
         </div>
-      </>
-    );
+
+        {/* ── SA-only: Partners overview ── */}
+        {isSA&&!viewPartner&&(
+          <div style={{marginTop:18}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}} className="kpi-row">
+              {(()=>{
+                const totalE=partners.reduce((s,p)=>s+(p.employees||[]).length,0);
+                const saRev=partners.filter(p=>p.status==="active").reduce((s,p)=>s+(PLAN_LIMITS[p.plan]?.price||0),0);
+                return [
+                  {ico:"🏢",l:lang==="ru"?"Всего партнёров":"Total Partners",    v:partners.length,  sub:`${partners.filter(p=>p.status==="active").length} active`,c:"var(--acc)"},
+                  {ico:"👥",l:lang==="ru"?"Всего сотрудников":"Total Employees",  v:totalE,           sub:lang==="ru"?"по всем компаниям":"across all companies",c:"var(--bl)"},
+                  {ico:"💰",l:lang==="ru"?"Месячный доход":"Monthly Revenue",     v:`$${saRev.toLocaleString()}`, sub:lang==="ru"?"по активным планам":"from active plans",c:"var(--gr)"},
+                  {ico:"🚫",l:lang==="ru"?"Заблокировано":"Blocked",              v:partners.filter(p=>p.status==="blocked").length, sub:lang==="ru"?"партнёров":"partners",c:"var(--rd)"},
+                ].map((s,i)=>(
+                  <div key={i} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 14px"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                      <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600}}>{s.l}</span>
+                      <span style={{fontSize:16}}>{s.ico}</span>
+                    </div>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
+                    <div style={{fontSize:10,color:"var(--mu)"}}>{s.sub}</div>
+                  </div>
+                ));
+              })()}
+            </div>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,overflow:"hidden"}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13}}>🏢 {t.allPartners}</div>
+                <button className="btn btn-p btn-sm" onClick={()=>setPage("partners")}>{lang==="ru"?"Управление":"Manage"} →</button>
+              </div>
+              <div className="tw">
+                <table>
+                  <thead><tr><th>{t.company}</th><th>{t.plan}</th><th>{t.empCount}</th><th>{t.status}</th><th>{t.actions}</th></tr></thead>
+                  <tbody>
+                    {partners.slice(0,6).map(p=>(
+                      <tr key={p.id}>
+                        <td><div className="flex-c"><div style={{fontSize:16}}>{p.logo||"🏢"}</div><div><div style={{fontWeight:500,fontSize:12}}>{p.companyName}</div><div style={{fontSize:10,color:"var(--mu)"}}>{p.email}</div></div></div></td>
+                        <td><Bdg cls={planBdg(p.plan)}>{p.plan}</Bdg></td>
+                        <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:12}}>{(p.employees||[]).length}</td>
+                        <td><Bdg cls={p.status==="active"?"b-gr":"b-rd"}>{p.status==="active"?t.active:t.blocked}</Bdg></td>
+                        <td><button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button></td>
+                      </tr>
+                    ))}
+                    {!partners.length&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--mu)",padding:24,fontSize:12}}>{t.noPartners}</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
   };
 
   /* ── EMPLOYEES + DEPARTMENTS ── */
