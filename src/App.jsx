@@ -442,6 +442,10 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
   .mob-nav{display:flex !important;}
   .mob-ch-btn{display:flex !important;}
   .mob-tabs-bar{display:flex !important;}
+  /* Dashboard responsive */
+  .kpi-row{grid-template-columns:1fr 1fr !important;}
+  .cal-ai-row{grid-template-columns:1fr !important;}
+  .act-grid{grid-template-columns:1fr !important;}
 }
 .mob-nav{
   display:none;position:fixed;bottom:0;left:0;right:0;height:60px;
@@ -628,6 +632,14 @@ function AppInner() {
   const [bookingTab,  setBookingTab]  = useState("calendar");
   const [bkExpanded,  setBkExpanded]  = useState(false);
   const chatEndRef = useRef(null);
+
+  // ── Dashboard state — lifted to survive re-renders ──
+  const [dashRevPeriod,  setDashRevPeriod]  = useState("30");
+  const [dashQuickOpen,  setDashQuickOpen]  = useState(false);
+  const [dashDayDetail,  setDashDayDetail]  = useState(null);
+  const [dashCalMonth,   setDashCalMonth]   = useState(new Date());
+  const [dashLogoInput,  setDashLogoInput]  = useState("");
+  const [dashLogoEdit,   setDashLogoEdit]   = useState(false);
 
   const isSA      = currentUser?.type==="superadmin";
   const isPartner = currentUser?.type==="partner";
@@ -1113,8 +1125,6 @@ function AppInner() {
 
   /* ── DASHBOARD ── */
   const Dashboard = () => {
-    const [logoInput, setLogoInput] = useState("");
-    const [showLogoEdit, setShowLogoEdit] = useState(false);
     if (isSA&&!viewPartner) {
       const totalE=partners.reduce((s,p)=>s+(p.employees||[]).length,0);
       const rev=partners.filter(p=>p.status==="active").reduce((s,p)=>s+(PLAN_LIMITS[p.plan]?.price||0),0);
@@ -1161,77 +1171,424 @@ function AppInner() {
     const ws=activeWS; const emps=ws?.employees||[]; const tasks=ws?.tasks||[]; const depts=ws?.departments||[];
     const myPid = viewPartner?.id||(isSA?"nce_main":currentUser?.id);
     const myLogo = getPartner(myPid)?.logoUrl||"";
+    const bookings = ws?.bookings||[];
+    const contacts = ws?.contacts||[];
+    const pnlData  = ws?.pnl||[];
+
+    // ── bind lifted state (prevents state reset on re-renders) ──
+    const revPeriod    = dashRevPeriod,   setRevPeriod   = setDashRevPeriod;
+    const quickOpen    = dashQuickOpen,   setQuickOpen   = setDashQuickOpen;
+    const dayDetail    = dashDayDetail,   setDayDetail   = setDashDayDetail;
+    const calMonth     = dashCalMonth,    setCalMonth    = setDashCalMonth;
+    const logoInput    = dashLogoInput,   setLogoInput   = setDashLogoInput;
+    const showLogoEdit = dashLogoEdit,    setShowLogoEdit = setDashLogoEdit;
+    const today2 = new Date().toISOString().split("T")[0];
+
+    // ── KPI calcs ──
+    const todayBks    = bookings.filter(b=>b.date===today2);
+    const monthStr    = today2.slice(0,7);
+    const monthBks    = bookings.filter(b=>b.date?.startsWith(monthStr));
+    const revenue     = monthBks.reduce((s,b)=>s+(b.total||b.price||0),0);
+    const activeCleaners = emps.filter(e=>e.status==="active"&&(e.role||"").toLowerCase().includes(lang==="ru"?"клин":"clean")).length||
+                           emps.filter(e=>e.status==="active").length;
+    const todayLeads  = contacts.filter(c=>c.createdAt===today2).length;
+
+    // ── Revenue chart data ──
+    const days = +revPeriod;
+    const revChartData = Array.from({length:days},(_,i)=>{
+      const d = new Date(); d.setDate(d.getDate()-days+1+i);
+      const ds = d.toISOString().split("T")[0];
+      const dayRev = bookings.filter(b=>b.date===ds&&b.status!=="cancelled")
+                              .reduce((s,b)=>s+(b.total||b.price||0),0);
+      return {
+        date: ds,
+        label: lang==="ru"
+          ? `${d.getDate()} ${["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"][d.getMonth()]}`
+          : `${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`,
+        rev: dayRev,
+      };
+    });
+    const avgDaily = revChartData.reduce((s,d)=>s+d.rev,0)/Math.max(revChartData.filter(d=>d.rev>0).length,1);
+    const daysLeft = new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()-new Date().getDate();
+    const forecast = revenue + Math.round(avgDaily*daysLeft);
+
+    // ── Calendar helpers ──
+    const calYear = calMonth.getFullYear(), calMo = calMonth.getMonth();
+    const firstDay = new Date(calYear,calMo,1).getDay();
+    const daysInMonth = new Date(calYear,calMo+1,0).getDate();
+    function bksForDay(ds) { return bookings.filter(b=>b.date===ds); }
+    function dayColor(ds) {
+      const cnt = bksForDay(ds).length;
+      const cleanerCnt = [...new Set(bksForDay(ds).map(b=>b.cleanerId).filter(Boolean))].length;
+      if (cnt===0) return null;
+      if (cnt>6||cleanerCnt===0) return "#ef4444";
+      if (cnt>4) return "#f0a500";
+      return "#22c55e";
+    }
+    const CAL_DAYS_RU = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+    const CAL_DAYS_EN = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+    const calDayNames = lang==="ru"?CAL_DAYS_RU:CAL_DAYS_EN;
+    const MONTH_NAMES_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+    const MONTH_NAMES_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const monthName = (lang==="ru"?MONTH_NAMES_RU:MONTH_NAMES_EN)[calMo];
+
+    // ── AI Recommendations ──
+    const aiRecs = [];
+    const freeSlotsToday = Math.max(0, activeCleaners - todayBks.length);
+    if (freeSlotsToday>0)
+      aiRecs.push({lvl:"info", ico:"📅",
+        text:lang==="ru"?`Сегодня ${freeSlotsToday} свободных слота — можно взять дополнительные заявки`
+                        :`Today ${freeSlotsToday} open slot${freeSlotsToday>1?"s":""} — you can take more bookings`,
+        action:{label:lang==="ru"?"Открыть расписание":"View Schedule", fn:()=>setPage("booking")}});
+    const tmw = new Date(); tmw.setDate(tmw.getDate()+1);
+    const tmwStr = tmw.toISOString().split("T")[0];
+    const tmwBks = bookings.filter(b=>b.date===tmwStr);
+    const tmwCleaners = [...new Set(tmwBks.map(b=>b.cleanerId).filter(Boolean))].length;
+    if (tmwBks.length>0&&tmwCleaners<tmwBks.length)
+      aiRecs.push({lvl:"warning", ico:"⚠️",
+        text:lang==="ru"?`Завтра ${tmwBks.length} уборок, назначено клинеров: ${tmwCleaners}. Нужно назначить ещё ${tmwBks.length-tmwCleaners}`
+                        :`Tomorrow ${tmwBks.length} jobs, only ${tmwCleaners} cleaner${tmwCleaners!==1?"s":""} assigned`,
+        action:{label:lang==="ru"?"Назначить":"Assign", fn:()=>setPage("booking")}});
+    const unassigned = bookings.filter(b=>!b.cleanerId&&b.status!=="cancelled"&&b.date>=today2);
+    if (unassigned.length>0)
+      aiRecs.push({lvl:"warning", ico:"🧹",
+        text:lang==="ru"?`${unassigned.length} заявок без назначенного клинера`
+                        :`${unassigned.length} booking${unassigned.length>1?"s":""} without assigned cleaner`,
+        action:{label:lang==="ru"?"Исправить":"Fix", fn:()=>setPage("booking")}});
+    if (todayLeads>0)
+      aiRecs.push({lvl:"info", ico:"🎯",
+        text:lang==="ru"?`Сегодня ${todayLeads} новых лида — обработайте их быстро`
+                        :`${todayLeads} new lead${todayLeads>1?"s":""} today — respond quickly`,
+        action:{label:lang==="ru"?"Открыть CRM":"Open CRM", fn:()=>setPage("crm")}});
+    if (revenue>0&&forecast>revenue)
+      aiRecs.push({lvl:"info", ico:"📈",
+        text:lang==="ru"?`Прогноз выручки до конца месяца: $${forecast.toLocaleString()}`
+                        :`Forecast to end of month: $${forecast.toLocaleString()}`,
+        action:null});
+    const inactiveClients = contacts.filter(c=>{
+      if (!c.history||!c.history.length) return false;
+      const last = c.history[c.history.length-1];
+      const diff = (Date.now()-new Date(last.date||0))/(1000*60*60*24);
+      return diff>30;
+    });
+    if (inactiveClients.length>0)
+      aiRecs.push({lvl:"info", ico:"💌",
+        text:lang==="ru"?`${inactiveClients.length} клиентов неактивны 30+ дней — отправьте предложение`
+                        :`${inactiveClients.length} client${inactiveClients.length>1?"s":""} inactive 30+ days`,
+        action:{label:lang==="ru"?"Открыть CRM":"Open CRM", fn:()=>setPage("crm")}});
+    if (aiRecs.length===0)
+      aiRecs.push({lvl:"info", ico:"✅",
+        text:lang==="ru"?"Всё под контролем. Отличная работа!":"Everything looks great. Keep it up!",
+        action:null});
+
+    // ── Activity Feed ──
+    const activityFeed = [
+      ...bookings.slice(-20).map(b=>({
+        id:"bk_"+b.id, ts:b.date+" "+b.time,
+        ico:"📅", color:"var(--bl)",
+        text:lang==="ru"
+          ? `Заявка ${b.status==="done"?"выполнена":"создана"}: ${(ws?.bkClients||[]).find(c=>c.id===b.clientId)?.name||"—"}`
+          : `Booking ${b.status==="done"?"completed":"created"}: ${(ws?.bkClients||[]).find(c=>c.id===b.clientId)?.name||"—"}`,
+      })),
+      ...contacts.slice(-10).map(c=>({
+        id:"cr_"+c.id, ts:c.createdAt,
+        ico:"🎯", color:"var(--gr)",
+        text:lang==="ru"?`Новый лид: ${c.name}`:`New lead: ${c.name}`,
+      })),
+      ...tasks.filter(t=>t.status==="done").slice(-5).map(t=>({
+        id:"tk_"+t.id, ts:t.due||today2,
+        ico:"✅", color:"#22c55e",
+        text:lang==="ru"?`Задача выполнена: ${t.title}`:`Task done: ${t.title}`,
+      })),
+    ].sort((a,b)=>b.ts?.localeCompare(a.ts||"")).slice(0,15);
+
+    // ── Quick actions ──
+    const quickActions = [
+      {ico:"📅", label:lang==="ru"?"Новая заявка":"Add Booking",   fn:()=>{setPage("booking");setBookingTab("calendar");}},
+      {ico:"👤", label:lang==="ru"?"Добавить клиента":"Add Client",fn:()=>{setPage("booking");setBookingTab("clients");}},
+      {ico:"🎯", label:lang==="ru"?"Открыть CRM":"Open CRM",       fn:()=>setPage("crm")},
+      {ico:"📋", label:lang==="ru"?"Создать задачу":"Create Task",  fn:()=>setPage("tasks")},
+      {ico:"📊", label:lang==="ru"?"Отчёты":"View Reports",        fn:()=>{setPage("booking");setBookingTab("reports");}},
+      {ico:"💬", label:lang==="ru"?"Открыть чат":"Open Chat",      fn:()=>setPage("chat")},
+      {ico:"📚", label:lang==="ru"?"База знаний":"Knowledge Base", fn:()=>setPage("kb")},
+      {ico:"⚙️", label:lang==="ru"?"Настройки":"Settings",        fn:()=>{setPage("booking");setBookingTab("settings");}},
+    ];
+
+    const LVL_STYLE = {
+      info:     {bg:"var(--bl)12",    border:"var(--bl)30",    dot:"var(--bl)"},
+      warning:  {bg:"#f0a50012",      border:"#f0a50030",      dot:"#f0a500"},
+      critical: {bg:"#ef444412",      border:"#ef444430",      dot:"#ef4444"},
+    };
+
     return (
       <>
-        {/* Logo upload widget — visible to partner and SA in cabinet */}
+        {/* ── Logo strip ── */}
         {(isPartner||viewPartner)&&(
-          <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:12,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 16px"}}>
-            <div style={{width:52,height:52,borderRadius:10,background:"var(--s2)",border:"1px solid var(--bdr)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-              {myLogo ? <img src={myLogo} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:4}}/> : <span style={{fontSize:26}}>{ws?.logo||"🏢"}</span>}
+          <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
+            background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"10px 14px"}}>
+            <div style={{width:38,height:38,borderRadius:8,background:"var(--s2)",border:"1px solid var(--bdr)",
+              display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+              {myLogo?<img src={myLogo} alt="" style={{width:"100%",height:"100%",objectFit:"contain",padding:3}}/>
+                     :<span style={{fontSize:20}}>{ws?.logo||"🏢"}</span>}
             </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,marginBottom:4}}>{lang==="ru"?"Логотип компании":"Company Logo"}</div>
-              {showLogoEdit ? (
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  <input className="inp" value={logoInput} onChange={e=>setLogoInput(e.target.value)}
-                    placeholder="https://...logo.png" style={{fontSize:11,padding:"4px 8px",flex:1}}/>
-                  <button className="btn btn-p btn-sm" onClick={()=>{
-                    setPartners(ps=>ps.map(x=>x.id===myPid?{...x,logoUrl:logoInput}:x));
-                    setShowLogoEdit(false);
-                  }}>{lang==="ru"?"Сохранить":"Save"}</button>
-                  <button className="btn btn-g btn-sm" onClick={()=>setShowLogoEdit(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
-                </div>
-              ) : (
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontSize:11,color:"var(--mu)"}}>{myLogo ? (lang==="ru"?"Логотип загружен":"Logo set") : (lang==="ru"?"Логотип не загружен":"No logo yet")}</span>
-                  <button className="btn btn-g btn-sm" onClick={()=>{setLogoInput(myLogo);setShowLogoEdit(true);}}>
-                    {IC.plus} {lang==="ru"?"Изменить":"Change"}
-                  </button>
-                  {myLogo&&<button className="btn btn-d btn-sm" onClick={()=>setPartners(ps=>ps.map(x=>x.id===myPid?{...x,logoUrl:""}:x))}>{IC.trash}</button>}
-                </div>
+            <div style={{flex:1,minWidth:120}}>
+              <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ws?.companyName||"—"}</div>
+              <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Дашборд компании":"Company Dashboard"}</div>
+            </div>
+            {/* Quick Actions button */}
+            <div style={{position:"relative",flexShrink:0}}>
+              <button className="btn btn-p" style={{gap:5,padding:"6px 12px",fontSize:11}}
+                onClick={()=>setQuickOpen(x=>!x)}>
+                ⚡ {lang==="ru"?"Действия":"Actions"}
+                <span style={{fontSize:9,opacity:.7}}>▾</span>
+              </button>
+              {quickOpen&&(
+                <>
+                  <div style={{position:"fixed",inset:0,zIndex:299}} onClick={()=>setQuickOpen(false)}/>
+                  <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,
+                    background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:12,
+                    boxShadow:"0 12px 40px #00000035",zIndex:300,width:"min(260px,90vw)",padding:6,
+                    display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+                    {quickActions.map((a,i)=>(
+                      <button key={i} onClick={()=>{a.fn();setQuickOpen(false);}}
+                        style={{display:"flex",alignItems:"center",gap:7,padding:"9px 10px",borderRadius:8,
+                          border:"none",background:"transparent",cursor:"pointer",fontSize:12,
+                          color:"var(--tx)",textAlign:"left"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="var(--s2)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <span style={{fontSize:15,flexShrink:0}}>{a.ico}</span>
+                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
+            {/* Logo edit */}
+            <button className="btn btn-g btn-sm" style={{flexShrink:0,padding:"5px 10px",fontSize:11}}
+              onClick={()=>{setLogoInput(myLogo);setShowLogoEdit(x=>!x);}}>
+              ✏️ {lang==="ru"?"Лого":"Logo"}
+            </button>
           </div>
         )}
-        <div className="stats">
+        {showLogoEdit&&(
+          <div style={{marginBottom:14,display:"flex",gap:6,alignItems:"center",
+            background:"var(--s2)",borderRadius:10,padding:"10px 14px"}}>
+            <input className="inp" value={logoInput} onChange={e=>setLogoInput(e.target.value)}
+              placeholder="https://...logo.png" style={{fontSize:11,flex:1}}/>
+            <button className="btn btn-p btn-sm" onClick={()=>{
+              setPartners(ps=>ps.map(x=>x.id===myPid?{...x,logoUrl:logoInput}:x));
+              setShowLogoEdit(false);
+            }}>{lang==="ru"?"Сохранить":"Save"}</button>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowLogoEdit(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+          </div>
+        )}
+
+        {/* ── KPI Row ── */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}} className="kpi-row">
           {[
-            {l:t.empCount,   v:emps.length,                                     sub:`${emps.filter(e=>e.status==="active").length} ${t.activePartners}`, c:"var(--acc)"},
-            {l:t.taskCount,  v:tasks.length,                                    sub:`${tasks.filter(t=>t.status==="done").length} ${t.done}`,             c:"var(--bl)"},
-            {l:t.inProgress, v:tasks.filter(t=>t.status==="in_progress").length,sub:t.tasks,                                                              c:"var(--gr)"},
-            {l:t.deptCount,  v:depts.length,                                    sub:t.created,                                                            c:"var(--pu)"},
+            {ico:"💰", l:lang==="ru"?"Выручка / мес":"Revenue / Month",
+              v:`$${revenue.toLocaleString()}`, sub:lang==="ru"?`+$${(forecast-revenue).toLocaleString()} прогноз`:`$${forecast.toLocaleString()} forecast`, c:"var(--gr)"},
+            {ico:"🧹", l:lang==="ru"?"Уборок сегодня":"Jobs Today",
+              v:todayBks.length, sub:lang==="ru"?`${todayBks.filter(b=>b.status==="done").length} выполнено`:`${todayBks.filter(b=>b.status==="done").length} done`, c:"var(--acc)"},
+            {ico:"🎯", l:lang==="ru"?"Лиды сегодня":"Leads Today",
+              v:todayLeads, sub:lang==="ru"?`${contacts.length} всего`:`${contacts.length} total`, c:"var(--bl)"},
+            {ico:"👥", l:lang==="ru"?"Активных":"Active Staff",
+              v:emps.filter(e=>e.status==="active").length, sub:lang==="ru"?`из ${emps.length} сотр.`:`of ${emps.length}`, c:"var(--pu)"},
           ].map((s,i)=>(
-            <div className="stat" key={i}>
-              <div className="stat-l">{s.l}</div>
-              <div className="stat-v" style={{color:s.c}}>{s.v}</div>
-              <div className="stat-s">{s.sub}</div>
+            <div key={i} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"12px 14px"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.3}}>{s.l}</span>
+                <span style={{fontSize:16,lineHeight:1}}>{s.ico}</span>
+              </div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
+              <div style={{fontSize:10,color:"var(--mu)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sub}</div>
             </div>
           ))}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:15}}>
-          <div className="card">
-            <div className="card-hd"><div className="card-t">{t.recentTasks}</div></div>
-            {tasks.slice(0,5).map(task=>{
-              const emp=emps.find(e=>e.id===task.assigneeId);
+
+        {/* ── Revenue Chart ── */}
+        <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"16px 18px",marginBottom:18}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,flex:1}}>
+              📈 {lang==="ru"?"Выручка по дням":"Revenue by Day"}
+            </div>
+            <div style={{display:"flex",gap:5}}>
+              {[["7",lang==="ru"?"7 дней":"7d"],["30",lang==="ru"?"30 дней":"30d"],["90",lang==="ru"?"Квартал":"Quarter"]].map(([k,v])=>(
+                <button key={k} onClick={()=>setRevPeriod(k)}
+                  style={{padding:"4px 11px",borderRadius:7,fontSize:11,cursor:"pointer",fontWeight:600,
+                    border:`1px solid ${revPeriod===k?"var(--acc)":"var(--bdr)"}`,
+                    background:revPeriod===k?"var(--acc)":"transparent",
+                    color:revPeriod===k?"#fff":"var(--mu)"}}>
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+          {revChartData.some(d=>d.rev>0) ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={revChartData} barSize={days<=7?28:days<=30?10:5} margin={{top:4,right:4,left:-20,bottom:0}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--bdr)" vertical={false}/>
+                <XAxis dataKey="label" tick={{fill:"var(--mu)",fontSize:9}}
+                  interval={days<=7?0:days<=30?3:9} tickLine={false} axisLine={false}/>
+                <YAxis tick={{fill:"var(--mu)",fontSize:9}} tickLine={false} axisLine={false}
+                  tickFormatter={v=>v>=1000?`$${Math.round(v/100)/10}k`:`$${v}`}/>
+                <Tooltip
+                  contentStyle={{background:"var(--s2)",border:"1px solid var(--bdr2)",borderRadius:8,fontSize:11}}
+                  formatter={(v)=>[`$${v.toLocaleString()}`,lang==="ru"?"Выручка":"Revenue"]}
+                  labelStyle={{color:"var(--mu)",marginBottom:3}}/>
+                <Bar dataKey="rev" fill="var(--acc)" radius={[4,4,0,0]} opacity={0.9}/>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{height:120,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"var(--mu)",gap:6}}>
+              <div style={{fontSize:28,opacity:.3}}>📊</div>
+              <div style={{fontSize:12}}>{lang==="ru"?"Нет данных о выручке за этот период":"No revenue data for this period"}</div>
+            </div>
+          )}
+          {revenue>0&&<div style={{display:"flex",gap:16,marginTop:10,fontSize:11,color:"var(--mu)",borderTop:"1px solid var(--bdr)",paddingTop:10}}>
+            <span>📅 {lang==="ru"?"Этот месяц":"This month"}: <b style={{color:"var(--gr)"}}>${revenue.toLocaleString()}</b></span>
+            <span>🔮 {lang==="ru"?"Прогноз":"Forecast"}: <b style={{color:"var(--bl)"}}>${forecast.toLocaleString()}</b></span>
+            <span>📊 {lang==="ru"?"Ср/день":"Avg/day"}: <b style={{color:"var(--acc)"}}>${Math.round(avgDaily).toLocaleString()}</b></span>
+          </div>}
+        </div>
+
+        {/* ── Calendar + AI ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}} className="cal-ai-row">
+
+          {/* Calendar */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",marginBottom:12}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,flex:1}}>
+                📅 {monthName} {calYear}
+              </div>
+              <button onClick={()=>setCalMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1))}
+                style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"var(--mu)",padding:"2px 6px"}}>‹</button>
+              <button onClick={()=>setCalMonth(new Date())}
+                style={{background:"none",border:"1px solid var(--bdr)",cursor:"pointer",fontSize:10,color:"var(--mu)",padding:"3px 8px",borderRadius:6,margin:"0 4px"}}>
+                {lang==="ru"?"Сегодня":"Today"}
+              </button>
+              <button onClick={()=>setCalMonth(m=>new Date(m.getFullYear(),m.getMonth()+1,1))}
+                style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"var(--mu)",padding:"2px 6px"}}>›</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}}>
+              {calDayNames.map(d=><div key={d} style={{textAlign:"center",fontSize:9,color:"var(--mu)",fontWeight:600,padding:"2px 0"}}>{d}</div>)}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+              {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
+              {Array.from({length:daysInMonth},(_,i)=>{
+                const day=i+1;
+                const ds=`${calYear}-${String(calMo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                const cnt=bksForDay(ds).length;
+                const dc=dayColor(ds);
+                const isToday=ds===today2;
+                const isSelected=dayDetail===ds;
+                return (
+                  <div key={day} onClick={()=>setDayDetail(dayDetail===ds?null:ds)}
+                    style={{textAlign:"center",padding:"4px 2px",borderRadius:6,cursor:cnt>0?"pointer":"default",
+                      background:isSelected?"var(--acc)20":isToday?"var(--acc)12":"transparent",
+                      border:`1px solid ${isToday?"var(--acc)":isSelected?"var(--acc)":"transparent"}`,
+                      position:"relative",transition:"all .1s"}}>
+                    <div style={{fontSize:11,fontWeight:isToday?700:400,color:isToday?"var(--acc)":"var(--tx)"}}>{day}</div>
+                    {cnt>0&&<div style={{width:6,height:6,borderRadius:"50%",background:dc||"var(--acc)",
+                      margin:"1px auto 0",flexShrink:0}}/>}
+                    {cnt>1&&<div style={{fontSize:7,color:dc||"var(--mu)",fontWeight:700,lineHeight:1}}>{cnt}</div>}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Day detail */}
+            {dayDetail&&(()=>{
+              const dbks=bksForDay(dayDetail);
               return (
-                <div key={task.id} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:"1px solid var(--bdr)"}}>
-                  {emp&&<Av name={emp.name}/>}
-                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div><div style={{fontSize:11,color:"var(--mu)"}}>{emp?.name||"—"}</div></div>
-                  <Bdg cls={task.status==="done"?"b-gr":task.status==="in_progress"?"b-yw":"b-mu"}>{task.status==="done"?t.done:task.status==="in_progress"?t.inProgress:t.todo.replace("📋 ","")}</Bdg>
+                <div style={{marginTop:10,borderTop:"1px solid var(--bdr)",paddingTop:10}}>
+                  <div style={{fontSize:11,fontWeight:600,marginBottom:8,color:"var(--acc)"}}>
+                    📋 {dayDetail} — {dbks.length} {lang==="ru"?"уборок":"jobs"}
+                  </div>
+                  {dbks.length===0&&<div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"Нет уборок":"No bookings"}</div>}
+                  {dbks.slice(0,4).map(b=>{
+                    const cl=(ws?.bkClients||[]).find(c=>c.id===b.clientId);
+                    const emp=emps.find(e=>e.id===b.cleanerId);
+                    const sc={"pending":"#f0a500","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)";
+                    return (
+                      <div key={b.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,
+                        padding:"6px 8px",background:"var(--s2)",borderRadius:8}}>
+                        <div style={{width:6,height:6,borderRadius:"50%",background:sc,flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {b.time} · {cl?.name||"—"}
+                          </div>
+                          <div style={{fontSize:10,color:"var(--mu)"}}>{emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
+                        </div>
+                        <div style={{fontSize:10,color:"var(--gr)",fontWeight:700}}>${b.total||b.price||0}</div>
+                      </div>
+                    );
+                  })}
+                  {dbks.length>4&&<div style={{fontSize:10,color:"var(--mu)",textAlign:"center"}}>+{dbks.length-4} {lang==="ru"?"ещё":"more"}</div>}
+                </div>
+              );
+            })()}
+            {/* Legend */}
+            <div style={{display:"flex",gap:10,marginTop:10,fontSize:9,color:"var(--mu)"}}>
+              {[["#22c55e",lang==="ru"?"Норма":"OK"],["#f0a500",lang==="ru"?"Загруженно":"Busy"],["#ef4444",lang==="ru"?"Перегруз":"Over"]].map(([c,l])=>(
+                <div key={c} style={{display:"flex",alignItems:"center",gap:3}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:c}}/>{l}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Recommendations */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px",display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:4}}>
+              🤖 {lang==="ru"?"AI Рекомендации":"AI Recommendations"}
+            </div>
+            {aiRecs.map((r,i)=>{
+              const s=LVL_STYLE[r.lvl]||LVL_STYLE.info;
+              return (
+                <div key={i} style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:10,padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:s.dot,flexShrink:0,marginTop:4}}/>
+                    <div style={{flex:1,fontSize:12,color:"var(--tx)",lineHeight:1.5}}>{r.ico} {r.text}</div>
+                  </div>
+                  {r.action&&(
+                    <button onClick={r.action.fn}
+                      style={{marginTop:7,marginLeft:16,padding:"4px 12px",fontSize:11,fontWeight:600,
+                        background:"transparent",border:`1px solid ${s.dot}`,borderRadius:6,
+                        color:s.dot,cursor:"pointer"}}>
+                      {r.action.label} →
+                    </button>
+                  )}
                 </div>
               );
             })}
-            {!tasks.length&&<div style={{textAlign:"center",color:"var(--mu)",padding:18,fontSize:13}}>{t.noTasks}</div>}
           </div>
-          <div className="card">
-            <div className="card-hd"><div className="card-t">{t.employees}</div></div>
-            {emps.slice(0,6).map(e=>(
-              <div key={e.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
-                <Av name={e.name}/>
-                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500}}>{e.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{e.role}</div></div>
-                <Bdg cls={e.status==="active"?"b-gr":"b-rd"}>{e.status==="active"?t.active:t.inactive}</Bdg>
+        </div>
+
+        {/* ── Activity Feed ── */}
+        <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px"}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>
+            ⚡ {lang==="ru"?"Активность системы":"Activity Feed"}
+          </div>
+          {activityFeed.length===0&&(
+            <div style={{textAlign:"center",color:"var(--mu)",padding:"20px 0",fontSize:12}}>
+              {lang==="ru"?"Нет активности пока":"No activity yet"}
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 14px"}} className="act-grid">
+            {activityFeed.map((a,i)=>(
+              <div key={a.id||i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",
+                borderBottom:"1px solid var(--bdr)"}}>
+                <div style={{width:28,height:28,borderRadius:7,background:a.color+"18",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0}}>
+                  {a.ico}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.text}</div>
+                  <div style={{fontSize:9,color:"var(--mu)"}}>{a.ts}</div>
+                </div>
               </div>
             ))}
-            {!emps.length&&<div style={{textAlign:"center",color:"var(--mu)",padding:18,fontSize:13}}>{t.noEmployees}</div>}
           </div>
         </div>
       </>
