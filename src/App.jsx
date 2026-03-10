@@ -7114,13 +7114,28 @@ function AppInner() {
   const Training = () => {
     const pid      = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p        = getPartner(pid)||{lessons:[],assignments:[],employees:[],departments:[],branches:[]};
-    const lessons  = p?.lessons||[];
-    const assigns  = p?.assignments||[];
-    const emps     = p?.employees||[];
-    const depts    = p?.departments||[];
-    const brs      = p?.branches||[];
-    const isHR     = isEmp && (currentUser.role||"").toLowerCase().includes("hr");
-    const canAdmin = isSA||isPartner||isHR;
+    const lessons      = p?.lessons||[];
+    const assigns      = p?.assignments||[];
+    const emps         = p?.employees||[];
+    const depts        = p?.departments||[];
+    const brs          = p?.branches||[];
+    // HR candidates from hrCards — these are the learners in Corex LMS
+    const hrCandidates = (p?.hrCards||[]).filter(c=>c.firstName);
+    const isHR         = isEmp && (currentUser.role||"").toLowerCase().includes("hr");
+    const canAdmin     = isSA||isPartner||isHR;
+    // Helper: get display name for an assignee (could be hrCard or employee)
+    function getLearnerName(id) {
+      const cand = hrCandidates.find(c=>c.id===id);
+      if (cand) return (cand.firstName||"")+" "+(cand.lastName||"");
+      const emp = emps.find(e=>e.id===id);
+      return emp?.name||id||"—";
+    }
+    function getLearnerRole(id) {
+      const cand = hrCandidates.find(c=>c.id===id);
+      if (cand) return cand.tag||"HR Candidate";
+      const emp = emps.find(e=>e.id===id);
+      return emp?.role||"";
+    }
 
     const [tab,     setTab]     = useState(isEmp&&!isHR ? "my" : "lessons");
     const [lsnView, setLsnView] = useState(null);   // open lesson id
@@ -7458,11 +7473,12 @@ function AppInner() {
                 </tr></thead>
                 <tbody>
                   {assigns.map(a=>{
-                    const emp = emps.find(e=>e.id===a.employeeId);
-                    const lsn = lessons.find(l=>l.id===a.lessonId);
+                    const name = getLearnerName(a.employeeId);
+                    const role = getLearnerRole(a.employeeId);
+                    const lsn  = lessons.find(l=>l.id===a.lessonId);
                     return (
                       <tr key={a.id}>
-                        <td><div className="flex-c"><Av name={emp?.name}/><span>{emp?.name||"—"}</span></div></td>
+                        <td><div className="flex-c"><Av name={name}/><div><div style={{fontWeight:500}}>{name||"—"}</div><div style={{fontSize:10,color:"var(--mu)"}}>{role}</div></div></div></td>
                         <td style={{fontSize:12}}>{lsn?.title||"—"}</td>
                         <td>{statusBdg(a.status)}</td>
                         <td style={{fontSize:11,color:"var(--mu)"}}>{a.assignedAt}</td>
@@ -7526,32 +7542,35 @@ function AppInner() {
                   </ResponsiveContainer>
                 ) : (
                   <div style={{height:100,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--mu)",fontSize:12}}>
-                    {lang==="ru"?"Активности пока нет — назначьте уроки сотрудникам":"No activity yet — assign lessons to employees"}
+                    {lang==="ru"?"Активности пока нет — назначьте уроки кандидатам":"No activity yet — assign lessons to candidates"}
                   </div>
                 )}
               </div>
 
-              {/* Employee cards */}
+              {/* Learner cards — HR candidates first, then employees */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-                {emps.map(emp=>{
-                  const myA  = assigns.filter(a=>a.employeeId===emp.id);
+                {[...hrCandidates.filter(c=>assigns.some(a=>a.employeeId===c.id)), ...emps.filter(e=>assigns.some(a=>a.employeeId===e.id))].map(person=>{
+                  const isCandidate = !person.name; // hrCard has firstName, emp has name
+                  const personId = person.id;
+                  const personName = isCandidate ? (person.firstName||"")+" "+(person.lastName||"") : person.name;
+                  const personRole = isCandidate ? (person.tag||"HR Candidate") : person.role;
+                  const myA  = assigns.filter(a=>a.employeeId===personId);
                   const done = myA.filter(a=>a.status==="completed").length;
                   const prog = myA.filter(a=>a.status==="in_progress").length;
-                  const pct  = progressPct(emp.id);
-                  const dept = depts.find(d=>d.id===emp.deptId);
+                  const pct  = progressPct(personId);
                   // Mini activity dots — last 14 days
                   const dots14 = days30.slice(-14).map(day=>({
                     date:day,
-                    active: assigns.some(a=>a.employeeId===emp.id&&(a.completedAt===day||a.assignedAt===day))
+                    active: assigns.some(a=>a.employeeId===personId&&(a.completedAt===day||a.assignedAt===day))
                   }));
                   return (
-                    <div key={emp.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+                    <div key={personId} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
                       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                        <Av name={emp.name} color={dept?.color} size="av-lg"/>
+                        <Av name={personName} size="av-lg"/>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontWeight:600,fontSize:14}}>{emp.name}</div>
-                          <div style={{fontSize:11,color:"var(--mu)"}}>{emp.role}</div>
-                          {dept&&<div style={{fontSize:10,color:dept.color,marginTop:1}}>{dept.icon} {dept.name}</div>}
+                          <div style={{fontWeight:600,fontSize:14}}>{personName}</div>
+                          <div style={{fontSize:11,color:"var(--mu)"}}>{personRole}</div>
+                          {isCandidate&&<div style={{fontSize:10,color:"var(--bl)",marginTop:1}}>👥 HR Candidate</div>}
                         </div>
                         <CirclePct pct={pct} size={48} color={pct===100?"var(--gr)":"var(--acc)"}/>
                       </div>
@@ -7578,7 +7597,7 @@ function AppInner() {
                     </div>
                   );
                 })}
-                {!emps.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>{lang==="ru"?"Нет сотрудников":"No employees"}</div>}
+                {!hrCandidates.length&&!emps.length&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>{lang==="ru"?"Нет назначенных обучающихся":"No learners assigned yet"}</div>}
               </div>
             </div>
           );
@@ -7739,10 +7758,15 @@ function AppInner() {
                 </select>
               </div>
               <div className="fg">
-                <label className="lbl">{t.assignTo}</label>
+                <label className="lbl">{lang==="ru"?"Назначить кандидату":"Assign to Candidate"}</label>
                 <select className="inp" value={aF.employeeId} onChange={e=>setAF(f=>({...f,employeeId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Выберите сотрудника —":"— Select employee —"}</option>
-                  {emps.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                  <option value="">{lang==="ru"?"— Выберите кандидата —":"— Select candidate —"}</option>
+                  {hrCandidates.length>0&&<optgroup label={lang==="ru"?"👥 HR Кандидаты":"👥 HR Candidates"}>
+                    {hrCandidates.map(c=><option key={c.id} value={c.id}>{c.firstName} {c.lastName||""} — {c.tag||"Candidate"}</option>)}
+                  </optgroup>}
+                  {emps.length>0&&<optgroup label={lang==="ru"?"🧹 Сотрудники":"🧹 Employees"}>
+                    {emps.map(e=><option key={e.id} value={e.id}>{e.name} — {e.role}</option>)}
+                  </optgroup>}
                 </select>
               </div>
               <div className="ma">
