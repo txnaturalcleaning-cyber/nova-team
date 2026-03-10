@@ -4615,7 +4615,7 @@ function AppInner() {
     // ─── Settings Tab Components (proper React components to avoid hooks-in-IIFE bug) ───
 
     const StTip = ({text})=>{
-      const [show,setShow]=React.useState(false);
+      const [show,setShow]=useState(false);
       return (
         <span style={{position:"relative",display:"inline-flex",alignItems:"center",marginLeft:5}}>
           <span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}
