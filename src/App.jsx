@@ -425,18 +425,18 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
   .app{flex-direction:column;}
   .sb{display:none;}
   .main{height:100vh;padding-bottom:62px;}
-  .content{padding:14px;}
+  .content{padding:12px;}
   .stats{grid-template-columns:1fr 1fr !important;}
   .task-cols{grid-template-columns:1fr !important;}
   .partner-grid{grid-template-columns:1fr !important;}
   .kb-grid{grid-template-columns:1fr 1fr !important;}
   .fr{grid-template-columns:1fr !important;}
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .modal{width:100% !important;max-width:100vw;max-height:88vh;border-radius:20px 20px 0 0;position:fixed;bottom:0;left:0;top:auto;}
+  .modal{width:100% !important;max-width:100vw;max-height:92vh;border-radius:20px 20px 0 0;position:fixed;bottom:0;left:0;top:auto;}
   .ovl{align-items:flex-end;}
-  .topbar{padding:10px 14px;}
+  .topbar{padding:10px 12px;}
   .pg-title{font-size:15px;}
-  .imp-banner{padding:6px 14px;font-size:11px;flex-wrap:wrap;}
+  .imp-banner{padding:6px 12px;font-size:11px;flex-wrap:wrap;}
   .chat-sb{display:none;}
   .chat-sb.mob-open{display:flex !important;flex-direction:column;position:fixed;inset:0;z-index:200;background:var(--s1);width:100%;padding:56px 14px 14px;}
   .mob-nav{display:flex !important;}
@@ -446,6 +446,10 @@ textarea.inp{resize:vertical;min-height:80px;line-height:1.6;}
   .kpi-row{grid-template-columns:1fr 1fr !important;}
   .cal-ai-row{grid-template-columns:1fr !important;}
   .act-grid{grid-template-columns:1fr !important;}
+  /* iOS: prevent zoom on input focus (must be >= 16px) */
+  .inp,input,select,textarea{font-size:16px !important;}
+  /* Tables scroll on mobile */
+  .tw table{min-width:480px;}
 }
 .mob-nav{
   display:none;position:fixed;bottom:0;left:0;right:0;height:60px;
@@ -2696,12 +2700,26 @@ function AppInner() {
       if (!tags.includes(tag)) {
         const triggered = automations.filter(a=>a.triggerTag===tag&&a.active);
         triggered.forEach(a=>{
-          // SMS automation
-          if (a.msgTemplate) {
+          // SMS automation — calls Twilio API if phone exists
+          if (a.msgTemplate && c?.phone) {
             const delay = parseInt(a.delayHours||0)*3600*1000;
             setTimeout(()=>{
-              const msg = a.msgTemplate.replace("{name}", c?.name||"").replace("{phone}", c?.phone||"");
-              addHistoryEntry(contactId, `🤖 Auto SMS: ${msg}`);
+              const msg = a.msgTemplate
+                .replace(/\{name\}/gi, c?.name||"")
+                .replace(/\{phone\}/gi, c?.phone||"")
+                .replace(/\[\[ClientName\]\]/gi, c?.name||"")
+                .replace(/\[\[CleanerName\]\]/gi, "");
+              // Send real SMS via Twilio serverless function
+              fetch("/api/send-sms", {
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({to:c.phone, body:msg})
+              }).then(r=>r.json()).then(data=>{
+                const status = data.sid ? "✅ отправлено" : "❌ ошибка";
+                addHistoryEntry(contactId, `🤖 Auto SMS (${a.name||a.triggerTag}): ${msg} — ${status}`);
+              }).catch(()=>{
+                addHistoryEntry(contactId, `🤖 Auto SMS (${a.name||a.triggerTag}): ${msg} — ⚠️ нет связи`);
+              });
             }, delay);
           }
           // Department routing automation
@@ -3098,7 +3116,7 @@ function AppInner() {
 
         {/* ── TAB: PIPELINE (Kanban) ── */}
         {cTab==="pipeline"&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,overflowX:"auto"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,overflowX:"auto",minWidth:"min(900px,100%)",WebkitOverflowScrolling:"touch"}}>
             {STAGES.map(stage=>{
               const stageContacts = contacts.filter(c=>c.stage===stage.id);
               return (
@@ -3811,6 +3829,16 @@ function AppInner() {
     const [settP2,  setSettP2]  = useState({beds:2,baths:2,price:180,dur:3.0});
     const [settSaved, setSettSaved] = useState(false);
     const [settSmartTab, setSettSmartTab] = useState("standard"); // standard | deep | moveinout | airbnb
+    // Resync local settings state if bkSettings updated externally (e.g., Smart Setup)
+    const bkSettingsKey = JSON.stringify({m:bkSettings.matrix, d:bkSettings.durMatrix, t:bkSettings.cleanTypes, a:bkSettings.addons});
+    useEffect(()=>{
+      setSettLM(Array.from({length:SETT_SIZE},(_,r)=>Array.from({length:SETT_SIZE},(_,c)=>(bkSettings.matrix||[])[r]?.[c]||0)));
+      setSettLDM(Array.from({length:SETT_SIZE},(_,r)=>Array.from({length:SETT_SIZE},(_,c)=>(bkSettings.durMatrix||[])[r]?.[c]||0)));
+      setSettLT(bkSettings.cleanTypes||[]);
+      setSettLA(bkSettings.addons||[]);
+      setSettLFD(bkSettings.freqDiscounts||{weekly:10,biweekly:5,monthly:3});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    },[bkSettingsKey]);
     // Per-type anchors for non-standard types
     const [typeAnchors, setTypeAnchors] = useState({
       deep:      {p1:{beds:1,baths:1,price:170,dur:2.0}, p2:{beds:2,baths:2,price:250,dur:4.5}},
@@ -4228,7 +4256,8 @@ function AppInner() {
               <button className="btn btn-g" onClick={onClose}>{lang==="ru"?"Отмена":"Cancel"}</button>
               {bkF.id&&<button className="btn btn-d" onClick={()=>{deleteBooking(bkF.id);onClose();}}>🗑</button>}
               <button className="btn btn-p" onClick={()=>{
-                if (!bkF.date) return;
+                if (!bkF.date) { alert(lang==="ru"?"Выберите дату":"Please select a date"); return; }
+                if (!bkF.clientId) { alert(lang==="ru"?"Выберите клиента":"Please select a client"); return; }
                 saveBooking({...bkF, id:bkF.id||"bk_"+Date.now(), price, tipAmt, total});
                 onClose();
               }}>{lang==="ru"?"Сохранить":"Save"}</button>
@@ -7027,7 +7056,22 @@ function AppInner() {
                   </button>
                 ))}
               </div>
-              <div style={{marginTop:14}}>
+              {/* Theme + Language toggles on mobile */}
+              <div style={{marginTop:14,display:"flex",gap:8,alignItems:"center",justifyContent:"center",flexWrap:"wrap"}}>
+                <div style={{display:"flex",gap:4,background:"var(--s2)",borderRadius:8,padding:4}}>
+                  <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
+                  <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
+                </div>
+                <div style={{display:"flex",gap:4,background:"var(--s2)",borderRadius:8,padding:4}}>
+                  <button className={`lang-btn ${theme==="dark"?"act":""}`} onClick={()=>setTheme("dark")}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                  </button>
+                  <button className={`lang-btn ${theme==="light"?"act":""}`} onClick={()=>setTheme("light")}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div style={{marginTop:10}}>
                 <button className="btn btn-d" style={{width:"100%",justifyContent:"center"}}
                   onClick={()=>{localStorage.removeItem("nls_page");setCurrentUser(null);setViewPartner(null);setPage("dashboard");setModal(null);}}>
                   ⏏ {t.logout}
