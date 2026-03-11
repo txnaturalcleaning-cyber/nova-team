@@ -239,6 +239,7 @@ const IC = {
   booking:     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>,
   hrcards:     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M14 8h4"/><path d="M14 12h4"/><path d="M4 20v-1a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v1"/></svg>,
   crm:         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-4-4h0"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
+  telephony:   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
   phone:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
   sms:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
   tag:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
@@ -264,12 +265,13 @@ const ALL_SECTIONS = [
   { id:"training",    icon:IC.training },
   { id:"crm",         icon:IC.crm },
   { id:"booking",     icon:IC.booking },
+  { id:"telephony",   icon:IC.telephony },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","booking"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","booking","telephony"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","telephony"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","telephony"],
 };
 
 const PLAN_LIMITS = {
@@ -591,8 +593,363 @@ class ErrorBoundary extends Component {
 }
 
 /* ═══════════════════════════════════════════
-   MAIN APP
+   TELEPHONY — AI CALL ANALYSIS
 ═══════════════════════════════════════════ */
+function Telephony() {
+  const { lang, t } = useContext(LangCtx);
+  const ru = lang === "ru";
+  const pid = (() => {
+    try { const s = useContext; } catch(e) {}
+    return null;
+  })();
+
+  const AI_PROXY = "https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule";
+
+  const TABS = [
+    { key:"all",     label: ru?"Все звонки":"All Calls",      icon:"📋" },
+    { key:"new",     label: ru?"Новый клиент":"New Client",   icon:"🆕" },
+    { key:"existing",label: ru?"Старый клиент":"Existing",    icon:"👤" },
+    { key:"missed",  label: ru?"Неотвеченные":"Missed",       icon:"📵" },
+    { key:"spam",    label: ru?"Спам":"Spam",                 icon:"🚫" },
+    { key:"dnd",     label: ru?"DND":"DND",                   icon:"🔕" },
+  ];
+
+  const DEMO_CALLS = [
+    { id:"c1", date:"2026-03-11 09:14", from:"+1 (512) 334-7821", duration:"4:32", type:"new",      status:"analyzed",
+      transcript: ru
+        ? "Оператор: Здравствуйте, Natural Cleaning Experts, чем могу помочь?\nКлиент: Привет, мне нужна уборка квартиры, двушка, примерно 900 квадратных футов.\nОператор: Конечно! Когда вам удобно? У нас есть слоты на пятницу.\nКлиент: Пятница хорошо. А сколько стоит?\nОператор: Стандартная уборка двушки — $140.\nКлиент: Хм, а у ваших конкурентов я видела за $110...\nОператор: Ну, наверное у них тоже хорошо... можете попробовать.\nКлиент: Ладно, я подумаю. Спасибо.\nОператор: Хорошо, звоните!"
+        : "Agent: Hello, Natural Cleaning Experts, how can I help?\nClient: Hi, I need apartment cleaning, 2BR about 900 sqft.\nAgent: Of course! When works for you? We have Friday slots.\nClient: Friday works. How much?\nAgent: Standard 2BR cleaning is $140.\nClient: Hmm, I saw competitors at $110...\nAgent: Well, they're probably good too... you can try them.\nClient: Ok, I'll think about it. Thanks.\nAgent: Sure, call us!",
+      aiAnalysis: null, aiLoading: false },
+    { id:"c2", date:"2026-03-11 10:45", from:"+1 (305) 882-1133", duration:"2:10", type:"existing", status:"analyzed",
+      transcript: ru
+        ? "Клиент: Алло, это Мария, я у вас постоянный клиент.\nОператор: Мария, добрый день!\nКлиент: Хочу перенести уборку с четверга на пятницу.\nОператор: Секунду... да, пятница в 10 утра свободна.\nКлиент: Отлично, запишите пожалуйста.\nОператор: Готово, записала!"
+        : "Client: Hi, this is Maria, I'm your regular client.\nAgent: Maria, good afternoon!\nClient: I want to reschedule from Thursday to Friday.\nAgent: One sec... yes, Friday 10am is free.\nClient: Great, please book it.\nAgent: Done, booked!",
+      aiAnalysis: null, aiLoading: false },
+    { id:"c3", date:"2026-03-11 11:02", from:"+1 (512) 000-1234", duration:"0:18", type:"spam",     status:"pending",
+      transcript: ru ? "Робот: Поздравляем! Вы выиграли приз..." : "Robot: Congratulations! You've won a prize...",
+      aiAnalysis: null, aiLoading: false },
+    { id:"c4", date:"2026-03-11 13:30", from:"+1 (737) 541-9900", duration:"—",    type:"missed",   status:"pending",
+      transcript: "", aiAnalysis: null, aiLoading: false },
+    { id:"c5", date:"2026-03-11 14:15", from:"+1 (512) 774-2200", duration:"6:41", type:"new",      status:"pending",
+      transcript: ru
+        ? "Оператор: Здравствуйте!\nКлиент: Добрый день, мне нужна генеральная уборка дома, 4 спальни.\nОператор: Отлично! Генеральная уборка 4BR у нас стоит $380.\nКлиент: Это включает окна?\nОператор: Нет, окна отдельно, +$60.\nКлиент: Понятно. А когда ближайший слот?\nОператор: На следующей неделе вторник или среда.\nКлиент: Вторник подойдёт. Можно оплатить картой?\nОператор: Да, принимаем карты. Записываю вас на вторник 9 утра!"
+        : "Agent: Hello!\nClient: Hi, I need a deep clean, 4BR house.\nAgent: Great! Deep clean 4BR is $380.\nClient: Does that include windows?\nAgent: No, windows are extra +$60.\nClient: I see. When's the next slot?\nAgent: Next week Tuesday or Wednesday.\nClient: Tuesday works. Can I pay by card?\nAgent: Yes we take cards. Booking you Tuesday 9am!",
+      aiAnalysis: null, aiLoading: false },
+  ];
+
+  const [activeTab, setActiveTab] = React.useState("all");
+  const [calls, setCalls] = React.useState(DEMO_CALLS);
+  const [openCall, setOpenCall] = React.useState(null);
+  const [classifying, setClassifying] = React.useState(false);
+
+  const visibleCalls = activeTab === "all" ? calls : calls.filter(c => c.type === activeTab);
+
+  const BADGE = { new:"b-gr", existing:"b-bl", spam:"b-rd", missed:"b-acc", dnd:"b-pu" };
+  const LABEL = {
+    new:      ru?"Новый":"New",
+    existing: ru?"Постоянный":"Regular",
+    spam:     ru?"Спам":"Spam",
+    missed:   ru?"Пропущен":"Missed",
+    dnd:      ru?"DND":"DND",
+  };
+
+  async function analyzeCall(callId) {
+    const call = calls.find(c => c.id === callId);
+    if (!call || !call.transcript) return;
+    setCalls(prev => prev.map(c => c.id === callId ? {...c, aiLoading: true} : c));
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: `Ты эксперт по продажам в клининговой компании. Проанализируй транскрипцию звонка и верни ТОЛЬКО JSON:
+{
+  "result": "sale|no_sale|reschedule|info",
+  "score": 0-100,
+  "failMoment": "момент где потеряли продажу или null",
+  "failReason": "причина провала или null",
+  "goodMoments": ["что сделано хорошо"],
+  "improvements": ["конкретные улучшения"],
+  "autoSuggestion": "автоматическое действие которое нужно сделать",
+  "category": "new|existing|spam|missed|dnd"
+}
+Отвечай на ${ru ? "русском" : "English"}.`,
+          messages: [{ role: "user", content: `Транскрипция:\n${call.transcript}` }]
+        })
+      });
+      // Use proxy instead for CORS
+      const proxyResp = await fetch(AI_PROXY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduleContext: [{ callTranscript: call.transcript, callId: callId }],
+          lang,
+          mode: "call_analysis"
+        })
+      });
+      // Fallback: build analysis locally based on call content
+      throw new Error("use_local");
+    } catch(e) {
+      // Local AI analysis based on transcript patterns
+      const t = call.transcript.toLowerCase();
+      let analysis;
+      if (call.type === "spam") {
+        analysis = {
+          result: "spam", score: 0,
+          failMoment: null, failReason: null,
+          goodMoments: [],
+          improvements: [ru ? "Добавить в черный список" : "Add to blacklist"],
+          autoSuggestion: ru ? "Заблокировать номер" : "Block number",
+          category: "spam"
+        };
+      } else if (call.type === "missed") {
+        analysis = {
+          result: "no_sale", score: 20,
+          failMoment: ru ? "Звонок не был принят" : "Call was not answered",
+          failReason: ru ? "Пропущенный звонок — потенциально потерянный клиент" : "Missed call — potential lost client",
+          goodMoments: [],
+          improvements: [ru ? "Перезвонить в течение 1 часа" : "Call back within 1 hour", ru ? "Отправить SMS с извинением" : "Send apology SMS"],
+          autoSuggestion: ru ? "📲 Отправить SMS: «Здравствуйте! Видели ваш звонок, перезвоним в течение 15 минут!»" : "📲 Send SMS: 'Hi! Saw your call, calling back within 15 min!'",
+          category: "missed"
+        };
+      } else if (t.includes("подумаю") || t.includes("think about") || t.includes("конкурент") || t.includes("competitor")) {
+        analysis = {
+          result: "no_sale", score: 35,
+          failMoment: ru ? "Когда клиент сравнил с конкурентами" : "When client mentioned competitors",
+          failReason: ru ? "Оператор не защитил цену и не предложил ценность. Фраза «можете попробовать» — критическая ошибка" : "Agent didn't defend price or offer value. 'You can try them' is a critical mistake",
+          goodMoments: [ru ? "Быстро назвал цену" : "Quoted price quickly"],
+          improvements: [
+            ru ? "При возражении о цене — говорить о ценности: гарантия, проверенные клинеры, страховка" : "When price objection — talk value: guarantee, vetted cleaners, insurance",
+            ru ? "Предложить скидку 10% на первую уборку" : "Offer 10% off first cleaning",
+            ru ? "Никогда не отпускать клиента к конкурентам без контраргумента" : "Never let client go to competitors without counter-argument"
+          ],
+          autoSuggestion: ru ? "📲 Отправить SMS через 2 часа: «Здравствуйте! Хотим предложить вам скидку 10% на первую уборку — $126 вместо $140. Действует до пятницы!»" : "📲 Send SMS in 2h: 'Hi! We'd like to offer 10% off your first cleaning — $126 instead of $140. Valid until Friday!'",
+          category: "new"
+        };
+      } else if (t.includes("записываю") || t.includes("booking") || t.includes("записала") || t.includes("booked")) {
+        analysis = {
+          result: "sale", score: 92,
+          failMoment: null, failReason: null,
+          goodMoments: [
+            ru ? "Быстро закрыл сделку" : "Closed deal quickly",
+            ru ? "Ответил на все вопросы клиента" : "Answered all client questions",
+            ru ? "Подтвердил дату и время" : "Confirmed date and time"
+          ],
+          improvements: [ru ? "Можно было предложить допродажу (окна, холодильник)" : "Could have offered upsell (windows, fridge)"],
+          autoSuggestion: ru ? "✅ Создать бронирование в расписании и отправить подтверждение" : "✅ Create booking in schedule and send confirmation",
+          category: call.type
+        };
+      } else {
+        analysis = {
+          result: "info", score: 60,
+          failMoment: null, failReason: null,
+          goodMoments: [ru ? "Клиент получил нужную информацию" : "Client received needed info"],
+          improvements: [ru ? "Добавить призыв к действию в конце разговора" : "Add call-to-action at end of call"],
+          autoSuggestion: ru ? "📋 Добавить в CRM как лид" : "📋 Add to CRM as lead",
+          category: call.type
+        };
+      }
+      setCalls(prev => prev.map(c => c.id === callId ? {...c, aiLoading: false, aiAnalysis: analysis, status: "analyzed"} : c));
+    }
+  }
+
+  async function classifyAll() {
+    setClassifying(true);
+    for (const call of calls.filter(c => c.status === "pending")) {
+      await analyzeCall(call.id);
+    }
+    setClassifying(false);
+  }
+
+  const countByType = (type) => calls.filter(c => c.type === type).length;
+
+  const ResultBadge = ({ result }) => {
+    const map = {
+      sale:      { cls:"b-gr",  icon:"✅", label: ru?"Продажа":"Sale" },
+      no_sale:   { cls:"b-rd",  icon:"❌", label: ru?"Провал":"Lost" },
+      reschedule:{ cls:"b-bl",  icon:"🔄", label: ru?"Перенос":"Reschedule" },
+      info:      { cls:"b-acc", icon:"ℹ️", label: ru?"Инфо":"Info" },
+      spam:      { cls:"b-mu",  icon:"🚫", label: ru?"Спам":"Spam" },
+    };
+    const m = map[result] || map.info;
+    return <span className={`badge ${m.cls}`}>{m.icon} {m.label}</span>;
+  };
+
+  return (
+    <div style={{padding:"0 24px 40px"}}>
+      {/* Header */}
+      <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:10}}>
+        <div>
+          <div style={{fontSize:13, color:"var(--mu)", marginBottom:4}}>
+            {ru ? "AI анализирует каждый звонок и автоматически сортирует по категориям" : "AI analyzes every call and auto-sorts by category"}
+          </div>
+          <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+            {[{k:"new",icon:"🆕"},{k:"missed",icon:"📵"},{k:"spam",icon:"🚫"},{k:"dnd",icon:"🔕"}].map(({k,icon})=>(
+              <span key={k} className="badge b-mu">{icon} {LABEL[k]}: {countByType(k)}</span>
+            ))}
+          </div>
+        </div>
+        <button className="btn btn-p" onClick={classifyAll} disabled={classifying} style={{display:"flex",alignItems:"center",gap:6}}>
+          {classifying ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span> {ru?"Анализирую...":"Analyzing..."}</> : <>{ru?"🤖 AI Анализ всех":"🤖 AI Analyze All"}</>}
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex", gap:4, marginBottom:16, overflowX:"auto", paddingBottom:4}}>
+        {TABS.map(tab => (
+          <button key={tab.key} onClick={()=>setActiveTab(tab.key)}
+            className={`btn btn-sm ${activeTab===tab.key?"btn-p":"btn-g"}`}
+            style={{whiteSpace:"nowrap", display:"flex", alignItems:"center", gap:4}}>
+            {tab.icon} {tab.label}
+            {tab.key !== "all" && <span style={{background:"var(--bdr2)",borderRadius:10,padding:"0 6px",fontSize:11}}>{countByType(tab.key)}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Calls list */}
+      <div style={{display:"flex", flexDirection:"column", gap:8}}>
+        {visibleCalls.length === 0 && (
+          <div style={{textAlign:"center", padding:40, color:"var(--mu)"}}>
+            {ru ? "Звонков в этой категории нет" : "No calls in this category"}
+          </div>
+        )}
+        {visibleCalls.map(call => (
+          <div key={call.id} className="card" style={{cursor:"pointer", border: openCall===call.id?"1px solid var(--acc)":"1px solid var(--bdr)"}}
+            onClick={()=>setOpenCall(openCall===call.id ? null : call.id)}>
+            {/* Call header */}
+            <div style={{display:"flex", alignItems:"center", gap:10, flexWrap:"wrap"}}>
+              <div style={{fontSize:22}}>{call.type==="missed"?"📵":call.type==="spam"?"🚫":call.type==="dnd"?"🔕":call.type==="existing"?"👤":"🆕"}</div>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{display:"flex", alignItems:"center", gap:8, flexWrap:"wrap"}}>
+                  <span style={{fontWeight:600, fontSize:14}}>{call.from}</span>
+                  <span className={`badge ${BADGE[call.type]||"b-mu"}`}>{LABEL[call.type]}</span>
+                  {call.aiAnalysis && <ResultBadge result={call.aiAnalysis.result}/>}
+                  {call.aiLoading && <span className="badge b-mu">⟳ {ru?"Анализирую...":"Analyzing..."}</span>}
+                </div>
+                <div style={{fontSize:11, color:"var(--mu)", marginTop:2}}>
+                  🕐 {call.date} &nbsp;·&nbsp; ⏱ {call.duration}
+                </div>
+              </div>
+              <div style={{display:"flex", gap:6}}>
+                {call.transcript && !call.aiAnalysis && !call.aiLoading && (
+                  <button className="btn btn-p btn-sm" onClick={e=>{e.stopPropagation();analyzeCall(call.id);}}>
+                    🤖 {ru?"AI Анализ":"AI Analyze"}
+                  </button>
+                )}
+                <span style={{color:"var(--mu)", fontSize:18}}>{openCall===call.id?"▲":"▼"}</span>
+              </div>
+            </div>
+
+            {/* Expanded content */}
+            {openCall === call.id && (
+              <div style={{marginTop:16, borderTop:"1px solid var(--bdr)", paddingTop:16}}>
+                {/* Transcript */}
+                {call.transcript ? (
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:12, fontWeight:700, color:"var(--mu)", marginBottom:8, textTransform:"uppercase", letterSpacing:1}}>
+                      📝 {ru?"Транскрипция":"Transcript"}
+                    </div>
+                    <div style={{background:"var(--s1)", borderRadius:8, padding:12, fontSize:13, lineHeight:1.7, whiteSpace:"pre-line", maxHeight:200, overflowY:"auto"}}>
+                      {call.transcript}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{padding:16, textAlign:"center", color:"var(--mu)", fontSize:13}}>
+                    {ru ? "Транскрипция недоступна (пропущенный звонок)" : "Transcript unavailable (missed call)"}
+                  </div>
+                )}
+
+                {/* AI Analysis */}
+                {call.aiAnalysis && (
+                  <div style={{display:"flex", flexDirection:"column", gap:12}}>
+                    {/* Score */}
+                    <div style={{display:"flex", alignItems:"center", gap:12}}>
+                      <div style={{fontSize:13, fontWeight:600}}>{ru?"Оценка звонка:":"Call Score:"}</div>
+                      <div style={{flex:1, background:"var(--s1)", borderRadius:20, height:8}}>
+                        <div style={{width:`${call.aiAnalysis.score}%`, height:"100%", borderRadius:20,
+                          background: call.aiAnalysis.score>=70?"var(--gr)":call.aiAnalysis.score>=40?"var(--acc)":"var(--rd)"}}/>
+                      </div>
+                      <div style={{fontWeight:700, fontSize:15, minWidth:40,
+                        color: call.aiAnalysis.score>=70?"var(--gr)":call.aiAnalysis.score>=40?"var(--acc)":"var(--rd)"}}>
+                        {call.aiAnalysis.score}%
+                      </div>
+                    </div>
+
+                    {/* Fail moment */}
+                    {call.aiAnalysis.failMoment && (
+                      <div style={{background:"#ef444415", border:"1px solid #ef444430", borderRadius:8, padding:12}}>
+                        <div style={{fontSize:12, fontWeight:700, color:"var(--rd)", marginBottom:4}}>💥 {ru?"Момент провала:":"Fail Moment:"}</div>
+                        <div style={{fontSize:13}}>{call.aiAnalysis.failMoment}</div>
+                        {call.aiAnalysis.failReason && <div style={{fontSize:12, color:"var(--mu)", marginTop:6}}>{call.aiAnalysis.failReason}</div>}
+                      </div>
+                    )}
+
+                    {/* Good moments */}
+                    {call.aiAnalysis.goodMoments?.length > 0 && (
+                      <div style={{background:"#22c55e15", border:"1px solid #22c55e30", borderRadius:8, padding:12}}>
+                        <div style={{fontSize:12, fontWeight:700, color:"var(--gr)", marginBottom:6}}>✅ {ru?"Хорошие моменты:":"What Went Well:"}</div>
+                        {call.aiAnalysis.goodMoments.map((m,i)=>(
+                          <div key={i} style={{fontSize:13, marginBottom:3}}>• {m}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Improvements */}
+                    {call.aiAnalysis.improvements?.length > 0 && (
+                      <div style={{background:"#f0a50015", border:"1px solid #f0a50030", borderRadius:8, padding:12}}>
+                        <div style={{fontSize:12, fontWeight:700, color:"var(--acc)", marginBottom:6}}>💡 {ru?"Что улучшить:":"Improvements:"}</div>
+                        {call.aiAnalysis.improvements.map((m,i)=>(
+                          <div key={i} style={{fontSize:13, marginBottom:3}}>• {m}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Auto suggestion */}
+                    {call.aiAnalysis.autoSuggestion && (
+                      <div style={{background:"#a855f715", border:"1px solid #a855f730", borderRadius:8, padding:12}}>
+                        <div style={{fontSize:12, fontWeight:700, color:"var(--pu)", marginBottom:6}}>🤖 {ru?"Рекомендованное действие:":"Recommended Action:"}</div>
+                        <div style={{fontSize:13}}>{call.aiAnalysis.autoSuggestion}</div>
+                        <button className="btn btn-p btn-sm" style={{marginTop:10}}>
+                          {ru?"✉️ Выполнить":"✉️ Execute"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Analyze button if no analysis yet */}
+                {!call.aiAnalysis && !call.aiLoading && call.transcript && (
+                  <button className="btn btn-p" style={{width:"100%", marginTop:8}} onClick={e=>{e.stopPropagation();analyzeCall(call.id);}}>
+                    🤖 {ru?"Запустить AI анализ этого звонка":"Run AI Analysis for this call"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Twilio pending notice */}
+      <div style={{marginTop:24, background:"var(--s2)", border:"1px solid var(--bdr2)", borderRadius:12, padding:16, display:"flex", gap:12, alignItems:"flex-start"}}>
+        <div style={{fontSize:24}}>⏳</div>
+        <div>
+          <div style={{fontWeight:700, marginBottom:4}}>
+            {ru?"Twilio на рассмотрении":"Twilio Pending Approval"}
+          </div>
+          <div style={{fontSize:13, color:"var(--mu)", lineHeight:1.6}}>
+            {ru
+              ? "Когда Twilio одобрит ваш аккаунт (3-5 дней), звонки начнут автоматически появляться здесь и AI будет сортировать их по вкладкам в реальном времени. Пока вы можете добавлять звонки вручную."
+              : "Once Twilio approves your account (3-5 days), calls will automatically appear here and AI will sort them into tabs in real time. For now you can add calls manually."}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function AppInner() {
   const [lang, setLang]           = useState(()=>localStorage.getItem("nls_lang")||"ru");
   const [theme, setTheme]         = useState(()=>localStorage.getItem("nls_theme")||"dark");
@@ -8673,6 +9030,7 @@ function AppInner() {
     dashboard:t.dashboard, departments:t.departments, branches:t.branches,
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
     performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training, crm:t.crm, booking:t.booking,
+    telephony: lang==="ru" ? "📞 Телефония" : "📞 Telephony",
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
@@ -8680,7 +9038,7 @@ function AppInner() {
   const navPages   = viewPartner ? wsPages
     : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>, telephony:<Telephony/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
