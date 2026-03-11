@@ -4339,6 +4339,8 @@ function AppInner() {
     const [smsText,  setSmsText]  = useState("");
     const [smsSending,setSmsSending] = useState(false);
     const [smsLog,   setSmsLog]   = useState({}); // {contactId: [{text,ts,dir}]}
+    const [crmFolder,  setCrmFolder]  = useState("all"); // smart folder filter
+    const [aiSorting,  setAiSorting]  = useState(false);
 
     // ── TWILIO VOICE ──
     const [twilioDevice, setTwilioDevice]   = useState(null);
@@ -4550,6 +4552,90 @@ function AppInner() {
       })}:x));
     }
 
+    // ── AI Smart Folder Analysis ──
+    function getContactFolder(c) {
+      // Returns the smart folder for a contact based on stage + history
+      if (c.crmFolder) return c.crmFolder;
+      const hist = ((c.history||[]).map(h=>h.text||"").join(" ")).toLowerCase();
+      const stage = c.stage || "lead";
+      if (stage === "client" || hist.includes("booking") || hist.includes("забронировал") || hist.includes("уборка запланирована") || hist.includes("cleaning scheduled")) return "client";
+      if (stage === "lost" || hist.includes("потерян") || hist.includes("конкурент") || hist.includes("дешевле") || hist.includes("не нужно") || hist.includes("not interested") || hist.includes("competitor")) return "lost";
+      if (hist.includes("пропущен") || hist.includes("missed") || hist.includes("не ответил") || hist.includes("не дозвонился") || hist.includes("no answer")) return "missed";
+      if (hist.includes("спам") || hist.includes("spam") || hist.includes("робот") || hist.includes("robot") || hist.includes("поздравляем")) return "spam";
+      if (hist.includes("dnd") || hist.includes("не звоните") || hist.includes("do not call")) return "dnd";
+      return "lead";
+    }
+
+    async function aiSortAll() {
+      if (!contacts.length) return;
+      setAiSorting(true);
+      const contactsToAnalyze = contacts.filter(c => (c.history||[]).length > 0 || c.stage !== "lead");
+      if (contactsToAnalyze.length === 0) {
+        setAiSorting(false);
+        return;
+      }
+      try {
+        const summaries = contactsToAnalyze.map(c => ({
+          id: c.id,
+          name: c.name,
+          stage: c.stage,
+          history: (c.history||[]).slice(-5).map(h=>h.text).join(" | ")
+        }));
+        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 1000,
+            system: `You are a CRM analyst for a cleaning business. Classify each contact into exactly one folder based on their interaction history. Return ONLY raw JSON array (no markdown):
+[{"id":"...", "folder":"client|lost|missed|lead|spam|dnd"}]
+Rules:
+- client: booked a cleaning, paid, confirmed appointment, "записала", "booking", "scheduled"
+- lost: said not interested, mentioned cheaper competitor, "подумаю" without callback, rejected quote
+- missed: missed call, no answer, "пропущен", "missed call", left voicemail
+- spam: robocall, irrelevant pitch, "поздравляем", sales call
+- dnd: asked to not be called, "не звоните", "do not call", "remove"
+- lead: everything else, new inquiry, asking for price
+Respond with only the JSON array.`,
+            messages: [{ role: "user", content: `Analyze contacts:
+${JSON.stringify(summaries)}` }]
+          })
+        });
+        const data = await resp.json();
+        const text = (data.content||[]).map(b=>b.text||"").join("").trim().replace(/\`\`\`json|\`\`\`/gi,"").trim();
+        const results = JSON.parse(text);
+        // Apply folders + sync stage
+        setPartners(ps=>ps.map(x=>{
+          if (x.id!==pid) return x;
+          const updated = (x.contacts||[]).map(c=>{
+            const r = results.find(r=>r.id===c.id);
+            if (!r) return c;
+            // Sync: if AI says client, also update stage
+            const newStage = r.folder==="client"?"client": r.folder==="lost"?"lost":c.stage;
+            return {...c, crmFolder:r.folder, stage:newStage};
+          });
+          return {...x, contacts:updated};
+        }));
+      } catch(e) {
+        // Fallback: use pattern matching for all contacts
+        setPartners(ps=>ps.map(x=>{
+          if (x.id!==pid) return x;
+          const updated = (x.contacts||[]).map(c=>({...c, crmFolder:getContactFolder(c)}));
+          return {...x, contacts:updated};
+        }));
+      }
+      setAiSorting(false);
+    }
+
+    // Auto-detect folder when stage changes
+    function moveStageSmart(id, stage) {
+      // When moved to client → set folder to client; lost → lost
+      const folderMap = {client:"client", lost:"lost"};
+      const patch = {stage};
+      if (folderMap[stage]) patch.crmFolder = folderMap[stage];
+      updateContact(id, patch);
+    }
+
     // ── Tag management ──
     function saveTag() {
       if (!newTag.name.trim()) return;
@@ -4591,7 +4677,8 @@ function AppInner() {
     const filtered = deptContacts.filter(c=>{
       const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone||"").includes(search) || (c.email||"").toLowerCase().includes(search.toLowerCase());
       const matchTag    = !tagFilter || (c.tags||[]).includes(tagFilter);
-      return matchSearch && matchTag;
+      const matchFolder = crmFolder==="all" || (c.crmFolder||getContactFolder(c))===crmFolder;
+      return matchSearch && matchTag && matchFolder;
     });
 
     // ── Open contact detail ──
@@ -4633,7 +4720,7 @@ function AppInner() {
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:12}}>
               <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>{t.crmStage}</div>
               {STAGES.map(s=>(
-                <button key={s.id} onClick={()=>moveStage(openContact.id,s.id)}
+                <button key={s.id} onClick={()=>moveStageSmart(openContact.id,s.id)}
                   style={{width:"100%",padding:"5px 10px",borderRadius:7,marginBottom:3,border:`1px solid ${s.id===openContact.stage?s.color:"transparent"}`,
                     background:s.id===openContact.stage?s.color+"18":"transparent",
                     color:s.id===openContact.stage?s.color:"var(--mu)",
@@ -4698,6 +4785,27 @@ function AppInner() {
                 <div style={{fontWeight:700,fontSize:14}}>{openContact.name}</div>
                 <div style={{fontSize:11,color:"var(--mu)"}}>{openContact.phone||openContact.email||""}</div>
               </div>
+              <button onClick={async()=>{
+                  const hist = (openContact.history||[]).slice(-8).map(h=>h.text).join(" | ");
+                  if(!hist) return;
+                  setAiSorting(true);
+                  try {
+                    const resp = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:200,system:`Classify contact into ONE folder: client|lost|missed|lead|spam|dnd. Return ONLY JSON: {"folder":"...","reason":"..."}. client=booked cleaning. lost=rejected/competitor. missed=no answer. spam=robocall. dnd=no contact please. lead=everything else. Respond in ${lang==="ru"?"Russian":"English"}.`,messages:[{role:"user",content:`Name: ${openContact.name}
+History: ${hist}`}]})});
+                    const data = await resp.json();
+                    const text = (data.content||[]).map(b=>b.text||"").join("").replace(/\`\`\`json|\`\`\`/gi,"").trim();
+                    const {folder,reason} = JSON.parse(text);
+                    const newStage = folder==="client"?"client":folder==="lost"?"lost":openContact.stage;
+                    updateContact(openContact.id,{crmFolder:folder,stage:newStage});
+                    addHistoryEntry(openContact.id, `🤖 AI: → ${folder}${reason?" — "+reason:""}`);
+                  } catch(e) {
+                    updateContact(openContact.id,{crmFolder:getContactFolder(openContact)});
+                  }
+                  setAiSorting(false);
+                }}
+                style={{flexShrink:0,padding:"5px 10px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--mu)",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                🤖 AI
+              </button>
               {openContact.phone&&(
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   {callState==="idle"&&(
@@ -4827,6 +4935,53 @@ function AppInner() {
         {/* ── TAB: CONTACTS ── */}
         {cTab==="contacts"&&(
           <>
+            {/* ── SMART FOLDERS ── */}
+            {(()=>{
+              const FOLDERS = [
+                {id:"all",    icon:"📋", label:lang==="ru"?"Все":"All"},
+                {id:"lead",   icon:"🆕", label:lang==="ru"?"Новые лиды":"New Leads"},
+                {id:"client", icon:"✅", label:lang==="ru"?"Клиенты":"Clients"},
+                {id:"lost",   icon:"❌", label:lang==="ru"?"Потерянные":"Lost"},
+                {id:"missed", icon:"📵", label:lang==="ru"?"Пропущенные":"Missed"},
+                {id:"spam",   icon:"🚫", label:"Spam"},
+                {id:"dnd",    icon:"🔕", label:"DND"},
+              ];
+              const folderCount = id => id==="all" ? contacts.length : contacts.filter(c=>(c.crmFolder||getContactFolder(c))===id).length;
+              return (
+                <div style={{marginBottom:14}}>
+                  <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:6,marginBottom:8}}>
+                    {FOLDERS.map(f=>{
+                      const cnt = folderCount(f.id);
+                      const active = crmFolder===f.id;
+                      return (
+                        <button key={f.id} onClick={()=>setCrmFolder(f.id)}
+                          style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
+                            border:`1px solid ${active?"var(--acc)":"var(--bdr)"}`,
+                            background:active?"var(--acc)18":"var(--s1)",
+                            color:active?"var(--acc)":"var(--mu)",
+                            fontSize:12,fontWeight:active?700:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                          {f.icon} {f.label}
+                          <span style={{background:active?"var(--acc)30":"var(--bdr2)",borderRadius:10,padding:"0 5px",fontSize:10,color:active?"var(--acc)":"var(--mu2)"}}>{cnt}</span>
+                        </button>
+                      );
+                    })}
+                    <button onClick={aiSortAll} disabled={aiSorting}
+                      style={{marginLeft:"auto",flexShrink:0,display:"flex",alignItems:"center",gap:5,padding:"6px 12px",
+                        borderRadius:8,border:"1px solid var(--bdr)",background:"var(--s2)",
+                        color:"var(--mu)",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>
+                      {aiSorting?<><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span>{lang==="ru"?" AI сортирует...":" AI sorting..."}</>:<>🤖 {lang==="ru"?"AI разложить по папкам":"AI Auto-sort"}</>}
+                    </button>
+                  </div>
+                  {crmFolder!=="all"&&(
+                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:8,padding:"6px 10px",background:"var(--s2)",borderRadius:7,border:"1px solid var(--bdr)"}}>
+                      {lang==="ru"
+                        ? {lead:"🆕 Новые входящие лиды — ещё не обработаны",client:"✅ Клиенты — уборка подтверждена или оплачена",lost:"❌ Потерянные — отказались или ушли к конкурентам",missed:"📵 Пропущенные звонки — перезвонить!",spam:"🚫 Спам — автоматически помечен AI",dnd:"🔕 DND — попросили не беспокоить"}[crmFolder]
+                        : {lead:"🆕 New incoming leads — not yet processed",client:"✅ Clients — cleaning confirmed or paid",lost:"❌ Lost — declined or went to competitor",missed:"📵 Missed calls — call back!",spam:"🚫 Spam — auto-flagged by AI",dnd:"🔕 DND — requested no contact"}[crmFolder]}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {/* Search + filter */}
             <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
               <input className="inp" value={search} onChange={e=>setSearch(e.target.value)}
@@ -4897,7 +5052,13 @@ function AppInner() {
                       </div>
                     </div>
                     <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}}>
-                      {(c.tags||[]).slice(0,3).map(tag=>{
+                      {(()=>{
+                      const folder = c.crmFolder||getContactFolder(c);
+                      const folderBadge = {client:{icon:"✅",color:"var(--gr)"},lost:{icon:"❌",color:"var(--rd)"},missed:{icon:"📵",color:"var(--acc)"},spam:{icon:"🚫",color:"var(--mu)"},dnd:{icon:"🔕",color:"var(--pu)"},lead:{icon:"🆕",color:"var(--bl)"}};
+                      const fb = folderBadge[folder];
+                      return fb&&folder!=="lead"?<span style={{fontSize:10,padding:"2px 6px",borderRadius:5,background:fb.color+"18",color:fb.color,border:`1px solid ${fb.color}30`,whiteSpace:"nowrap"}}>{fb.icon}</span>:null;
+                    })()}
+                    {(c.tags||[]).slice(0,3).map(tag=>{
                         const td=crmTags.find(t=>t.name===tag);
                         return <span key={tag} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)"}}>{tag}</span>;
                       })}
