@@ -599,7 +599,6 @@ function Telephony() {
   const { lang, t } = useContext(LangCtx);
   const ru = lang === "ru";
 
-  const AI_PROXY = "https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule";
 
   const TABS = [
     { key:"all",     label: ru?"Все звонки":"All Calls",      icon:"📋" },
@@ -659,95 +658,84 @@ function Telephony() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `Ты эксперт по продажам в клининговой компании. Проанализируй транскрипцию звонка и верни ТОЛЬКО JSON:
+          max_tokens: 800,
+          system: `You are a sales expert for a cleaning company. Analyze the call transcript and return ONLY a raw JSON object (no markdown, no backticks). Schema:
 {
-  "result": "sale|no_sale|reschedule|info",
+  "result": "sale" | "no_sale" | "reschedule" | "info" | "spam",
   "score": 0-100,
-  "failMoment": "момент где потеряли продажу или null",
-  "failReason": "причина провала или null",
-  "goodMoments": ["что сделано хорошо"],
-  "improvements": ["конкретные улучшения"],
-  "autoSuggestion": "автоматическое действие которое нужно сделать",
-  "category": "new|existing|spam|missed|dnd"
+  "category": "new" | "existing" | "spam" | "missed" | "dnd",
+  "failMoment": string or null,
+  "failReason": string or null,
+  "goodMoments": string[],
+  "improvements": string[],
+  "autoSuggestion": string
 }
-Отвечай на ${ru ? "русском" : "English"}.`,
-          messages: [{ role: "user", content: `Транскрипция:\n${call.transcript}` }]
+Category rules: new=first-time caller, existing=returning client/reschedule, spam=robocall/irrelevant, missed=no answer/no transcript, dnd=asked not to be called.
+Respond in ${ru ? "Russian" : "English"}.`,
+          messages: [{ role: "user", content: `Transcript:\n${call.transcript}` }]
         })
       });
-      // Use proxy instead for CORS
-      const proxyResp = await fetch(AI_PROXY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheduleContext: [{ callTranscript: call.transcript, callId: callId }],
-          lang,
-          mode: "call_analysis"
-        })
-      });
-      // Fallback: build analysis locally based on call content
-      throw new Error("use_local");
-    } catch(e) {
-      // Local AI analysis based on transcript patterns
-      const t = call.transcript.toLowerCase();
+      const data = await resp.json();
+      const text = (data.content || []).map(b => b.text || "").join("").trim();
+      const clean = text.replace(/```json|```/gi, "").trim();
+      const analysis = JSON.parse(clean);
+      // Auto-sort: update call.type to AI-detected category
+      setCalls(prev => prev.map(c => c.id === callId
+        ? { ...c, aiLoading: false, aiAnalysis: analysis, status: "analyzed", type: analysis.category || c.type }
+        : c
+      ));
+    } catch(err) {
+      // Smart fallback based on transcript patterns
+      const tr = (call.transcript || "").toLowerCase();
       let analysis;
-      if (call.type === "spam") {
-        analysis = {
-          result: "spam", score: 0,
-          failMoment: null, failReason: null,
-          goodMoments: [],
-          improvements: [ru ? "Добавить в черный список" : "Add to blacklist"],
-          autoSuggestion: ru ? "Заблокировать номер" : "Block number",
-          category: "spam"
-        };
-      } else if (call.type === "missed") {
-        analysis = {
-          result: "no_sale", score: 20,
-          failMoment: ru ? "Звонок не был принят" : "Call was not answered",
-          failReason: ru ? "Пропущенный звонок — потенциально потерянный клиент" : "Missed call — potential lost client",
-          goodMoments: [],
-          improvements: [ru ? "Перезвонить в течение 1 часа" : "Call back within 1 hour", ru ? "Отправить SMS с извинением" : "Send apology SMS"],
-          autoSuggestion: ru ? "📲 Отправить SMS: «Здравствуйте! Видели ваш звонок, перезвоним в течение 15 минут!»" : "📲 Send SMS: 'Hi! Saw your call, calling back within 15 min!'",
-          category: "missed"
-        };
-      } else if (t.includes("подумаю") || t.includes("think about") || t.includes("конкурент") || t.includes("competitor")) {
-        analysis = {
-          result: "no_sale", score: 35,
-          failMoment: ru ? "Когда клиент сравнил с конкурентами" : "When client mentioned competitors",
-          failReason: ru ? "Оператор не защитил цену и не предложил ценность. Фраза «можете попробовать» — критическая ошибка" : "Agent didn't defend price or offer value. 'You can try them' is a critical mistake",
-          goodMoments: [ru ? "Быстро назвал цену" : "Quoted price quickly"],
-          improvements: [
-            ru ? "При возражении о цене — говорить о ценности: гарантия, проверенные клинеры, страховка" : "When price objection — talk value: guarantee, vetted cleaners, insurance",
-            ru ? "Предложить скидку 10% на первую уборку" : "Offer 10% off first cleaning",
-            ru ? "Никогда не отпускать клиента к конкурентам без контраргумента" : "Never let client go to competitors without counter-argument"
-          ],
-          autoSuggestion: ru ? "📲 Отправить SMS через 2 часа: «Здравствуйте! Хотим предложить вам скидку 10% на первую уборку — $126 вместо $140. Действует до пятницы!»" : "📲 Send SMS in 2h: 'Hi! We'd like to offer 10% off your first cleaning — $126 instead of $140. Valid until Friday!'",
-          category: "new"
-        };
-      } else if (t.includes("записываю") || t.includes("booking") || t.includes("записала") || t.includes("booked")) {
-        analysis = {
-          result: "sale", score: 92,
-          failMoment: null, failReason: null,
-          goodMoments: [
-            ru ? "Быстро закрыл сделку" : "Closed deal quickly",
-            ru ? "Ответил на все вопросы клиента" : "Answered all client questions",
-            ru ? "Подтвердил дату и время" : "Confirmed date and time"
-          ],
-          improvements: [ru ? "Можно было предложить допродажу (окна, холодильник)" : "Could have offered upsell (windows, fridge)"],
-          autoSuggestion: ru ? "✅ Создать бронирование в расписании и отправить подтверждение" : "✅ Create booking in schedule and send confirmation",
-          category: call.type
-        };
+      if (!call.transcript || call.type === "missed") {
+        analysis = { result:"no_sale", score:20, category:"missed",
+          failMoment: ru?"Звонок не был принят":"Call not answered",
+          failReason: ru?"Пропущенный звонок — потенциально потерянный клиент":"Missed call — potential lost client",
+          goodMoments:[],
+          improvements:[ru?"Перезвонить в течение 1 часа":"Call back within 1 hour", ru?"Отправить SMS":"Send SMS"],
+          autoSuggestion: ru?"📲 SMS: «Видели ваш звонок, перезвоним через 15 минут!»":"📲 SMS: 'Saw your call, calling back in 15 min!'" };
+      } else if (call.type === "spam" || tr.includes("поздравляем") || tr.includes("congratulations") || tr.includes("prize") || tr.includes("won a")) {
+        analysis = { result:"spam", score:0, category:"spam",
+          failMoment:null, failReason:null, goodMoments:[],
+          improvements:[ru?"Добавить в чёрный список":"Add to blacklist"],
+          autoSuggestion: ru?"🚫 Заблокировать номер":"🚫 Block number" };
+      } else if (tr.includes("не звоните") || tr.includes("do not call") || tr.includes("remove me")) {
+        analysis = { result:"info", score:0, category:"dnd",
+          failMoment:null, failReason:null, goodMoments:[],
+          improvements:[ru?"Добавить в DND список":"Add to DND list"],
+          autoSuggestion: ru?"🔕 Добавить в DND":"🔕 Add to DND list" };
+      } else if (tr.includes("постоянный") || tr.includes("regular") || tr.includes("перенести") || tr.includes("reschedule") || tr.includes("у вас клиент") || tr.includes("i'm your")) {
+        const sold = tr.includes("записала") || tr.includes("booked") || tr.includes("готово") || tr.includes("done");
+        analysis = { result:sold?"reschedule":"info", score:sold?88:65, category:"existing",
+          failMoment:null, failReason:null,
+          goodMoments:[ru?"Постоянный клиент обслужен":"Returning client served"],
+          improvements:[ru?"Предложить программу лояльности":"Offer loyalty program"],
+          autoSuggestion: ru?"✅ Подтвердить бронирование и отправить напоминание":"✅ Confirm booking and send reminder" };
+      } else if (tr.includes("подумаю") || tr.includes("think about") || tr.includes("конкурент") || tr.includes("competitor") || tr.includes("дешевле") || tr.includes("cheaper")) {
+        analysis = { result:"no_sale", score:35, category:"new",
+          failMoment: ru?"Клиент сравнил с конкурентами":"Client mentioned competitors",
+          failReason: ru?"Оператор не защитил цену — критическая ошибка":"Agent didn't defend price — critical mistake",
+          goodMoments:[ru?"Цена была названа":"Price was quoted"],
+          improvements:[ru?"Говорить о ценности: гарантия, страховка, проверенные клинеры":"Highlight value: guarantee, insurance, vetted cleaners", ru?"Предложить скидку 10% на первую уборку":"Offer 10% off first cleaning"],
+          autoSuggestion: ru?"📲 SMS через 2ч: «Скидка 10% на первую уборку — до пятницы!»":"📲 SMS in 2h: '10% off your first cleaning — valid until Friday!'" };
+      } else if (tr.includes("записываю") || tr.includes("записала") || tr.includes("booked") || tr.includes("booking you") || tr.includes("вторник") || tr.includes("tuesday")) {
+        analysis = { result:"sale", score:92, category:"new",
+          failMoment:null, failReason:null,
+          goodMoments:[ru?"Сделка закрыта":"Deal closed", ru?"Подтверждены дата и время":"Date and time confirmed"],
+          improvements:[ru?"Предложить допродажу (окна, холодильник)":"Offer upsell (windows, fridge)"],
+          autoSuggestion: ru?"✅ Создать бронирование и отправить подтверждение":"✅ Create booking and send confirmation" };
       } else {
-        analysis = {
-          result: "info", score: 60,
-          failMoment: null, failReason: null,
-          goodMoments: [ru ? "Клиент получил нужную информацию" : "Client received needed info"],
-          improvements: [ru ? "Добавить призыв к действию в конце разговора" : "Add call-to-action at end of call"],
-          autoSuggestion: ru ? "📋 Добавить в CRM как лид" : "📋 Add to CRM as lead",
-          category: call.type
-        };
+        analysis = { result:"info", score:60, category:call.type||"new",
+          failMoment:null, failReason:null,
+          goodMoments:[ru?"Клиент получил информацию":"Client received info"],
+          improvements:[ru?"Добавить призыв к действию":"Add a call-to-action"],
+          autoSuggestion: ru?"📋 Добавить в CRM как лид":"📋 Add to CRM as lead" };
       }
-      setCalls(prev => prev.map(c => c.id === callId ? {...c, aiLoading: false, aiAnalysis: analysis, status: "analyzed"} : c));
+      setCalls(prev => prev.map(c => c.id === callId
+        ? { ...c, aiLoading: false, aiAnalysis: analysis, status: "analyzed", type: analysis.category || c.type }
+        : c
+      ));
     }
   }
 
