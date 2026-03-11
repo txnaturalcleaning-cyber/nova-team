@@ -598,10 +598,6 @@ class ErrorBoundary extends Component {
 function Telephony() {
   const { lang, t } = useContext(LangCtx);
   const ru = lang === "ru";
-  const pid = (() => {
-    try { const s = useContext; } catch(e) {}
-    return null;
-  })();
 
   const AI_PROXY = "https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule";
 
@@ -637,10 +633,10 @@ function Telephony() {
       aiAnalysis: null, aiLoading: false },
   ];
 
-  const [activeTab, setActiveTab] = React.useState("all");
-  const [calls, setCalls] = React.useState(DEMO_CALLS);
-  const [openCall, setOpenCall] = React.useState(null);
-  const [classifying, setClassifying] = React.useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+  const [calls, setCalls] = useState(DEMO_CALLS);
+  const [openCall, setOpenCall] = useState(null);
+  const [classifying, setClassifying] = useState(false);
 
   const visibleCalls = activeTab === "all" ? calls : calls.filter(c => c.type === activeTab);
 
