@@ -1371,50 +1371,48 @@ function AppInner() {
     return result;
   }
 
+  // ── AI proxy endpoint (Firebase Cloud Function) ──
+  // After deploying functions, this URL is shown in Firebase console
+  // Format: https://us-central1-<project-id>.cloudfunctions.net/aiSchedule
+  const AI_PROXY_URL = "https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule";
+
   async function callScheduleAI(ws, targetDate) {
     setAiSchedLoading(true);
     setAiSchedErr(null);
+    const ru = lang==="ru";
     try {
       const ctx = buildScheduleContext(ws, targetDate);
-      const ru  = lang==="ru";
-      const systemPrompt = `You are an expert scheduling assistant for a professional cleaning company. 
-Analyze the cleaner schedules and bookings provided and give actionable recommendations.
-RULES:
-- Between jobs, always assume 1 hour travel time
-- A cleaner's day ends at their workEnd time
-- A job fits if: previousJobEnd + 1hr travel + newJobDuration <= workEnd
-- Look for gaps where unassigned bookings could fit
-- Look for cleaners with free time who could take more jobs
-- Warn about double-bookings or overloaded cleaners
-- Be specific: name cleaners, mention times, say exactly what fits
 
-Respond in ${ru?"Russian":"English"} ONLY.
-Return a JSON array of recommendation objects. Each object:
-{ "level": "info"|"warning"|"critical", "icon": "emoji", "text": "short recommendation", "action": "cleaner_name or null", "date": "YYYY-MM-DD" }
-
-Return ONLY the JSON array. No markdown fences. No extra text.`;
-
-      const userMsg = `Schedule data for analysis:\n${JSON.stringify(ctx, null, 2)}`;
-
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      const resp = await fetch(AI_PROXY_URL, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [{role:"user", content: userMsg}],
-        }),
+        body: JSON.stringify({ scheduleContext: ctx, lang }),
       });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(()=>({}));
+        throw new Error(errData.error || `HTTP ${resp.status}`);
+      }
+
       const data = await resp.json();
-      const raw = (data.content||[]).find(b=>b.type==="text")?.text||"[]";
-      let recs;
-      try { recs = JSON.parse(raw.replace(/```json|```/g,"").trim()); }
-      catch { recs = [{level:"info",icon:"✅",text: ru?"Данных пока недостаточно для анализа":"Not enough data to analyze",action:null,date:null}]; }
+      const recs = Array.isArray(data.recommendations) ? data.recommendations
+        : [{level:"info",icon:"✅",text:ru?"Данных пока недостаточно":"Not enough data",action:null,date:null}];
+
       setAiSchedResult(recs);
       setAiSchedTs(new Date().toLocaleTimeString());
     } catch(e) {
-      setAiSchedErr(e.message);
+      // User-friendly Russian/English error messages
+      let msg = e.message||"Unknown error";
+      if (msg.includes("Failed to fetch")||msg.includes("NetworkError")) {
+        msg = ru
+          ? "Нет соединения с сервером. Убедитесь что Cloud Function задеплоена."
+          : "Cannot reach AI server. Make sure the Cloud Function is deployed.";
+      } else if (msg.includes("500")) {
+        msg = ru
+          ? "Ошибка сервера. Проверьте что API ключ Anthropic установлен в Firebase config."
+          : "Server error. Check that the Anthropic API key is set in Firebase config.";
+      }
+      setAiSchedErr(msg);
     } finally {
       setAiSchedLoading(false);
     }
