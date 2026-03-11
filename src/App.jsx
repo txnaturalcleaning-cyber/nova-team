@@ -669,6 +669,14 @@ function AppInner() {
   // Operations Workspace lifted state
   const [opsTab,         setOpsTab]         = useState(()=>localStorage.getItem("nls_opsTab")||"dashboard");
   const [opsOpenW,       setOpsOpenW]       = useState(()=>localStorage.getItem("nls_opsCard")||null);
+  // CSV Import — lifted so both CRM and Booking can use it
+  const [showImport,    setShowImport]    = useState(false);
+  const [importTarget,  setImportTarget]  = useState("booking"); // "booking" | "crm"
+  const [importRows,    setImportRows]    = useState([]);
+  const [importHeaders, setImportHeaders] = useState([]);
+  const [importMap,     setImportMap]     = useState({});
+  const [importStep,    setImportStep]    = useState(1);
+  const [importDone,    setImportDone]    = useState(null);
 
   // ── Persist workspace navigation to localStorage ──
   useEffect(()=>{ if(bookingTab) localStorage.setItem("nls_bkTab", bookingTab); }, [bookingTab]);
@@ -4225,7 +4233,12 @@ function AppInner() {
             <button key={tb.id} className={`btn ${cTab===tb.id?"btn-p":"btn-g"}`} style={{fontSize:12}} onClick={()=>setCTab(tb.id)}>{tb.label}</button>
           ))}
           {cTab==="contacts"&&(
-            <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setCModal(true)}>{IC.plus} {t.addContact}</button>
+            <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+              <button className="btn btn-g" style={{fontSize:12}} onClick={()=>{setImportTarget("crm");setImportStep(1);setImportRows([]);setImportHeaders([]);setImportMap({});setImportDone(null);setShowImport(true);}}>
+                📥 {lang==="ru"?"Импорт CSV":"Import CSV"}
+              </button>
+              <button className="btn btn-p" style={{fontSize:12}} onClick={()=>setCModal(true)}>{IC.plus} {t.addContact}</button>
+            </div>
           )}
           {cTab==="tags"&&(
             <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setTagMgr(s=>!s)}>{IC.tag} {t.manageTagsTitle}</button>
@@ -5024,6 +5037,7 @@ function AppInner() {
     const [popupBk,     setPopupBk]   = useState(null);  // quick-view popup
     const [showBkForm,  setBkForm]    = useState(false);
     const [showClForm,  setClForm]    = useState(false); // client form
+    // CSV import state lifted to AppInner
     const [editClId,    setEditClId]  = useState(null);
     const [showCrForm,  setCrForm]    = useState(false); // cleaner form
     const [editCrId,    setEditCrId]  = useState(null);
@@ -6943,8 +6957,11 @@ function AppInner() {
               </div>
             </div>
           )}
-          <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
-            <input className="inp" value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder={lang==="ru"?"Поиск...":"Search..."} style={{flex:1}}/>
+          <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center",flexWrap:"wrap"}}>
+            <input className="inp" value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder={lang==="ru"?"Поиск...":"Search..."} style={{flex:1,minWidth:140}}/>
+            <button className="btn btn-g btn-sm" style={{fontSize:12}} onClick={()=>{setImportTarget("booking");setImportStep(1);setImportRows([]);setImportHeaders([]);setImportMap({});setImportDone(null);setShowImport(true);}}>
+              📥 {lang==="ru"?"Импорт CSV":"Import CSV"}
+            </button>
             <button className="btn btn-p" onClick={()=>{setClF({name:"",phone:"",email:"",address:"",city:"",notes:""});setEditClId(null);setClForm(true);}}>
               + {lang==="ru"?"Клиент":"Client"}
             </button>
@@ -7782,6 +7799,312 @@ function AppInner() {
 
 
   /* ══════════════════════════════════════
+     CSV IMPORT MODAL — shared across CRM + Booking
+  ══════════════════════════════════════ */
+  const CSVImportModal = () => {
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const ru  = lang==="ru";
+
+    // Field definitions for each target
+    const BOOKING_FIELDS = [
+      {key:"name",  label:ru?"Имя клиента *":"Client Name *",   required:true},
+      {key:"phone", label:ru?"Телефон":"Phone"},
+      {key:"email", label:"Email"},
+      {key:"address",label:ru?"Адрес":"Address"},
+      {key:"city",  label:ru?"Город":"City"},
+      {key:"notes", label:ru?"Заметки":"Notes"},
+    ];
+    const CRM_FIELDS = [
+      {key:"name",  label:ru?"Имя контакта *":"Contact Name *", required:true},
+      {key:"phone", label:ru?"Телефон":"Phone"},
+      {key:"email", label:"Email"},
+      {key:"city",  label:ru?"Город":"City"},
+      {key:"notes", label:ru?"Заметки / описание":"Notes"},
+    ];
+    const fields = importTarget==="booking" ? BOOKING_FIELDS : CRM_FIELDS;
+
+    // Auto-match columns to our fields by name similarity
+    function autoMap(headers) {
+      const map = {};
+      const normalize = s => s.toLowerCase().replace(/[^a-zа-яё]/gi,"");
+      const ALIASES = {
+        name:    ["name","fullname","clientname","contactname","customer","firstname","имя","клиент","контакт","название"],
+        phone:   ["phone","mobile","cell","telephone","телефон","моб"],
+        email:   ["email","mail","e-mail","почта"],
+        address: ["address","addr","location","адрес"],
+        city:    ["city","town","город"],
+        notes:   ["notes","note","comment","description","заметки","комментарий"],
+      };
+      headers.forEach(h => {
+        const hn = normalize(h);
+        Object.entries(ALIASES).forEach(([field, aliases]) => {
+          if (!map[field] && aliases.some(a => hn.includes(a))) map[field] = h;
+        });
+      });
+      return map;
+    }
+
+    function handleFile(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = evt => {
+        // Simple CSV parser using PapaParse-like logic
+        const text = evt.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) return;
+
+        // Parse header
+        function parseCSVLine(line) {
+          const result = [];
+          let cur = "", inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') { inQ = !inQ; continue; }
+            if (ch === "," && !inQ) { result.push(cur.trim()); cur = ""; continue; }
+            cur += ch;
+          }
+          result.push(cur.trim());
+          return result;
+        }
+
+        const headers = parseCSVLine(lines[0]);
+        const rows = lines.slice(1).map(l => {
+          const vals = parseCSVLine(l);
+          const obj = {};
+          headers.forEach((h,i) => { obj[h] = vals[i]||""; });
+          return obj;
+        }).filter(r => Object.values(r).some(v => v.trim()));
+
+        setImportHeaders(headers);
+        setImportRows(rows);
+        setImportMap(autoMap(headers));
+        setImportStep(2);
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+
+    function doImport() {
+      const today = new Date().toISOString().split("T")[0];
+      let added = 0, skipped = 0;
+
+      if (importTarget === "booking") {
+        const existing = getPartner(pid)?.bkClients||[];
+        const newClients = importRows.map(row => {
+          const name = row[importMap.name||""]||"";
+          if (!name.trim()) { skipped++; return null; }
+          // Skip exact duplicates
+          if (existing.some(c => c.name===name && c.phone===(row[importMap.phone||""]||""))) { skipped++; return null; }
+          added++;
+          return {
+            id: "cl_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),
+            name:    name.trim(),
+            phone:   row[importMap.phone||""]||"",
+            email:   row[importMap.email||""]||"",
+            address: row[importMap.address||""]||"",
+            city:    row[importMap.city||""]||"",
+            notes:   row[importMap.notes||""]||"",
+            createdAt: today,
+            importedAt: today,
+          };
+        }).filter(Boolean);
+        setPartners(ps => ps.map(x => x.id===pid ? {...x, bkClients:[...(x.bkClients||[]),...newClients]} : x));
+      } else {
+        // CRM contacts
+        const existing = getPartner(pid)?.contacts||[];
+        const newContacts = importRows.map(row => {
+          const name = row[importMap.name||""]||"";
+          if (!name.trim()) { skipped++; return null; }
+          if (existing.some(c => c.name===name && c.phone===(row[importMap.phone||""]||""))) { skipped++; return null; }
+          added++;
+          return {
+            id: "c_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),
+            name:    name.trim(),
+            phone:   row[importMap.phone||""]||"",
+            email:   row[importMap.email||""]||"",
+            city:    row[importMap.city||""]||"",
+            notes:   row[importMap.notes||""]||"",
+            stage:   "lead",
+            tags:    [],
+            history: [],
+            deptIds: [],
+            createdAt: today,
+            importedAt: today,
+          };
+        }).filter(Boolean);
+        setPartners(ps => ps.map(x => x.id===pid ? {...x, contacts:[...(x.contacts||[]),...newContacts]} : x));
+      }
+
+      setImportDone({added, skipped, total: importRows.length});
+      setImportStep(3);
+    }
+
+    function close() {
+      setShowImport(false);
+      setImportStep(1);
+      setImportRows([]);
+      setImportHeaders([]);
+      setImportMap({});
+      setImportDone(null);
+    }
+
+    const PLATFORMS = [
+      {name:"BookingKoala", hint: ru?"Экспорт: Clients → Export CSV":"Export: Clients → Export CSV"},
+      {name:"GoHighLevel",  hint: ru?"Экспорт: Contacts → Export":"Export: Contacts → Export"},
+      {name:"Jobber",       hint: ru?"Экспорт: Clients → Export":"Export: Clients → Export"},
+      {name:"ZenMaid",      hint: ru?"Экспорт: Customers → Export CSV":"Export: Customers → Export CSV"},
+      {name:ru?"Любой CSV":"Any CSV", hint: ru?"Файл .csv с именами и контактами":"Any .csv file with names and contacts"},
+    ];
+
+    return (
+      <div className="ovl" onClick={close}>
+        <div className="modal" style={{maxWidth:580,width:"95%"}} onClick={e=>e.stopPropagation()}>
+
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+            <div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18}}>
+                📥 {ru?"Импорт клиентов из CSV":"Import Clients from CSV"}
+              </div>
+              <div style={{fontSize:12,color:"var(--mu)",marginTop:3}}>
+                {importTarget==="booking" ? (ru?"→ Booking / Клиенты":"→ Booking / Clients") : (ru?"→ CRM / Контакты":"→ CRM / Contacts")}
+              </div>
+            </div>
+            <button onClick={close} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--mu)"}}>✕</button>
+          </div>
+
+          {/* Target toggle */}
+          <div style={{display:"flex",gap:6,marginBottom:18}}>
+            {[["booking",ru?"📅 Booking-клиенты":"📅 Booking Clients"],["crm",ru?"👥 CRM-контакты":"👥 CRM Contacts"]].map(([t,l])=>(
+              <button key={t} onClick={()=>setImportTarget(t)}
+                style={{padding:"6px 14px",borderRadius:8,border:`1.5px solid ${importTarget===t?"var(--acc)":"var(--bdr)"}`,
+                  background:importTarget===t?"var(--acc)15":"transparent",
+                  color:importTarget===t?"var(--acc)":"var(--mu)",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          {/* Step 1: Upload */}
+          {importStep===1&&(
+            <div>
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--mu)",marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>
+                  {ru?"Поддерживаемые платформы:":"Supported platforms:"}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {PLATFORMS.map(p=>(
+                    <div key={p.name} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"var(--s2)",borderRadius:8}}>
+                      <div style={{fontWeight:600,fontSize:13,minWidth:120}}>{p.name}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{p.hint}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <label style={{display:"block",cursor:"pointer"}}>
+                <div style={{border:"2px dashed var(--acc)40",borderRadius:14,padding:"28px 20px",textAlign:"center",
+                  background:"var(--acc)05",transition:"all .2s",cursor:"pointer"}}
+                  onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--acc)";}}
+                  onDragLeave={e=>{e.currentTarget.style.borderColor="var(--acc)40";}}
+                  onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor="var(--acc)40";
+                    const file=e.dataTransfer.files[0];
+                    if(file){const inp=document.getElementById("csv_upload_inp");if(inp){const dt=new DataTransfer();dt.items.add(file);inp.files=dt.files;handleFile({target:{files:[file]}});}}
+                  }}>
+                  <div style={{fontSize:36,marginBottom:8}}>📂</div>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{ru?"Перетащите CSV файл или нажмите":"Drag & drop CSV or click"}</div>
+                  <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"Формат: .csv — из BookingKoala, GHL, Jobber, ZenMaid и др.":"Format: .csv — from BookingKoala, GHL, Jobber, ZenMaid, etc."}</div>
+                </div>
+                <input id="csv_upload_inp" type="file" accept=".csv" style={{display:"none"}} onChange={handleFile}/>
+              </label>
+            </div>
+          )}
+
+          {/* Step 2: Map columns */}
+          {importStep===2&&(
+            <div>
+              <div style={{marginBottom:12,padding:"10px 14px",background:"var(--bl)10",border:"1px solid var(--bl)30",borderRadius:10,fontSize:12}}>
+                ✅ {ru?"Найдено строк:":"Rows found:"} <strong>{importRows.length}</strong> &nbsp;•&nbsp;
+                {ru?"Колонок:":"Columns:"} <strong>{importHeaders.length}</strong>
+              </div>
+
+              <div style={{fontSize:12,fontWeight:600,color:"var(--mu)",marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>
+                {ru?"Сопоставьте колонки вашего файла с нашими полями:":"Map your file columns to our fields:"}
+              </div>
+
+              <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:300,overflowY:"auto",paddingRight:4}}>
+                {fields.map(f=>(
+                  <div key={f.key} style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:150,flexShrink:0,fontSize:12,fontWeight:600,color:f.required?"var(--acc)":"var(--tx)"}}>
+                      {f.label}
+                    </div>
+                    <div style={{fontSize:18,color:"var(--mu)"}}>←</div>
+                    <select className="inp" style={{flex:1,fontSize:12}}
+                      value={importMap[f.key]||""}
+                      onChange={e=>setImportMap(m=>({...m,[f.key]:e.target.value}))}>
+                      <option value="">{ru?"— не импортировать —":"— skip —"}</option>
+                      {importHeaders.map(h=><option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview first 3 rows */}
+              <div style={{marginTop:14,padding:"10px 12px",background:"var(--s2)",borderRadius:10}}>
+                <div style={{fontSize:11,color:"var(--mu)",marginBottom:6,fontWeight:600}}>{ru?"Превью (первые 3 строки):":"Preview (first 3 rows):"}</div>
+                {importRows.slice(0,3).map((row,i)=>(
+                  <div key={i} style={{fontSize:11,color:"var(--tx)",marginBottom:3}}>
+                    {Object.entries(importMap).filter(([,v])=>v).map(([field,col])=>{
+                      const fDef = fields.find(f=>f.key===field);
+                      return row[col] ? <span key={field} style={{marginRight:8}}><span style={{color:"var(--mu)"}}>{fDef?.label.replace(" *","")}:</span> {row[col]}</span> : null;
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{display:"flex",gap:8,marginTop:16}}>
+                <button className="btn btn-g" onClick={()=>setImportStep(1)}>{ru?"← Назад":"← Back"}</button>
+                <button className="btn btn-p" style={{flex:1}} onClick={doImport}
+                  disabled={!importMap.name}>
+                  📥 {ru?"Импортировать":"Import"} {importRows.length} {ru?"записей":"records"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Done */}
+          {importStep===3&&importDone&&(
+            <div style={{textAlign:"center",padding:"20px 0"}}>
+              <div style={{fontSize:56,marginBottom:12}}>🎉</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"var(--gr)",marginBottom:8}}>
+                {ru?"Импорт завершён!":"Import Complete!"}
+              </div>
+              <div style={{display:"flex",justifyContent:"center",gap:24,marginBottom:20}}>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:"var(--gr)"}}>{importDone.added}</div>
+                  <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"добавлено":"added"}</div>
+                </div>
+                {importDone.skipped>0&&(
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:"var(--mu)"}}>{importDone.skipped}</div>
+                    <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"пропущено (дублей)":"skipped (duplicates)"}</div>
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:12,color:"var(--mu)",marginBottom:20}}>
+                {ru?"Клиенты уже доступны в разделе — можете начать работу":"Clients are now available — you can start working with them"}
+              </div>
+              <button className="btn btn-p" style={{padding:"10px 32px"}} onClick={close}>
+                {ru?"Готово ✓":"Done ✓"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  /* ══════════════════════════════════════
      P&L — ФИНАНСЫ
   ══════════════════════════════════════ */
   const PnL = () => {
@@ -8344,6 +8667,8 @@ function AppInner() {
         </div>
 
         {/* ══ MODALS ══ */}
+
+        {showImport&&<CSVImportModal/>}
 
         {modal==="partner"&&(
           <div className="ovl" onClick={()=>setModal(null)}>
