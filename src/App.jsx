@@ -669,6 +669,11 @@ function AppInner() {
   // Operations Workspace lifted state
   const [opsTab,         setOpsTab]         = useState(()=>localStorage.getItem("nls_opsTab")||"dashboard");
   const [opsOpenW,       setOpsOpenW]       = useState(()=>localStorage.getItem("nls_opsCard")||null);
+  // AI Scheduling state — lifted so it survives re-renders
+  const [aiSchedResult,  setAiSchedResult]  = useState(null);   // parsed AI recs array
+  const [aiSchedLoading, setAiSchedLoading] = useState(false);
+  const [aiSchedErr,     setAiSchedErr]     = useState(null);
+  const [aiSchedTs,      setAiSchedTs]      = useState(null);   // timestamp of last run
   // CSV Import — lifted so both CRM and Booking can use it
   const [showImport,    setShowImport]    = useState(false);
   const [importTarget,  setImportTarget]  = useState("booking"); // "booking" | "crm"
@@ -1299,6 +1304,122 @@ function AppInner() {
     );
   };
 
+  /* ── AI SCHEDULING ENGINE ── */
+  // Build a scheduling context object from the active workspace
+  function buildScheduleContext(ws, targetDate) {
+    const p = getPartner(viewPartner?.id||(isSA?"nce_main":currentUser?.id));
+    const allEmps    = (ws?.employees||[]);
+    const cleaners   = allEmps.filter(e=>e.status!=="fired"&&e.status!=="blocked");
+    const bookings   = (ws?.bookings||[]);
+    const shifts     = (ws?.schedule||[]);
+    const bkSettings = p?.bkSettings||{};
+    // Simple duration calc (same logic as in BookingView)
+    const durMatrix = bkSettings.durMatrix||[];
+    const cleanTypes = bkSettings.cleanTypes||[];
+    function getDur(b) {
+      if (b.durOverride) return parseFloat(b.durOverride)||1;
+      const beds=b.beds||2, baths=b.baths||1;
+      let base;
+      if (durMatrix.length>0) {
+        const r=Math.min(beds,durMatrix.length-1);
+        const c=Math.min(Math.max(baths-1,0),(durMatrix[0]||[]).length-1);
+        base=(durMatrix[r]||[])[c]||1;
+      } else { base=1+beds*0.5+baths*0.3; }
+      const mult=(cleanTypes).find(x=>x.id===b.cleanType)?.mult||1;
+      const cnt=Math.max(b.cleanerCount||1,1);
+      return Math.round(base*mult/cnt*10)/10;
+    }
+    // Time helpers
+    function toMins(hhmm) {
+      const [h,m]=(hhmm||"00:00").split(":").map(Number); return h*60+(m||0);
+    }
+    function fromMins(mins) {
+      const h=Math.floor(mins/60),m=mins%60; return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+    }
+    const dates = targetDate
+      ? [targetDate]
+      : [0,1,2].map(d=>{ const dt=new Date(); dt.setDate(dt.getDate()+d); return dt.toISOString().split("T")[0]; });
+
+    const result = [];
+    for (const date of dates) {
+      const dayBks = bookings.filter(b=>b.date===date&&b.status!=="cancelled");
+      const dayShifts = shifts.filter(s=>s.date===date);
+      const cleanerData = cleaners.map(c=>{
+        const myBks = dayBks.filter(b=>b.cleanerId===c.id).map(b=>({
+          id: b.id, time: b.time||"09:00",
+          endTime: fromMins(toMins(b.time||"09:00")+Math.round(getDur(b)*60)),
+          durationHrs: getDur(b),
+          clientId: b.clientId, status: b.status, address: b.address||"",
+          total: b.total||b.price||0,
+        })).sort((a,b2)=>a.time.localeCompare(b2.time));
+        const shift = dayShifts.find(s=>s.employeeId===c.id);
+        return {
+          id: c.id, name: c.name,
+          workStart: c.workStart||shift?.startTime||"08:00",
+          workEnd:   c.workEnd  ||shift?.endTime  ||"17:00",
+          availability: c.opsAvailability||"full_time",
+          jobs: myBks,
+        };
+      });
+      const unassigned = dayBks.filter(b=>!b.cleanerId).map(b=>({
+        id: b.id, time: b.time||"09:00", durationHrs: getDur(b),
+        beds: b.beds, baths: b.baths, cleanType: b.cleanType, address: b.address||"",
+        total: b.total||b.price||0,
+      }));
+      result.push({ date, cleaners: cleanerData, unassigned });
+    }
+    return result;
+  }
+
+  async function callScheduleAI(ws, targetDate) {
+    setAiSchedLoading(true);
+    setAiSchedErr(null);
+    try {
+      const ctx = buildScheduleContext(ws, targetDate);
+      const ru  = lang==="ru";
+      const systemPrompt = `You are an expert scheduling assistant for a professional cleaning company. 
+Analyze the cleaner schedules and bookings provided and give actionable recommendations.
+RULES:
+- Between jobs, always assume 1 hour travel time
+- A cleaner's day ends at their workEnd time
+- A job fits if: previousJobEnd + 1hr travel + newJobDuration <= workEnd
+- Look for gaps where unassigned bookings could fit
+- Look for cleaners with free time who could take more jobs
+- Warn about double-bookings or overloaded cleaners
+- Be specific: name cleaners, mention times, say exactly what fits
+
+Respond in ${ru?"Russian":"English"} ONLY.
+Return a JSON array of recommendation objects. Each object:
+{ "level": "info"|"warning"|"critical", "icon": "emoji", "text": "short recommendation", "action": "cleaner_name or null", "date": "YYYY-MM-DD" }
+
+Return ONLY the JSON array. No markdown fences. No extra text.`;
+
+      const userMsg = `Schedule data for analysis:\n${JSON.stringify(ctx, null, 2)}`;
+
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{role:"user", content: userMsg}],
+        }),
+      });
+      const data = await resp.json();
+      const raw = (data.content||[]).find(b=>b.type==="text")?.text||"[]";
+      let recs;
+      try { recs = JSON.parse(raw.replace(/```json|```/g,"").trim()); }
+      catch { recs = [{level:"info",icon:"✅",text: ru?"Данных пока недостаточно для анализа":"Not enough data to analyze",action:null,date:null}]; }
+      setAiSchedResult(recs);
+      setAiSchedTs(new Date().toLocaleTimeString());
+    } catch(e) {
+      setAiSchedErr(e.message);
+    } finally {
+      setAiSchedLoading(false);
+    }
+  }
+
   /* ── DASHBOARD ── */
   const Dashboard = () => {
     // SA partners mini-block rendered at bottom of dashboard (see below)
@@ -1366,36 +1487,36 @@ function AppInner() {
     const MONTH_NAMES_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     const monthName = (lang==="ru"?MONTH_NAMES_RU:MONTH_NAMES_EN)[calMo];
 
-    // ── AI Recommendations ──
-    const aiRecs = [];
+    // ── Quick static rules (always shown as baseline) ──
+    const staticRecs = [];
     const freeSlotsToday = Math.max(0, activeCleaners - todayBks.length);
     if (freeSlotsToday>0)
-      aiRecs.push({lvl:"info", ico:"📅",
+      staticRecs.push({lvl:"info", ico:"📅",
         text:lang==="ru"?`Сегодня ${freeSlotsToday} свободных слота — можно взять дополнительные заявки`
                         :`Today ${freeSlotsToday} open slot${freeSlotsToday>1?"s":""} — you can take more bookings`,
-        action:{label:lang==="ru"?"Открыть расписание":"View Schedule", fn:()=>setPage("booking")}});
+        action:{label:lang==="ru"?"Расписание":"View Schedule", fn:()=>setPage("booking")}});
     const tmw = new Date(); tmw.setDate(tmw.getDate()+1);
     const tmwStr = tmw.toISOString().split("T")[0];
     const tmwBks = bookings.filter(b=>b.date===tmwStr);
     const tmwCleaners = [...new Set(tmwBks.map(b=>b.cleanerId).filter(Boolean))].length;
     if (tmwBks.length>0&&tmwCleaners<tmwBks.length)
-      aiRecs.push({lvl:"warning", ico:"⚠️",
-        text:lang==="ru"?`Завтра ${tmwBks.length} уборок, назначено клинеров: ${tmwCleaners}. Нужно назначить ещё ${tmwBks.length-tmwCleaners}`
+      staticRecs.push({lvl:"warning", ico:"⚠️",
+        text:lang==="ru"?`Завтра ${tmwBks.length} уборок, клинеров назначено: ${tmwCleaners}. Нужно назначить ещё ${tmwBks.length-tmwCleaners}`
                         :`Tomorrow ${tmwBks.length} jobs, only ${tmwCleaners} cleaner${tmwCleaners!==1?"s":""} assigned`,
         action:{label:lang==="ru"?"Назначить":"Assign", fn:()=>setPage("booking")}});
     const unassigned = bookings.filter(b=>!b.cleanerId&&b.status!=="cancelled"&&b.date>=today2);
     if (unassigned.length>0)
-      aiRecs.push({lvl:"warning", ico:"🧹",
+      staticRecs.push({lvl:"warning", ico:"🧹",
         text:lang==="ru"?`${unassigned.length} заявок без назначенного клинера`
                         :`${unassigned.length} booking${unassigned.length>1?"s":""} without assigned cleaner`,
         action:{label:lang==="ru"?"Исправить":"Fix", fn:()=>setPage("booking")}});
     if (todayLeads>0)
-      aiRecs.push({lvl:"info", ico:"🎯",
-        text:lang==="ru"?`Сегодня ${todayLeads} новых лида — обработайте их быстро`
+      staticRecs.push({lvl:"info", ico:"🎯",
+        text:lang==="ru"?`Сегодня ${todayLeads} новых лида — обработайте быстро`
                         :`${todayLeads} new lead${todayLeads>1?"s":""} today — respond quickly`,
         action:{label:lang==="ru"?"Открыть CRM":"Open CRM", fn:()=>setPage("crm")}});
     if (revenue>0&&forecast>revenue)
-      aiRecs.push({lvl:"info", ico:"📈",
+      staticRecs.push({lvl:"info", ico:"📈",
         text:lang==="ru"?`Прогноз выручки до конца месяца: $${forecast.toLocaleString()}`
                         :`Forecast to end of month: $${forecast.toLocaleString()}`,
         action:null});
@@ -1406,14 +1527,21 @@ function AppInner() {
       return diff>30;
     });
     if (inactiveClients.length>0)
-      aiRecs.push({lvl:"info", ico:"💌",
-        text:lang==="ru"?`${inactiveClients.length} клиентов неактивны 30+ дней — отправьте предложение`
+      staticRecs.push({lvl:"info", ico:"💌",
+        text:lang==="ru"?`${inactiveClients.length} клиентов неактивны 30+ дней`
                         :`${inactiveClients.length} client${inactiveClients.length>1?"s":""} inactive 30+ days`,
         action:{label:lang==="ru"?"Открыть CRM":"Open CRM", fn:()=>setPage("crm")}});
-    if (aiRecs.length===0)
-      aiRecs.push({lvl:"info", ico:"✅",
+    if (staticRecs.length===0)
+      staticRecs.push({lvl:"info", ico:"✅",
         text:lang==="ru"?"Всё под контролем. Отличная работа!":"Everything looks great. Keep it up!",
         action:null});
+    // Merge with AI results (AI results override/supplement statics)
+    const aiRecs = aiSchedResult
+      ? aiSchedResult.map(r=>({
+          lvl: r.level||"info", ico: r.icon||"🤖", text: r.text||"",
+          action: r.action ? {label: lang==="ru"?"→ Расписание":"→ Schedule", fn:()=>setPage("booking")} : null,
+        }))
+      : staticRecs;
 
     // ── Activity Feed ──
     const activityFeed = [
@@ -1674,10 +1802,34 @@ function AppInner() {
 
           {/* AI Recommendations */}
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px",display:"flex",flexDirection:"column",gap:8}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:4}}>
-              🤖 {lang==="ru"?"AI Рекомендации":"AI Recommendations"}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,flex:1}}>
+                🤖 {lang==="ru"?"AI Рекомендации":"AI Recommendations"}
+              </div>
+              {aiSchedTs&&!aiSchedLoading&&(
+                <span style={{fontSize:9,color:"var(--mu2)"}}>обн. {aiSchedTs}</span>
+              )}
+              <button
+                onClick={()=>callScheduleAI(ws)}
+                disabled={aiSchedLoading}
+                style={{fontSize:10,padding:"4px 10px",background:aiSchedLoading?"var(--s3)":"var(--acc)18",
+                  border:"1px solid var(--acc)40",borderRadius:7,cursor:aiSchedLoading?"default":"pointer",
+                  color:aiSchedLoading?"var(--mu)":"var(--acc)",fontWeight:600,whiteSpace:"nowrap"}}>
+                {aiSchedLoading?(lang==="ru"?"Анализ...":"Analyzing..."):(lang==="ru"?"🔄 Запустить AI":"🔄 Run AI")}
+              </button>
             </div>
-            {aiRecs.map((r,i)=>{
+            {aiSchedErr&&(
+              <div style={{fontSize:11,color:"var(--rd)",background:"#ef444412",borderRadius:8,padding:"8px 10px"}}>
+                ⚠️ {aiSchedErr}
+              </div>
+            )}
+            {aiSchedLoading&&(
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"12px 0"}}>
+                <div style={{width:16,height:16,border:"2px solid var(--bdr2)",borderTop:"2px solid var(--acc)",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/>
+                <span style={{fontSize:12,color:"var(--mu)"}}>{lang==="ru"?"AI анализирует расписание клинеров...":"AI is analyzing cleaner schedules..."}</span>
+              </div>
+            )}
+            {!aiSchedLoading&&aiRecs.map((r,i)=>{
               const s=LVL_STYLE[r.lvl]||LVL_STYLE.info;
               return (
                 <div key={i} style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:10,padding:"10px 12px"}}>
@@ -1696,6 +1848,11 @@ function AppInner() {
                 </div>
               );
             })}
+            {!aiSchedLoading&&!aiSchedResult&&(
+              <div style={{fontSize:11,color:"var(--mu2)",textAlign:"center",padding:"8px 0"}}>
+                {lang==="ru"?"Нажмите «Запустить AI» для анализа расписания":"Click «Run AI» to analyze the schedule"}
+              </div>
+            )}
           </div>
         </div>
 
@@ -2693,7 +2850,7 @@ function AppInner() {
 
         {!worker&&(
           <div style={{display:"flex",gap:5,marginBottom:16,flexWrap:"wrap"}}>
-            {[{id:"dashboard",ico:"📊",l:ru?"Дашборд":"Dashboard"},{id:"ready",ico:"⚡",l:ru?"Готовы":"Ready"},{id:"active",ico:"✅",l:ru?"Активные":"Active"}].map(tb=>(
+            {[{id:"dashboard",ico:"📊",l:ru?"Дашборд":"Dashboard"},{id:"ready",ico:"⚡",l:ru?"Готовы":"Ready"},{id:"active",ico:"✅",l:ru?"Активные":"Active"},{id:"ai_dispatch",ico:"🤖",l:ru?"AI Расписание":"AI Dispatch"}].map(tb=>(
               <button key={tb.id} onClick={()=>setOpsTab(tb.id)}
                 style={{padding:"7px 13px",borderRadius:9,fontSize:11,fontWeight:600,cursor:"pointer",
                   border:`1.5px solid ${opsTab===tb.id?"var(--acc)":"var(--bdr)"}`,
@@ -2814,6 +2971,86 @@ function AppInner() {
                 {!active.length&&<tr><td colSpan={5} style={{textAlign:"center",color:"var(--mu)",padding:24}}>{ru?"Нет активных клинеров":"No active workers yet"}</td></tr>}
               </tbody>
             </table></div>
+          </div>
+        )}
+
+        {!worker&&opsTab==="ai_dispatch"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"16px 18px"}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15,marginBottom:6}}>
+                🤖 AI {ru?"Анализ расписания":"Schedule Dispatcher"}
+              </div>
+              <div style={{fontSize:12,color:"var(--mu)",marginBottom:14,lineHeight:1.6}}>
+                {ru
+                  ?"AI анализирует расписание клинеров, продолжительность уборок и свободные окна. Учитывается 1 час на дорогу между объектами."
+                  :"AI analyzes cleaner schedules, job durations and free windows. 1 hour travel time is factored in."}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <button
+                  onClick={()=>callScheduleAI(activeWS)}
+                  disabled={aiSchedLoading}
+                  style={{padding:"9px 20px",background:aiSchedLoading?"var(--s3)":"var(--acc)",
+                    color:aiSchedLoading?"var(--mu)":"#000",border:"none",borderRadius:9,
+                    fontWeight:700,fontSize:13,cursor:aiSchedLoading?"default":"pointer",fontFamily:"'Syne',sans-serif"}}>
+                  {aiSchedLoading?(ru?"⏳ Анализирую...":"⏳ Analyzing..."):(ru?"🔄 Запустить анализ":"🔄 Run Analysis")}
+                </button>
+                {aiSchedTs&&<span style={{fontSize:11,color:"var(--mu2)"}}>{ru?"Последний анализ:":"Last run:"} {aiSchedTs}</span>}
+              </div>
+            </div>
+            {aiSchedLoading&&(
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"28px",textAlign:"center"}}>
+                <div style={{width:32,height:32,border:"3px solid var(--bdr2)",borderTop:"3px solid var(--acc)",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 12px"}}/>
+                <div style={{fontSize:13,color:"var(--mu)"}}>{ru?"AI анализирует расписание...":"Analyzing schedules..."}</div>
+              </div>
+            )}
+            {aiSchedErr&&!aiSchedLoading&&(
+              <div style={{background:"#ef444412",border:"1px solid #ef444430",borderRadius:12,padding:"14px 16px"}}>
+                <div style={{fontWeight:700,fontSize:12,color:"var(--rd)",marginBottom:4}}>⚠️ {ru?"Ошибка":"Error"}</div>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{aiSchedErr}</div>
+              </div>
+            )}
+            {!aiSchedLoading&&aiSchedResult&&aiSchedResult.length>0&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,paddingLeft:4}}>
+                  {ru?"Рекомендации AI":"AI Recommendations"} ({aiSchedResult.length})
+                </div>
+                {aiSchedResult.map((r,i)=>{
+                  const LVL={info:{bg:"var(--bl)12",border:"var(--bl)30",dot:"var(--bl)"},warning:{bg:"#f0a50012",border:"#f0a50030",dot:"#f0a500"},critical:{bg:"#ef444412",border:"#ef444430",dot:"#ef4444"}};
+                  const s=LVL[r.level||"info"]||LVL.info;
+                  return (
+                    <div key={i} style={{background:s.bg,border:`1px solid ${s.border}`,borderRadius:11,padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                        <div style={{width:9,height:9,borderRadius:"50%",background:s.dot,flexShrink:0,marginTop:5}}/>
+                        <div style={{flex:1}}>
+                          {r.date&&<div style={{fontSize:10,color:"var(--mu)",marginBottom:3}}>📅 {r.date}</div>}
+                          {r.action&&<div style={{fontSize:10,color:s.dot,fontWeight:700,marginBottom:3}}>👤 {r.action}</div>}
+                          <div style={{fontSize:13,color:"var(--tx)",lineHeight:1.6}}>{r.icon||"🤖"} {r.text}</div>
+                        </div>
+                      </div>
+                      <button onClick={()=>setPage("booking")}
+                        style={{marginTop:9,marginLeft:19,padding:"5px 14px",fontSize:11,fontWeight:600,
+                          background:"transparent",border:`1px solid ${s.dot}`,borderRadius:7,
+                          color:s.dot,cursor:"pointer"}}>
+                        {ru?"→ Открыть расписание":"→ Open Schedule"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {!aiSchedLoading&&!aiSchedResult&&!aiSchedErr&&(
+              <div style={{textAlign:"center",padding:"40px 20px",color:"var(--mu)"}}>
+                <div style={{fontSize:48,marginBottom:12}}>🤖</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:8}}>
+                  {ru?"AI Диспетчер готов":"AI Dispatcher Ready"}
+                </div>
+                <div style={{fontSize:12,maxWidth:320,margin:"0 auto",lineHeight:1.6}}>
+                  {ru
+                    ?"Нажмите «Запустить анализ» — AI просмотрит расписание за 3 ближайших дня и предложит оптимизации"
+                    :"Click «Run Analysis» — AI will check the next 3 days and suggest schedule optimizations"}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </>
