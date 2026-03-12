@@ -4272,7 +4272,7 @@ function AppInner() {
     const [filterCat, setFilterCat]   = useState("all");
 
     // Chat state
-    const [chatMsgs, setChatMsgs]   = useState([]);
+    const [chatMsgs, setChatMsgs]   = useState(p?.aiChatHistory || []);
     const [chatInput, setChatInput] = useState("");
     const [chatLoading, setChatLoading] = useState(false);
     const chatEndRef = useRef(null);
@@ -4283,12 +4283,21 @@ function AppInner() {
     const [memorySaving, setMemorySaving] = useState(false);
     const [memoryEditMode, setMemoryEditMode] = useState(false);
 
-    // Load memory from Firebase on mount
+    // Load memory + chat history from Firebase on mount
     useEffect(() => {
       const stored = p?.aiMemory || "";
       setMemory(stored);
       setMemoryEdit(stored);
+      setChatMsgs(p?.aiChatHistory || []);
     }, [pid]);
+
+    // Save chat history to Firebase whenever it changes (keep last 50 messages)
+    const chatHistMounted = useRef(false);
+    useEffect(() => {
+      if (!chatHistMounted.current) { chatHistMounted.current = true; return; }
+      const toSave = chatMsgs.slice(-50);
+      setPartners(ps => ps.map(x => x.id === pid ? { ...x, aiChatHistory: toSave } : x));
+    }, [chatMsgs]);
 
     // Auto scroll chat
     useEffect(() => {
