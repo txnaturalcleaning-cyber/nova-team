@@ -653,7 +653,6 @@ function Telephony() {
     if (!call || !call.transcript) return;
     setCalls(prev => prev.map(c => c.id === callId ? {...c, aiLoading: true} : c));
     try {
-    try {
       const r = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
