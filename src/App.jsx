@@ -4261,177 +4261,235 @@ function AppInner() {
     const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p   = getPartner(pid);
     const ru  = lang === "ru";
-    const [alerts, setAlerts]       = useState([]);
-    const [loading, setLoading]     = useState(false);
-    const [deepLoading, setDeepLoading] = useState(false);
-    const [lastUpdate, setLastUpdate] = useState(null);
-    const [filterCat, setFilterCat] = useState("all");
 
-    // ── Local pattern-based analysis (instant, no API) ──
+    // Tabs
+    const [tab, setTab] = useState("monitor"); // monitor | chat | memory
+
+    // Monitor state
+    const [alerts, setAlerts]         = useState([]);
+    const [loading, setLoading]       = useState(false);
+    const [lastUpdate, setLastUpdate] = useState(null);
+    const [filterCat, setFilterCat]   = useState("all");
+
+    // Chat state
+    const [chatMsgs, setChatMsgs]   = useState([]);
+    const [chatInput, setChatInput] = useState("");
+    const [chatLoading, setChatLoading] = useState(false);
+    const chatEndRef = useRef(null);
+
+    // Memory state
+    const [memory, setMemory]       = useState("");
+    const [memoryEdit, setMemoryEdit] = useState("");
+    const [memorySaving, setMemorySaving] = useState(false);
+    const [memoryEditMode, setMemoryEditMode] = useState(false);
+
+    // Load memory from Firebase on mount
+    useEffect(() => {
+      const stored = p?.aiMemory || "";
+      setMemory(stored);
+      setMemoryEdit(stored);
+    }, [pid]);
+
+    // Auto scroll chat
+    useEffect(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [chatMsgs]);
+
+    // ── Save memory to Firebase ──
+    const saveMemory = async () => {
+      setMemorySaving(true);
+      try {
+        await savePartnerField(pid, "aiMemory", memoryEdit);
+        setMemory(memoryEdit);
+        setMemoryEditMode(false);
+      } catch(e) { console.error(e); }
+      setMemorySaving(false);
+    };
+
+    // ── Build platform context summary for AI ──
+    const buildContext = () => {
+      const contacts  = p?.contacts  || [];
+      const bookings  = p?.bookings  || [];
+      const employees = p?.employees || [];
+      const tasks     = p?.tasks     || [];
+      const now       = new Date();
+      const today     = now.toISOString().slice(0,10);
+      return {
+        contacts_total:   contacts.length,
+        clients:          contacts.filter(c=>c.stage==="client"||c.crmFolder==="client").length,
+        leads:            contacts.filter(c=>c.crmFolder==="lead"||c.stage==="lead").length,
+        missed:           contacts.filter(c=>c.crmFolder==="missed"||c.stage==="missed").length,
+        lost:             contacts.filter(c=>c.crmFolder==="lost"||c.stage==="lost").length,
+        bookings_total:   bookings.length,
+        bookings_today:   bookings.filter(b=>b.date===today).length,
+        bookings_pending: bookings.filter(b=>b.status==="pending").length,
+        employees_active: employees.filter(e=>e.status==="active").length,
+        tasks_overdue:    tasks.filter(tk=>tk.status!=="done"&&tk.dueDate&&new Date(tk.dueDate)<now).length,
+        tasks_open:       tasks.filter(tk=>tk.status!=="done").length,
+        pnl_last3:        (p?.pnl||[]).slice(-3).map(r=>({inc:r.income,exp:r.expense,label:r.label||r.month||""})),
+        company:          p?.companyName || "",
+        plan:             p?.plan || "",
+      };
+    };
+
+    // ── Send chat message ──
+    const sendChat = async () => {
+      const text = chatInput.trim();
+      if (!text || chatLoading) return;
+      setChatInput("");
+      const userMsg = { role:"user", content: text, ts: new Date().toLocaleTimeString() };
+      setChatMsgs(prev => [...prev, userMsg]);
+      setChatLoading(true);
+
+      // Check if user wants to save something to memory
+      const saveKeywords = ru
+        ? ["запомни","сохрани","важно знать","добавь в память","учти что","запиши"]
+        : ["remember","save this","important","add to memory","note that","keep in mind"];
+      const isSaveRequest = saveKeywords.some(k => text.toLowerCase().includes(k));
+
+      if (isSaveRequest) {
+        const newMemory = (memory ? memory + "\n" : "") + "• " + text;
+        try {
+          await savePartnerField(pid, "aiMemory", newMemory);
+          setMemory(newMemory);
+          setMemoryEdit(newMemory);
+          const confirmMsg = {
+            role: "assistant",
+            content: ru
+              ? `Запомнила! Добавила в память компании:\n«${text}»\n\nТеперь я буду учитывать это во всех анализах.`
+              : `Got it! Added to company memory:\n«${text}»\n\nI'll use this context in all future analyses.`,
+            ts: new Date().toLocaleTimeString()
+          };
+          setChatMsgs(prev => [...prev, confirmMsg]);
+          setChatLoading(false);
+          return;
+        } catch(e) { console.error(e); }
+      }
+
+      // Build messages history for API (last 8 messages)
+      const history = chatMsgs.slice(-8).map(m => ({
+        role: m.role, content: m.content
+      }));
+      history.push({ role: "user", content: text });
+
+      try {
+        const ctx = buildContext();
+        const resp = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "ai_chat",
+            messages: history,
+            context: ctx,
+            memory: memory,
+            lang
+          })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || "no response");
+        setChatMsgs(prev => [...prev, {
+          role: "assistant",
+          content: data.result,
+          ts: new Date().toLocaleTimeString()
+        }]);
+      } catch(e) {
+        setChatMsgs(prev => [...prev, {
+          role: "assistant",
+          content: ru
+            ? "Не удалось подключиться к AI. Проверь интернет-соединение."
+            : "Could not connect to AI. Please check your connection.",
+          ts: new Date().toLocaleTimeString(),
+          error: true
+        }]);
+      }
+      setChatLoading(false);
+    };
+
+    // ── Local monitor analysis ──
     const analyzeLocal = () => {
       const now = new Date();
       const found = [];
       let id = 0;
+      const contacts  = p?.contacts  || [];
+      const bookings  = p?.bookings  || [];
+      const employees = p?.employees || [];
+      const tasks     = p?.tasks     || [];
 
-      // CRM / CorexPhone
-      const contacts = p?.contacts || [];
       const missedNoFollowup = contacts.filter(c => {
-        const isMissed = (c.crmFolder === "missed") || (c.stage === "missed");
+        if (!["missed"].includes(c.crmFolder||c.stage)) return false;
         const lastH = (c.history||[]).slice(-1)[0];
-        if (!isMissed || !lastH) return isMissed;
-        const hoursAgo = (now - new Date(lastH.ts)) / 36e5;
-        return hoursAgo > 2;
+        if (!lastH) return true;
+        return (now - new Date(lastH.ts)) / 36e5 > 2;
       });
-      if (missedNoFollowup.length > 0) found.push({
-        id: ++id, cat: "crm", level: "critical",
-        title: ru ? `${missedNoFollowup.length} пропущенных звонков без ответа` : `${missedNoFollowup.length} missed calls without follow-up`,
-        desc: ru ? `Клиенты ждут ответа более 2 часов: ${missedNoFollowup.slice(0,3).map(c=>c.name).join(", ")}` : `Clients waiting 2+ hours: ${missedNoFollowup.slice(0,3).map(c=>c.name).join(", ")}`,
-        action: { label: ru ? "Открыть CorexPhone" : "Open CorexPhone", fn: () => setPage("crm") }
+      if (missedNoFollowup.length) found.push({ id:++id, cat:"crm", level:"critical",
+        title: ru?`${missedNoFollowup.length} пропущенных без ответа более 2 ч`:`${missedNoFollowup.length} missed calls unanswered 2h+`,
+        desc: ru?`${missedNoFollowup.slice(0,3).map(c=>c.name).join(", ")}`:`${missedNoFollowup.slice(0,3).map(c=>c.name).join(", ")}`,
+        action:{ label:ru?"Открыть CorexPhone":"Open CorexPhone", fn:()=>setPage("crm") }
       });
 
       const stuckLeads = contacts.filter(c => {
         if (!["lead","contact","negotiation"].includes(c.stage)) return false;
         const lastH = (c.history||[]).slice(-1)[0];
         if (!lastH) return true;
-        const daysAgo = (now - new Date(lastH.ts)) / 864e5;
-        return daysAgo > 7;
+        return (now - new Date(lastH.ts)) / 864e5 > 7;
       });
-      if (stuckLeads.length > 0) found.push({
-        id: ++id, cat: "crm", level: "warning",
-        title: ru ? `${stuckLeads.length} лидов застряли в воронке` : `${stuckLeads.length} leads stuck in pipeline`,
-        desc: ru ? `Нет активности более 7 дней: ${stuckLeads.slice(0,3).map(c=>c.name).join(", ")}` : `No activity for 7+ days: ${stuckLeads.slice(0,3).map(c=>c.name).join(", ")}`,
-        action: { label: ru ? "Открыть воронку" : "Open pipeline", fn: () => setPage("crm") }
+      if (stuckLeads.length) found.push({ id:++id, cat:"crm", level:"warning",
+        title: ru?`${stuckLeads.length} лидов без активности 7+ дней`:`${stuckLeads.length} leads inactive 7+ days`,
+        desc: stuckLeads.slice(0,3).map(c=>c.name).join(", "),
+        action:{ label:ru?"Открыть воронку":"Open pipeline", fn:()=>setPage("crm") }
       });
 
-      // Bookings
-      const bookings = p?.bookings || [];
       const today = now.toISOString().slice(0,10);
-      const unconfirmed = bookings.filter(b => b.status === "pending" && b.date >= today);
-      if (unconfirmed.length > 0) found.push({
-        id: ++id, cat: "booking", level: "warning",
-        title: ru ? `${unconfirmed.length} бронирований без подтверждения` : `${unconfirmed.length} unconfirmed bookings`,
-        desc: ru ? "Клиенты не получили подтверждение уборки" : "Clients have not received booking confirmation",
-        action: { label: ru ? "Открыть бронирования" : "Open bookings", fn: () => setPage("booking") }
+      const tomorrow = new Date(now.getTime()+864e5).toISOString().slice(0,10);
+      const unconfirmed = bookings.filter(b=>b.status==="pending"&&b.date>=today);
+      if (unconfirmed.length) found.push({ id:++id, cat:"booking", level:"warning",
+        title: ru?`${unconfirmed.length} бронирований без подтверждения`:`${unconfirmed.length} unconfirmed bookings`,
+        desc: ru?"Клиенты не получили подтверждение":"Clients haven't received confirmation",
+        action:{ label:ru?"Бронирования":"Bookings", fn:()=>setPage("booking") }
       });
 
-      const tomorrowStr = new Date(now.getTime() + 864e5).toISOString().slice(0,10);
-      const tomorrowBk  = bookings.filter(b => b.date === tomorrowStr);
-      const noAssigned  = tomorrowBk.filter(b => !b.assignedTo || b.assignedTo.length === 0);
-      if (noAssigned.length > 0) found.push({
-        id: ++id, cat: "booking", level: "critical",
-        title: ru ? `${noAssigned.length} уборок завтра без назначенного клинера` : `${noAssigned.length} cleanings tomorrow without assigned cleaner`,
-        desc: ru ? "Срочно назначь исполнителя на завтрашние уборки" : "Urgently assign cleaners for tomorrow's jobs",
-        action: { label: ru ? "Открыть расписание" : "Open schedule", fn: () => setPage("booking") }
+      const noAssigned = bookings.filter(b=>b.date===tomorrow&&(!b.assignedTo||!b.assignedTo.length));
+      if (noAssigned.length) found.push({ id:++id, cat:"booking", level:"critical",
+        title: ru?`${noAssigned.length} уборок завтра без клинера`:`${noAssigned.length} cleanings tomorrow unassigned`,
+        desc: ru?"Срочно назначь исполнителя":"Assign cleaners urgently",
+        action:{ label:ru?"Расписание":"Schedule", fn:()=>setPage("booking") }
       });
 
-      // Salary / Finance
-      const salaryPayments = p?.salaryPayments || [];
-      const employees = p?.employees || [];
-      const currentMonth = now.toISOString().slice(0,7);
-      const paidThisMonth = new Set(salaryPayments.filter(s => (s.date||"").startsWith(currentMonth)).map(s => s.employeeId));
-      const unpaidEmps = employees.filter(e => e.status === "active" && !paidThisMonth.has(e.id));
-      if (unpaidEmps.length > 0 && now.getDate() > 10) found.push({
-        id: ++id, cat: "salary", level: unpaidEmps.length > 2 ? "critical" : "warning",
-        title: ru ? `${unpaidEmps.length} сотрудников без оплаты в этом месяце` : `${unpaidEmps.length} employees unpaid this month`,
-        desc: ru ? `Не получили зарплату: ${unpaidEmps.slice(0,3).map(e=>e.firstName||e.name||"—").join(", ")}` : `Not paid: ${unpaidEmps.slice(0,3).map(e=>e.firstName||e.name||"—").join(", ")}`,
-        action: { label: ru ? "Открыть зарплаты" : "Open salary", fn: () => setPage("salary") }
+      const month = now.toISOString().slice(0,7);
+      const paid  = new Set((p?.salaryPayments||[]).filter(s=>(s.date||"").startsWith(month)).map(s=>s.employeeId));
+      const unpaid = employees.filter(e=>e.status==="active"&&!paid.has(e.id));
+      if (unpaid.length && now.getDate()>10) found.push({ id:++id, cat:"salary", level: unpaid.length>2?"critical":"warning",
+        title: ru?`${unpaid.length} сотрудников без оплаты`:`${unpaid.length} employees unpaid this month`,
+        desc: unpaid.slice(0,3).map(e=>e.firstName||e.name||"—").join(", "),
+        action:{ label:ru?"Зарплаты":"Salary", fn:()=>setPage("salary") }
       });
 
-      // PnL
-      const pnl = p?.pnl || [];
-      if (pnl.length >= 2) {
-        const last  = pnl[pnl.length-1];
-        const prev  = pnl[pnl.length-2];
-        const lastRev  = (last?.income||0)  - (last?.expense||0);
-        const prevRev  = (prev?.income||0)  - (prev?.expense||0);
-        if (prevRev > 0 && lastRev < prevRev * 0.8) found.push({
-          id: ++id, cat: "finance", level: "warning",
-          title: ru ? `Прибыль упала на ${Math.round((1-lastRev/prevRev)*100)}% по сравнению с прошлым периодом` : `Profit dropped ${Math.round((1-lastRev/prevRev)*100)}% vs previous period`,
-          desc: ru ? `Прошлый период: $${prevRev.toLocaleString()} → Текущий: $${lastRev.toLocaleString()}` : `Previous: $${prevRev.toLocaleString()} → Current: $${lastRev.toLocaleString()}`,
-          action: { label: ru ? "Открыть P&L" : "Open P&L", fn: () => setPage("pnl") }
+      const overdue = tasks.filter(tk=>tk.status!=="done"&&tk.dueDate&&new Date(tk.dueDate)<now);
+      if (overdue.length) found.push({ id:++id, cat:"tasks", level:"warning",
+        title: ru?`${overdue.length} просроченных задач`:`${overdue.length} overdue tasks`,
+        desc: overdue.slice(0,3).map(t=>t.title||t.text||"—").join(", "),
+        action:{ label:ru?"Задачи":"Tasks", fn:()=>setPage("tasks") }
+      });
+
+      const pnl = p?.pnl||[];
+      if (pnl.length>=2) {
+        const last=(pnl[pnl.length-1]?.income||0)-(pnl[pnl.length-1]?.expense||0);
+        const prev=(pnl[pnl.length-2]?.income||0)-(pnl[pnl.length-2]?.expense||0);
+        if (prev>0 && last<prev*0.8) found.push({ id:++id, cat:"finance", level:"warning",
+          title: ru?`Прибыль упала на ${Math.round((1-last/prev)*100)}%`:`Profit dropped ${Math.round((1-last/prev)*100)}%`,
+          desc: ru?`Прошлый период: $${prev.toLocaleString()} → Сейчас: $${last.toLocaleString()}`:`Prev: $${prev.toLocaleString()} → Now: $${last.toLocaleString()}`,
+          action:{ label:"P&L", fn:()=>setPage("pnl") }
         });
       }
 
-      // Tasks
-      const tasks = p?.tasks || [];
-      const overdue = tasks.filter(tk => {
-        if (tk.status === "done") return false;
-        if (!tk.dueDate) return false;
-        return new Date(tk.dueDate) < now;
-      });
-      if (overdue.length > 0) found.push({
-        id: ++id, cat: "tasks", level: "warning",
-        title: ru ? `${overdue.length} просроченных задач` : `${overdue.length} overdue tasks`,
-        desc: ru ? `Задачи просрочены: ${overdue.slice(0,3).map(t=>t.title||t.text||"—").join(", ")}` : `Overdue: ${overdue.slice(0,3).map(t=>t.title||t.text||"—").join(", ")}`,
-        action: { label: ru ? "Открыть задачи" : "Open tasks", fn: () => setPage("tasks") }
-      });
-
-      // HR
-      const hrCards = p?.hrCards || [];
-      const stuckCandidates = hrCards.filter(c => {
-        if (!["screening","interview_scheduled","training"].includes(c.pipelineStatus)) return false;
-        const lastH = (c.history||[]).slice(-1)[0];
-        if (!lastH) return true;
-        const daysAgo = (now - new Date(lastH.ts)) / 864e5;
-        return daysAgo > 14;
-      });
-      if (stuckCandidates.length > 0) found.push({
-        id: ++id, cat: "hr", level: "tip",
-        title: ru ? `${stuckCandidates.length} кандидатов без активности 14+ дней` : `${stuckCandidates.length} candidates inactive for 14+ days`,
-        desc: ru ? `Нет действий: ${stuckCandidates.slice(0,3).map(c=>(c.firstName||"")+" "+(c.lastName||"")).join(", ")}` : `No activity: ${stuckCandidates.slice(0,3).map(c=>(c.firstName||"")+" "+(c.lastName||"")).join(", ")}`,
-        action: { label: ru ? "Открыть HR" : "Open HR", fn: () => setPage("departments") }
-      });
-
-      // Good news
-      const clients = contacts.filter(c => c.stage === "client" || c.crmFolder === "client");
-      if (clients.length > 0 && found.filter(f=>f.level==="critical").length === 0) found.push({
-        id: ++id, cat: "crm", level: "tip",
-        title: ru ? `${clients.length} активных клиентов в базе` : `${clients.length} active clients in base`,
-        desc: ru ? "Хорошая база для повторных продаж и рефералов" : "Great base for repeat sales and referrals",
-        action: { label: ru ? "Открыть CorexPhone" : "Open CorexPhone", fn: () => setPage("crm") }
+      if (!found.length) found.push({ id:++id, cat:"general", level:"tip",
+        title: ru?"Всё в порядке":"All clear",
+        desc: ru?"Критических нарушений не обнаружено":"No critical issues detected",
+        action: null
       });
 
       return found;
-    };
-
-    // ── Deep AI analysis via Firebase ──
-    const runDeepAnalysis = async () => {
-      setDeepLoading(true);
-      try {
-        const summary = {
-          contacts: (p?.contacts||[]).length,
-          missedContacts: (p?.contacts||[]).filter(c=>c.crmFolder==="missed"||c.stage==="missed").length,
-          lostContacts: (p?.contacts||[]).filter(c=>c.crmFolder==="lost"||c.stage==="lost").length,
-          bookingsTotal: (p?.bookings||[]).length,
-          bookingsPending: (p?.bookings||[]).filter(b=>b.status==="pending").length,
-          employees: (p?.employees||[]).filter(e=>e.status==="active").length,
-          overdueTasks: (p?.tasks||[]).filter(tk=>tk.status!=="done"&&tk.dueDate&&new Date(tk.dueDate)<new Date()).length,
-          pnlLast3: (p?.pnl||[]).slice(-3).map(r=>({income:r.income,expense:r.expense})),
-        };
-        const resp = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({
-            mode: "business_analysis",
-            summary,
-            lang
-          })
-        });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        if (!data.success || !Array.isArray(data.result)) throw new Error("bad response");
-        // Merge AI alerts with local ones, AI alerts first
-        const aiAlerts = data.result.map((r,i) => ({
-          id: 1000+i, cat: r.cat||"ai", level: r.level||"tip",
-          title: r.title||"", desc: r.desc||"",
-          action: r.action ? { label: r.action, fn: () => setPage(r.page||"dashboard") } : null,
-          aiGenerated: true
-        }));
-        setAlerts(prev => [...aiAlerts, ...prev.filter(a=>!a.aiGenerated)]);
-      } catch(e) {
-        console.warn("Deep AI failed:", e.message);
-      }
-      setDeepLoading(false);
     };
 
     useEffect(() => {
@@ -4443,130 +4501,281 @@ function AppInner() {
     const refresh = () => {
       setLoading(true);
       setTimeout(() => {
-        const local = analyzeLocal();
-        setAlerts(local);
+        setAlerts(analyzeLocal());
         setLastUpdate(new Date().toLocaleTimeString());
         setLoading(false);
-      }, 600);
+      }, 500);
     };
 
     const CATS = [
-      { id:"all",     label: ru?"Все":"All" },
-      { id:"crm",     label: "CorexPhone" },
-      { id:"booking", label: ru?"Бронирования":"Bookings" },
-      { id:"salary",  label: ru?"Зарплаты":"Salary" },
-      { id:"finance", label: ru?"Финансы":"Finance" },
-      { id:"tasks",   label: ru?"Задачи":"Tasks" },
-      { id:"hr",      label: "HR" },
+      {id:"all",     label:ru?"Все":"All"},
+      {id:"crm",     label:"CorexPhone"},
+      {id:"booking", label:ru?"Бронирования":"Bookings"},
+      {id:"salary",  label:ru?"Зарплаты":"Salary"},
+      {id:"finance", label:ru?"Финансы":"Finance"},
+      {id:"tasks",   label:ru?"Задачи":"Tasks"},
     ];
 
-    const filtered = filterCat === "all" ? alerts : alerts.filter(a => a.cat === filterCat);
-    const critCount = alerts.filter(a=>a.level==="critical").length;
-    const warnCount = alerts.filter(a=>a.level==="warning").length;
-    const tipCount  = alerts.filter(a=>a.level==="tip").length;
+    const filtered     = filterCat==="all" ? alerts : alerts.filter(a=>a.cat===filterCat);
+    const critCount    = alerts.filter(a=>a.level==="critical").length;
+    const warnCount    = alerts.filter(a=>a.level==="warning").length;
+    const levelColor   = {critical:"#ef4444", warning:"#f59e0b", tip:"#6366f1"};
+    const levelLabel   = {critical:ru?"Критично":"Critical", warning:ru?"Внимание":"Warning", tip:ru?"Совет":"Tip"};
+    const levelBg      = {critical:"rgba(239,68,68,0.08)", warning:"rgba(245,158,11,0.08)", tip:"rgba(99,102,241,0.08)"};
 
-    const levelColor = { critical:"#ef4444", warning:"#f59e0b", tip:"#6366f1" };
-    const levelLabel = { critical: ru?"Критично":"Critical", warning: ru?"Внимание":"Warning", tip: ru?"Совет":"Tip" };
-    const levelBg    = { critical:"rgba(239,68,68,0.08)", warning:"rgba(245,158,11,0.08)", tip:"rgba(99,102,241,0.08)" };
+    const TABS = [
+      {id:"monitor", label:ru?"Мониторинг":"Monitor"},
+      {id:"chat",    label:ru?"AI Чат":"AI Chat"},
+      {id:"memory",  label:ru?"Память":"Memory"},
+    ];
+
+    const QUICK_PROMPTS = ru ? [
+      "Что сейчас важнее всего для роста бизнеса?",
+      "Какие лиды потенциально самые горячие?",
+      "Как улучшить конверсию в клиентов?",
+      "Что могло стать причиной падения выручки?",
+      "Кому из клиентов стоит позвонить сегодня?",
+    ] : [
+      "What's the most important thing for business growth right now?",
+      "Which leads are the hottest right now?",
+      "How can I improve conversion to clients?",
+      "What might have caused revenue to drop?",
+      "Which clients should I call today?",
+    ];
 
     return (
-      <div style={{padding:"24px 28px", maxWidth:860, margin:"0 auto"}}>
+      <div style={{height:"100%", display:"flex", flexDirection:"column"}}>
 
         {/* Header */}
-        <div style={{display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12}}>
-          <div>
-            <div style={{fontSize:22, fontWeight:700, color:"var(--tx)", marginBottom:4}}>Corex AI Center</div>
-            <div style={{fontSize:13, color:"var(--mu)"}}>
-              {ru?"Интеллектуальный мониторинг вашего бизнеса в реальном времени":"Intelligent real-time business monitoring"}
-              {lastUpdate && <span style={{marginLeft:12, color:"var(--mu)"}}>· {ru?"Обновлено":"Updated"} {lastUpdate}</span>}
-            </div>
-          </div>
-          <div style={{display:"flex", gap:8}}>
-            <button onClick={refresh} disabled={loading} style={{padding:"7px 16px", borderRadius:8, border:"1px solid var(--br)", background:"var(--bg)", color:"var(--tx)", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
-              <span style={{display:"inline-block", animation: loading?"spin 1s linear infinite":"none"}}>↻</span>
-              {loading ? (ru?"Анализирую...":"Analyzing...") : (ru?"Обновить":"Refresh")}
-            </button>
-            <button onClick={runDeepAnalysis} disabled={deepLoading} style={{padding:"7px 16px", borderRadius:8, border:"none", background:"var(--ac)", color:"#fff", fontSize:13, cursor:"pointer", fontWeight:600}}>
-              {deepLoading ? (ru?"AI думает...":"AI thinking...") : (ru?"Глубокий AI анализ":"Deep AI Analysis")}
-            </button>
-          </div>
-        </div>
-
-        {/* Stats bar */}
-        <div style={{display:"flex", gap:12, marginBottom:24, flexWrap:"wrap"}}>
-          {[
-            {label: ru?"Критично":"Critical", count:critCount, color:"#ef4444", bg:"rgba(239,68,68,0.08)"},
-            {label: ru?"Внимание":"Warnings", count:warnCount, color:"#f59e0b", bg:"rgba(245,158,11,0.08)"},
-            {label: ru?"Советы":"Tips",       count:tipCount,  color:"#6366f1", bg:"rgba(99,102,241,0.08)"},
-            {label: ru?"Всего":"Total",       count:alerts.length, color:"var(--mu)", bg:"var(--card)"},
-          ].map(s=>(
-            <div key={s.label} style={{flex:1, minWidth:100, background:s.bg, border:`1px solid ${s.color}22`, borderRadius:10, padding:"12px 16px", textAlign:"center"}}>
-              <div style={{fontSize:26, fontWeight:700, color:s.color}}>{s.count}</div>
-              <div style={{fontSize:12, color:"var(--mu)", marginTop:2}}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Category filter */}
-        <div style={{display:"flex", gap:6, marginBottom:20, flexWrap:"wrap"}}>
-          {CATS.filter(c => c.id==="all" || alerts.some(a=>a.cat===c.id)).map(c=>(
-            <button key={c.id} onClick={()=>setFilterCat(c.id)} style={{
-              padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:500, cursor:"pointer",
-              border: filterCat===c.id ? "none" : "1px solid var(--br)",
-              background: filterCat===c.id ? "var(--ac)" : "var(--bg)",
-              color: filterCat===c.id ? "#fff" : "var(--mu)"
-            }}>{c.label}{c.id!=="all" && <span style={{marginLeft:4, opacity:0.7}}>({alerts.filter(a=>a.cat===c.id).length})</span>}</button>
-          ))}
-        </div>
-
-        {/* Alerts list */}
-        {filtered.length === 0 ? (
-          <div style={{textAlign:"center", padding:"60px 20px", color:"var(--mu)"}}>
-            <div style={{fontSize:48, marginBottom:12, opacity:0.3}}>✓</div>
-            <div style={{fontSize:16, fontWeight:600, color:"var(--tx)", marginBottom:8}}>{ru?"Всё в порядке":"All clear"}</div>
-            <div style={{fontSize:13}}>{ru?"Нарушений не обнаружено в выбранной категории":"No issues detected in the selected category"}</div>
-          </div>
-        ) : (
-          <div style={{display:"flex", flexDirection:"column", gap:10}}>
-            {filtered.map(a => (
-              <div key={a.id} style={{
-                background:"var(--card)", borderRadius:12,
-                borderLeft: `4px solid ${levelColor[a.level]||"#6366f1"}`,
-                padding:"14px 18px",
-                display:"flex", alignItems:"center", gap:16,
-                boxShadow:"0 1px 4px rgba(0,0,0,0.06)"
-              }}>
-                <div style={{
-                  minWidth:72, padding:"3px 8px", borderRadius:6, textAlign:"center",
-                  background: levelBg[a.level]||"var(--bg)",
-                  color: levelColor[a.level]||"#6366f1",
-                  fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px"
-                }}>
-                  {levelLabel[a.level]||a.level}
-                  {a.aiGenerated && <div style={{fontSize:9, opacity:0.7, marginTop:1}}>AI</div>}
-                </div>
-                <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:14, fontWeight:600, color:"var(--tx)", marginBottom:3}}>{a.title}</div>
-                  <div style={{fontSize:12, color:"var(--mu)", lineHeight:1.5}}>{a.desc}</div>
-                </div>
-                {a.action && (
-                  <button onClick={a.action.fn} style={{
-                    padding:"6px 14px", borderRadius:8, border:"1px solid var(--ac)",
-                    background:"transparent", color:"var(--ac)", fontSize:12,
-                    fontWeight:600, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0
-                  }}>{a.action.label} →</button>
-                )}
+        <div style={{padding:"20px 28px 0", borderBottom:"1px solid var(--br)"}}>
+          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:8}}>
+            <div>
+              <div style={{fontSize:20, fontWeight:700, color:"var(--tx)"}}>Corex AI Center</div>
+              <div style={{fontSize:12, color:"var(--mu)", marginTop:2}}>
+                {ru?"Интеллектуальный советник бизнеса":"Intelligent business advisor"}
+                {lastUpdate&&tab==="monitor"&&<span style={{marginLeft:10}}>· {ru?"Обновлено":"Updated"} {lastUpdate}</span>}
               </div>
+            </div>
+            {tab==="monitor"&&(
+              <div style={{display:"flex",gap:8}}>
+                {critCount>0&&<div style={{padding:"4px 12px",borderRadius:20,background:"rgba(239,68,68,0.1)",color:"#ef4444",fontSize:12,fontWeight:700}}>{critCount} {ru?"критично":"critical"}</div>}
+                {warnCount>0&&<div style={{padding:"4px 12px",borderRadius:20,background:"rgba(245,158,11,0.1)",color:"#f59e0b",fontSize:12,fontWeight:700}}>{warnCount} {ru?"внимание":"warnings"}</div>}
+                <button onClick={refresh} disabled={loading} style={{padding:"6px 14px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:12,cursor:"pointer"}}>
+                  <span style={{display:"inline-block",animation:loading?"spin 1s linear infinite":"none"}}>↻</span> {ru?"Обновить":"Refresh"}
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Tabs */}
+          <div style={{display:"flex",gap:0}}>
+            {TABS.map(tb=>(
+              <button key={tb.id} onClick={()=>setTab(tb.id)} style={{
+                padding:"8px 20px", border:"none", background:"transparent",
+                borderBottom: tab===tb.id ? "2px solid var(--ac)" : "2px solid transparent",
+                color: tab===tb.id ? "var(--ac)" : "var(--mu)",
+                fontWeight: tab===tb.id ? 700 : 400, fontSize:13, cursor:"pointer"
+              }}>{tb.label}</button>
             ))}
+          </div>
+        </div>
+
+        {/* MONITOR TAB */}
+        {tab==="monitor"&&(
+          <div style={{flex:1, overflowY:"auto", padding:"20px 28px"}}>
+            {/* Stats */}
+            <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+              {[
+                {label:ru?"Критично":"Critical",count:alerts.filter(a=>a.level==="critical").length,color:"#ef4444",bg:"rgba(239,68,68,0.08)"},
+                {label:ru?"Внимание":"Warnings",count:alerts.filter(a=>a.level==="warning").length,color:"#f59e0b",bg:"rgba(245,158,11,0.08)"},
+                {label:ru?"Советы":"Tips",count:alerts.filter(a=>a.level==="tip").length,color:"#6366f1",bg:"rgba(99,102,241,0.08)"},
+              ].map(s=>(
+                <div key={s.label} style={{flex:1,minWidth:90,background:s.bg,border:`1px solid ${s.color}22`,borderRadius:10,padding:"10px 14px",textAlign:"center"}}>
+                  <div style={{fontSize:24,fontWeight:700,color:s.color}}>{s.count}</div>
+                  <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            {/* Filter */}
+            <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+              {CATS.filter(c=>c.id==="all"||alerts.some(a=>a.cat===c.id)).map(c=>(
+                <button key={c.id} onClick={()=>setFilterCat(c.id)} style={{
+                  padding:"4px 12px",borderRadius:20,fontSize:12,cursor:"pointer",
+                  border:filterCat===c.id?"none":"1px solid var(--br)",
+                  background:filterCat===c.id?"var(--ac)":"var(--bg)",
+                  color:filterCat===c.id?"#fff":"var(--mu)",fontWeight:500
+                }}>{c.label}</button>
+              ))}
+            </div>
+            {/* Alerts */}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {filtered.map(a=>(
+                <div key={a.id} style={{background:"var(--card)",borderRadius:12,borderLeft:`4px solid ${levelColor[a.level]||"#6366f1"}`,padding:"12px 16px",display:"flex",alignItems:"center",gap:14,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+                  <div style={{minWidth:66,padding:"2px 6px",borderRadius:6,textAlign:"center",background:levelBg[a.level]||"var(--bg)",color:levelColor[a.level]||"#6366f1",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px"}}>
+                    {levelLabel[a.level]||a.level}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{a.title}</div>
+                    <div style={{fontSize:12,color:"var(--mu)"}}>{a.desc}</div>
+                  </div>
+                  {a.action&&<button onClick={a.action.fn} style={{padding:"5px 12px",borderRadius:8,border:"1px solid var(--ac)",background:"transparent",color:"var(--ac)",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{a.action.label} →</button>}
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:20,padding:"10px 14px",background:"var(--card)",borderRadius:10,fontSize:11,color:"var(--mu)",textAlign:"center"}}>
+              {ru?"Переключись на вкладку «AI Чат» чтобы задать вопрос или попросить совет":"Switch to «AI Chat» tab to ask questions and get advice"}
+            </div>
           </div>
         )}
 
-        {/* Footer tip */}
-        <div style={{marginTop:28, padding:"12px 16px", background:"var(--card)", borderRadius:10, fontSize:12, color:"var(--mu)", textAlign:"center"}}>
-          {ru
-            ? "Локальный анализ работает мгновенно. Кнопка «Глубокий AI анализ» подключает Claude для расширенных рекомендаций."
-            : "Local analysis runs instantly. \"Deep AI Analysis\" connects Claude for advanced recommendations."}
-        </div>
+        {/* CHAT TAB */}
+        {tab==="chat"&&(
+          <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+            {/* Messages */}
+            <div style={{flex:1,overflowY:"auto",padding:"16px 28px",display:"flex",flexDirection:"column",gap:12}}>
+              {chatMsgs.length===0&&(
+                <div style={{textAlign:"center",padding:"40px 20px"}}>
+                  <div style={{fontSize:40,marginBottom:12,opacity:0.2}}>AI</div>
+                  <div style={{fontSize:15,fontWeight:600,color:"var(--tx)",marginBottom:6}}>
+                    {ru?"Привет! Я Corex AI":"Hi! I'm Corex AI"}
+                  </div>
+                  <div style={{fontSize:13,color:"var(--mu)",marginBottom:20,lineHeight:1.6}}>
+                    {ru?"Я вижу данные твоей платформы и готов помочь с анализом, советами и ответами на вопросы о бизнесе. Можешь написать «запомни» чтобы я запомнил что-то важное.":"I can see your platform data and I'm ready to help with analysis, advice, and business questions. Type «remember» to save something to my memory."}
+                  </div>
+                  {memory&&<div style={{fontSize:12,color:"var(--ac)",marginBottom:20,padding:"8px 14px",borderRadius:8,background:"rgba(99,102,241,0.08)",textAlign:"left"}}>
+                    {ru?"📖 Загружена память компании":"📖 Company memory loaded"} ({memory.split("\n").length} {ru?"записей":"notes"})
+                  </div>}
+                  <div style={{display:"flex",flexDirection:"column",gap:6,maxWidth:440,margin:"0 auto"}}>
+                    {QUICK_PROMPTS.map((q,i)=>(
+                      <button key={i} onClick={()=>{setChatInput(q);}} style={{padding:"8px 14px",borderRadius:8,border:"1px solid var(--br)",background:"var(--card)",color:"var(--tx)",fontSize:12,cursor:"pointer",textAlign:"left"}}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {chatMsgs.map((m,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+                  <div style={{
+                    maxWidth:"75%",padding:"10px 14px",borderRadius:12,fontSize:13,lineHeight:1.6,
+                    background: m.role==="user" ? "var(--ac)" : m.error ? "rgba(239,68,68,0.1)" : "var(--card)",
+                    color: m.role==="user" ? "#fff" : m.error ? "#ef4444" : "var(--tx)",
+                    borderBottomRightRadius: m.role==="user" ? 4 : 12,
+                    borderBottomLeftRadius:  m.role==="user" ? 12 : 4,
+                    whiteSpace:"pre-wrap"
+                  }}>
+                    {m.content}
+                    <div style={{fontSize:10,opacity:0.6,marginTop:4,textAlign:m.role==="user"?"right":"left"}}>{m.ts}</div>
+                  </div>
+                </div>
+              ))}
+              {chatLoading&&(
+                <div style={{display:"flex",justifyContent:"flex-start"}}>
+                  <div style={{padding:"10px 16px",borderRadius:12,background:"var(--card)",color:"var(--mu)",fontSize:13}}>
+                    <span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span> {ru?"Думаю...":"Thinking..."}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef}/>
+            </div>
+            {/* Input */}
+            <div style={{padding:"12px 28px 20px",borderTop:"1px solid var(--br)"}}>
+              <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+                <textarea
+                  value={chatInput}
+                  onChange={e=>setChatInput(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}}}
+                  placeholder={ru?"Задай вопрос о бизнесе... (Enter — отправить, Shift+Enter — новая строка)":"Ask about your business... (Enter to send, Shift+Enter for new line)"}
+                  rows={2}
+                  style={{flex:1,padding:"10px 14px",borderRadius:10,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13,resize:"none",fontFamily:"inherit",lineHeight:1.5}}
+                />
+                <button onClick={sendChat} disabled={chatLoading||!chatInput.trim()} style={{padding:"10px 20px",borderRadius:10,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",height:60,flexShrink:0}}>
+                  {ru?"Отправить":"Send"}
+                </button>
+              </div>
+              <div style={{fontSize:11,color:"var(--mu)",marginTop:6}}>
+                {ru?`Напиши «запомни» чтобы сохранить информацию в память компании · Загружено ${memory.split("\n").filter(Boolean).length} записей`:`Write «remember» to save info to company memory · ${memory.split("\n").filter(Boolean).length} notes loaded`}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MEMORY TAB */}
+        {tab==="memory"&&(
+          <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+            <div style={{maxWidth:680}}>
+              <div style={{fontSize:15,fontWeight:600,color:"var(--tx)",marginBottom:6}}>
+                {ru?"Память компании":"Company Memory"}
+              </div>
+              <div style={{fontSize:13,color:"var(--mu)",marginBottom:20,lineHeight:1.6}}>
+                {ru?"Здесь хранится всё что AI знает о твоём бизнесе. Он использует эту информацию при каждом ответе в чате. Добавляй факты, правила, особенности — чем больше контекста, тем умнее советы."
+                   :"This is everything the AI knows about your business. It uses this context in every chat response. Add facts, rules, specifics — the more context, the smarter the advice."}
+              </div>
+
+              {/* Memory examples */}
+              {!memory&&!memoryEditMode&&(
+                <div style={{padding:"16px",borderRadius:10,border:"1px dashed var(--br)",marginBottom:20,background:"var(--card)"}}>
+                  <div style={{fontSize:12,color:"var(--mu)",marginBottom:10,fontWeight:600}}>
+                    {ru?"Примеры что можно добавить:":"Examples of what to add:"}
+                  </div>
+                  {(ru?[
+                    "• Средний чек уборки — $150, регулярные клиенты — $120",
+                    "• Работаем в Остине и Майами, основная аудитория — семьи",
+                    "• Клиент считается потерянным если не отвечает 3 дня",
+                    "• Лучшие клинеры: Мария, Анна, Джессика",
+                    "• Пик сезона — май-август, спад — январь-февраль",
+                    "• Конкуренты: Merry Maids, Molly Maid — мы лучше по качеству",
+                  ]:[
+                    "• Average cleaning price — $150, regulars — $120",
+                    "• Operating in Austin and Miami, main audience — families",
+                    "• Client is considered lost if no response in 3 days",
+                    "• Top cleaners: Maria, Anna, Jessica",
+                    "• Peak season May-August, slow Jan-Feb",
+                    "• Competitors: Merry Maids, Molly Maid — we win on quality",
+                  ]).map((ex,i)=>(
+                    <div key={i} style={{fontSize:12,color:"var(--tx)",padding:"3px 0"}}>{ex}</div>
+                  ))}
+                </div>
+              )}
+
+              {memoryEditMode ? (
+                <div>
+                  <textarea
+                    value={memoryEdit}
+                    onChange={e=>setMemoryEdit(e.target.value)}
+                    rows={14}
+                    placeholder={ru?"Введи информацию о компании...":"Enter company information..."}
+                    style={{width:"100%",padding:"12px",borderRadius:10,border:"1px solid var(--ac)",background:"var(--bg)",color:"var(--tx)",fontSize:13,lineHeight:1.6,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}
+                  />
+                  <div style={{display:"flex",gap:8,marginTop:10}}>
+                    <button onClick={saveMemory} disabled={memorySaving} style={{padding:"8px 20px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                      {memorySaving?(ru?"Сохраняю...":"Saving..."):(ru?"Сохранить":"Save")}
+                    </button>
+                    <button onClick={()=>{setMemoryEditMode(false);setMemoryEdit(memory);}} style={{padding:"8px 16px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13,cursor:"pointer"}}>
+                      {ru?"Отмена":"Cancel"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {memory ? (
+                    <div style={{padding:"14px 16px",borderRadius:10,background:"var(--card)",border:"1px solid var(--br)",marginBottom:14,whiteSpace:"pre-wrap",fontSize:13,color:"var(--tx)",lineHeight:1.7}}>
+                      {memory}
+                    </div>
+                  ) : (
+                    <div style={{padding:"20px",borderRadius:10,background:"var(--card)",border:"1px dashed var(--br)",marginBottom:14,textAlign:"center",color:"var(--mu)",fontSize:13}}>
+                      {ru?"Память пуста. Добавь информацию о компании — AI станет умнее!":"Memory is empty. Add company info — the AI will get smarter!"}
+                    </div>
+                  )}
+                  <button onClick={()=>setMemoryEditMode(true)} style={{padding:"8px 20px",borderRadius:8,border:"1px solid var(--ac)",background:"transparent",color:"var(--ac)",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                    {memory?(ru?"Редактировать":"Edit"):(ru?"Добавить информацию":"Add information")}
+                  </button>
+                  {memory&&<div style={{marginTop:8,fontSize:11,color:"var(--mu)"}}>{ru?`${memory.split("\n").filter(Boolean).length} записей · Также можно говорить «запомни» в чате`:`${memory.split("\n").filter(Boolean).length} notes · You can also say «remember» in chat`}</div>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     );
   };
