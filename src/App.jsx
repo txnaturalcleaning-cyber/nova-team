@@ -40,7 +40,7 @@ const T = {
     addPayment: "+ Добавить", addMaterial: "+ Добавить материал",
     hrcards: "HR Картотека", hrCardsTitle: "Картотека сотрудников",
     booking: "Бронирования", bookingNew: "Новая заявка", bookingCalendar: "Календарь", bookingClients: "Клиенты", bookingCalc: "Калькулятор", bookingSettings: "Настройки",
-    crm: "CorexPhone", crmContacts: "Контакты", crmPipeline: "Воронка", crmTags: "Теги", addContact: "+ Контакт", contactName: "Имя", contactPhone: "Телефон", contactEmail: "Email", contactTags: "Теги", contactStatus: "Статус", contactNote: "Заметка", contactHistory: "История", addNote: "+ Заметка", noContacts: "Контактов пока нет", searchContacts: "Поиск по имени, телефону...", filterByTag: "Фильтр по тегу", crmStage: "Стадия воронки", stageLead: "Лид", stageContact: "Контакт", stageNegotiation: "Переговоры", stageClient: "Клиент", stageLost: "Потерян", addTag: "+ Тег", manageTagsTitle: "Управление тегами", automations: "Автоматизации", addAutomation: "+ Автоматизация", triggerTag: "Триггер: тег добавлен", actionSms: "Действие: отправить SMS", delayHours: "Задержка (часов)", msgTemplate: "Шаблон сообщения",
+    ai_center: "Corex AI", aiCenter: "Corex AI Center", aiRefresh: "Обновить анализ", aiRunning: "Анализирую...", aiCritical: "Критично", aiWarning: "Внимание", aiTip: "Совет", aiNoIssues: "Всё в порядке — нарушений не обнаружено", aiLastUpdate: "Последнее обновление", aiDeepAnalysis: "Глубокий AI анализ", aiCategories: "Категории", aiAllAlerts: "Все", crm: "CorexPhone", crmContacts: "Контакты", crmPipeline: "Воронка", crmTags: "Теги", addContact: "+ Контакт", contactName: "Имя", contactPhone: "Телефон", contactEmail: "Email", contactTags: "Теги", contactStatus: "Статус", contactNote: "Заметка", contactHistory: "История", addNote: "+ Заметка", noContacts: "Контактов пока нет", searchContacts: "Поиск по имени, телефону...", filterByTag: "Фильтр по тегу", crmStage: "Стадия воронки", stageLead: "Лид", stageContact: "Контакт", stageNegotiation: "Переговоры", stageClient: "Клиент", stageLost: "Потерян", addTag: "+ Тег", manageTagsTitle: "Управление тегами", automations: "Автоматизации", addAutomation: "+ Автоматизация", triggerTag: "Триггер: тег добавлен", actionSms: "Действие: отправить SMS", delayHours: "Задержка (часов)", msgTemplate: "Шаблон сообщения",
     training: "Corex LMS", addLesson: "+ Урок", assignLesson: "Назначить", myLessons: "Мои уроки", allLessons: "Все уроки", assignees: "Назначения", progressTab: "Прогресс", lessonTitle: "Название урока", lessonType: "Тип контента", lessonDept: "Отдел", lessonBranch: "Город", lessonContent: "Контент (текст)", lessonUrl: "Ссылка (YouTube / PDF)", lessonDuration: "Длительность (мин)", notStarted: "Не начат", inProgress: "В процессе", completed: "Завершён", markComplete: "Отметить как выполнено", startLesson: "Начать урок", continueLesson: "Продолжить", quizQuestion: "Вопрос", quizAnswer: "Ответ", quizAddQ: "+ Вопрос", certificate: "Сертификат", completionRate: "Выполнено", assignTo: "Назначить сотруднику", noLessons: "Уроков пока нет", noAssignments: "Нет назначений",
     addPnl: "+ Добавить запись", pnlIncome: "Доходы", pnlExpense: "Расходы", pnlNet: "Чистая прибыль", pnlMargin: "Маржа", pnlCategory: "Категория", pnlAmount: "Сумма", pnlType: "Тип", pnlInc: "Доход", pnlExp: "Расход", pnlDate: "Дата", pnlNote: "Описание", pnlNoData: "Нет записей", pnlSummary: "Сводка за месяц",
     save: "Сохранить", cancel: "Отмена", delete: "Удалить", create: "Создать",
@@ -238,6 +238,7 @@ const IC = {
   trash:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
   booking:     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>,
   hrcards:     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M14 8h4"/><path d="M14 12h4"/><path d="M4 20v-1a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v1"/></svg>,
+  ai_center:   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
   crm:         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-4-4h0"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
   telephony:   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
   phone:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
@@ -265,12 +266,13 @@ const ALL_SECTIONS = [
   { id:"training",    icon:IC.training },
   { id:"crm",         icon:IC.crm },
   { id:"booking",     icon:IC.booking },
+  { id:"ai_center",   icon:IC.ai_center },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","booking"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","booking","ai_center"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","ai_center"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","ai_center"],
 };
 
 const PLAN_LIMITS = {
@@ -4251,6 +4253,323 @@ function AppInner() {
   };
 
 
+
+  /* ══════════════════════════════════════════════════════
+     COREX AI CENTER — Intelligent Business Monitor
+  ══════════════════════════════════════════════════════ */
+  const CorexAI = () => {
+    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p   = getPartner(pid);
+    const ru  = lang === "ru";
+    const [alerts, setAlerts]       = useState([]);
+    const [loading, setLoading]     = useState(false);
+    const [deepLoading, setDeepLoading] = useState(false);
+    const [lastUpdate, setLastUpdate] = useState(null);
+    const [filterCat, setFilterCat] = useState("all");
+
+    // ── Local pattern-based analysis (instant, no API) ──
+    const analyzeLocal = () => {
+      const now = new Date();
+      const found = [];
+      let id = 0;
+
+      // CRM / CorexPhone
+      const contacts = p?.contacts || [];
+      const missedNoFollowup = contacts.filter(c => {
+        const isMissed = (c.crmFolder === "missed") || (c.stage === "missed");
+        const lastH = (c.history||[]).slice(-1)[0];
+        if (!isMissed || !lastH) return isMissed;
+        const hoursAgo = (now - new Date(lastH.ts)) / 36e5;
+        return hoursAgo > 2;
+      });
+      if (missedNoFollowup.length > 0) found.push({
+        id: ++id, cat: "crm", level: "critical",
+        title: ru ? `${missedNoFollowup.length} пропущенных звонков без ответа` : `${missedNoFollowup.length} missed calls without follow-up`,
+        desc: ru ? `Клиенты ждут ответа более 2 часов: ${missedNoFollowup.slice(0,3).map(c=>c.name).join(", ")}` : `Clients waiting 2+ hours: ${missedNoFollowup.slice(0,3).map(c=>c.name).join(", ")}`,
+        action: { label: ru ? "Открыть CorexPhone" : "Open CorexPhone", fn: () => setPage("crm") }
+      });
+
+      const stuckLeads = contacts.filter(c => {
+        if (!["lead","contact","negotiation"].includes(c.stage)) return false;
+        const lastH = (c.history||[]).slice(-1)[0];
+        if (!lastH) return true;
+        const daysAgo = (now - new Date(lastH.ts)) / 864e5;
+        return daysAgo > 7;
+      });
+      if (stuckLeads.length > 0) found.push({
+        id: ++id, cat: "crm", level: "warning",
+        title: ru ? `${stuckLeads.length} лидов застряли в воронке` : `${stuckLeads.length} leads stuck in pipeline`,
+        desc: ru ? `Нет активности более 7 дней: ${stuckLeads.slice(0,3).map(c=>c.name).join(", ")}` : `No activity for 7+ days: ${stuckLeads.slice(0,3).map(c=>c.name).join(", ")}`,
+        action: { label: ru ? "Открыть воронку" : "Open pipeline", fn: () => setPage("crm") }
+      });
+
+      // Bookings
+      const bookings = p?.bookings || [];
+      const today = now.toISOString().slice(0,10);
+      const unconfirmed = bookings.filter(b => b.status === "pending" && b.date >= today);
+      if (unconfirmed.length > 0) found.push({
+        id: ++id, cat: "booking", level: "warning",
+        title: ru ? `${unconfirmed.length} бронирований без подтверждения` : `${unconfirmed.length} unconfirmed bookings`,
+        desc: ru ? "Клиенты не получили подтверждение уборки" : "Clients have not received booking confirmation",
+        action: { label: ru ? "Открыть бронирования" : "Open bookings", fn: () => setPage("booking") }
+      });
+
+      const tomorrowStr = new Date(now.getTime() + 864e5).toISOString().slice(0,10);
+      const tomorrowBk  = bookings.filter(b => b.date === tomorrowStr);
+      const noAssigned  = tomorrowBk.filter(b => !b.assignedTo || b.assignedTo.length === 0);
+      if (noAssigned.length > 0) found.push({
+        id: ++id, cat: "booking", level: "critical",
+        title: ru ? `${noAssigned.length} уборок завтра без назначенного клинера` : `${noAssigned.length} cleanings tomorrow without assigned cleaner`,
+        desc: ru ? "Срочно назначь исполнителя на завтрашние уборки" : "Urgently assign cleaners for tomorrow's jobs",
+        action: { label: ru ? "Открыть расписание" : "Open schedule", fn: () => setPage("booking") }
+      });
+
+      // Salary / Finance
+      const salaryPayments = p?.salaryPayments || [];
+      const employees = p?.employees || [];
+      const currentMonth = now.toISOString().slice(0,7);
+      const paidThisMonth = new Set(salaryPayments.filter(s => (s.date||"").startsWith(currentMonth)).map(s => s.employeeId));
+      const unpaidEmps = employees.filter(e => e.status === "active" && !paidThisMonth.has(e.id));
+      if (unpaidEmps.length > 0 && now.getDate() > 10) found.push({
+        id: ++id, cat: "salary", level: unpaidEmps.length > 2 ? "critical" : "warning",
+        title: ru ? `${unpaidEmps.length} сотрудников без оплаты в этом месяце` : `${unpaidEmps.length} employees unpaid this month`,
+        desc: ru ? `Не получили зарплату: ${unpaidEmps.slice(0,3).map(e=>e.firstName||e.name||"—").join(", ")}` : `Not paid: ${unpaidEmps.slice(0,3).map(e=>e.firstName||e.name||"—").join(", ")}`,
+        action: { label: ru ? "Открыть зарплаты" : "Open salary", fn: () => setPage("salary") }
+      });
+
+      // PnL
+      const pnl = p?.pnl || [];
+      if (pnl.length >= 2) {
+        const last  = pnl[pnl.length-1];
+        const prev  = pnl[pnl.length-2];
+        const lastRev  = (last?.income||0)  - (last?.expense||0);
+        const prevRev  = (prev?.income||0)  - (prev?.expense||0);
+        if (prevRev > 0 && lastRev < prevRev * 0.8) found.push({
+          id: ++id, cat: "finance", level: "warning",
+          title: ru ? `Прибыль упала на ${Math.round((1-lastRev/prevRev)*100)}% по сравнению с прошлым периодом` : `Profit dropped ${Math.round((1-lastRev/prevRev)*100)}% vs previous period`,
+          desc: ru ? `Прошлый период: $${prevRev.toLocaleString()} → Текущий: $${lastRev.toLocaleString()}` : `Previous: $${prevRev.toLocaleString()} → Current: $${lastRev.toLocaleString()}`,
+          action: { label: ru ? "Открыть P&L" : "Open P&L", fn: () => setPage("pnl") }
+        });
+      }
+
+      // Tasks
+      const tasks = p?.tasks || [];
+      const overdue = tasks.filter(tk => {
+        if (tk.status === "done") return false;
+        if (!tk.dueDate) return false;
+        return new Date(tk.dueDate) < now;
+      });
+      if (overdue.length > 0) found.push({
+        id: ++id, cat: "tasks", level: "warning",
+        title: ru ? `${overdue.length} просроченных задач` : `${overdue.length} overdue tasks`,
+        desc: ru ? `Задачи просрочены: ${overdue.slice(0,3).map(t=>t.title||t.text||"—").join(", ")}` : `Overdue: ${overdue.slice(0,3).map(t=>t.title||t.text||"—").join(", ")}`,
+        action: { label: ru ? "Открыть задачи" : "Open tasks", fn: () => setPage("tasks") }
+      });
+
+      // HR
+      const hrCards = p?.hrCards || [];
+      const stuckCandidates = hrCards.filter(c => {
+        if (!["screening","interview_scheduled","training"].includes(c.pipelineStatus)) return false;
+        const lastH = (c.history||[]).slice(-1)[0];
+        if (!lastH) return true;
+        const daysAgo = (now - new Date(lastH.ts)) / 864e5;
+        return daysAgo > 14;
+      });
+      if (stuckCandidates.length > 0) found.push({
+        id: ++id, cat: "hr", level: "tip",
+        title: ru ? `${stuckCandidates.length} кандидатов без активности 14+ дней` : `${stuckCandidates.length} candidates inactive for 14+ days`,
+        desc: ru ? `Нет действий: ${stuckCandidates.slice(0,3).map(c=>(c.firstName||"")+" "+(c.lastName||"")).join(", ")}` : `No activity: ${stuckCandidates.slice(0,3).map(c=>(c.firstName||"")+" "+(c.lastName||"")).join(", ")}`,
+        action: { label: ru ? "Открыть HR" : "Open HR", fn: () => setPage("departments") }
+      });
+
+      // Good news
+      const clients = contacts.filter(c => c.stage === "client" || c.crmFolder === "client");
+      if (clients.length > 0 && found.filter(f=>f.level==="critical").length === 0) found.push({
+        id: ++id, cat: "crm", level: "tip",
+        title: ru ? `${clients.length} активных клиентов в базе` : `${clients.length} active clients in base`,
+        desc: ru ? "Хорошая база для повторных продаж и рефералов" : "Great base for repeat sales and referrals",
+        action: { label: ru ? "Открыть CorexPhone" : "Open CorexPhone", fn: () => setPage("crm") }
+      });
+
+      return found;
+    };
+
+    // ── Deep AI analysis via Firebase ──
+    const runDeepAnalysis = async () => {
+      setDeepLoading(true);
+      try {
+        const summary = {
+          contacts: (p?.contacts||[]).length,
+          missedContacts: (p?.contacts||[]).filter(c=>c.crmFolder==="missed"||c.stage==="missed").length,
+          lostContacts: (p?.contacts||[]).filter(c=>c.crmFolder==="lost"||c.stage==="lost").length,
+          bookingsTotal: (p?.bookings||[]).length,
+          bookingsPending: (p?.bookings||[]).filter(b=>b.status==="pending").length,
+          employees: (p?.employees||[]).filter(e=>e.status==="active").length,
+          overdueTasks: (p?.tasks||[]).filter(tk=>tk.status!=="done"&&tk.dueDate&&new Date(tk.dueDate)<new Date()).length,
+          pnlLast3: (p?.pnl||[]).slice(-3).map(r=>({income:r.income,expense:r.expense})),
+        };
+        const resp = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({
+            mode: "business_analysis",
+            summary,
+            lang
+          })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data.success || !Array.isArray(data.result)) throw new Error("bad response");
+        // Merge AI alerts with local ones, AI alerts first
+        const aiAlerts = data.result.map((r,i) => ({
+          id: 1000+i, cat: r.cat||"ai", level: r.level||"tip",
+          title: r.title||"", desc: r.desc||"",
+          action: r.action ? { label: r.action, fn: () => setPage(r.page||"dashboard") } : null,
+          aiGenerated: true
+        }));
+        setAlerts(prev => [...aiAlerts, ...prev.filter(a=>!a.aiGenerated)]);
+      } catch(e) {
+        console.warn("Deep AI failed:", e.message);
+      }
+      setDeepLoading(false);
+    };
+
+    useEffect(() => {
+      const local = analyzeLocal();
+      setAlerts(local);
+      setLastUpdate(new Date().toLocaleTimeString());
+    }, [pid]);
+
+    const refresh = () => {
+      setLoading(true);
+      setTimeout(() => {
+        const local = analyzeLocal();
+        setAlerts(local);
+        setLastUpdate(new Date().toLocaleTimeString());
+        setLoading(false);
+      }, 600);
+    };
+
+    const CATS = [
+      { id:"all",     label: ru?"Все":"All" },
+      { id:"crm",     label: "CorexPhone" },
+      { id:"booking", label: ru?"Бронирования":"Bookings" },
+      { id:"salary",  label: ru?"Зарплаты":"Salary" },
+      { id:"finance", label: ru?"Финансы":"Finance" },
+      { id:"tasks",   label: ru?"Задачи":"Tasks" },
+      { id:"hr",      label: "HR" },
+    ];
+
+    const filtered = filterCat === "all" ? alerts : alerts.filter(a => a.cat === filterCat);
+    const critCount = alerts.filter(a=>a.level==="critical").length;
+    const warnCount = alerts.filter(a=>a.level==="warning").length;
+    const tipCount  = alerts.filter(a=>a.level==="tip").length;
+
+    const levelColor = { critical:"#ef4444", warning:"#f59e0b", tip:"#6366f1" };
+    const levelLabel = { critical: ru?"Критично":"Critical", warning: ru?"Внимание":"Warning", tip: ru?"Совет":"Tip" };
+    const levelBg    = { critical:"rgba(239,68,68,0.08)", warning:"rgba(245,158,11,0.08)", tip:"rgba(99,102,241,0.08)" };
+
+    return (
+      <div style={{padding:"24px 28px", maxWidth:860, margin:"0 auto"}}>
+
+        {/* Header */}
+        <div style={{display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12}}>
+          <div>
+            <div style={{fontSize:22, fontWeight:700, color:"var(--tx)", marginBottom:4}}>Corex AI Center</div>
+            <div style={{fontSize:13, color:"var(--mu)"}}>
+              {ru?"Интеллектуальный мониторинг вашего бизнеса в реальном времени":"Intelligent real-time business monitoring"}
+              {lastUpdate && <span style={{marginLeft:12, color:"var(--mu)"}}>· {ru?"Обновлено":"Updated"} {lastUpdate}</span>}
+            </div>
+          </div>
+          <div style={{display:"flex", gap:8}}>
+            <button onClick={refresh} disabled={loading} style={{padding:"7px 16px", borderRadius:8, border:"1px solid var(--br)", background:"var(--bg)", color:"var(--tx)", fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+              <span style={{display:"inline-block", animation: loading?"spin 1s linear infinite":"none"}}>↻</span>
+              {loading ? (ru?"Анализирую...":"Analyzing...") : (ru?"Обновить":"Refresh")}
+            </button>
+            <button onClick={runDeepAnalysis} disabled={deepLoading} style={{padding:"7px 16px", borderRadius:8, border:"none", background:"var(--ac)", color:"#fff", fontSize:13, cursor:"pointer", fontWeight:600}}>
+              {deepLoading ? (ru?"AI думает...":"AI thinking...") : (ru?"Глубокий AI анализ":"Deep AI Analysis")}
+            </button>
+          </div>
+        </div>
+
+        {/* Stats bar */}
+        <div style={{display:"flex", gap:12, marginBottom:24, flexWrap:"wrap"}}>
+          {[
+            {label: ru?"Критично":"Critical", count:critCount, color:"#ef4444", bg:"rgba(239,68,68,0.08)"},
+            {label: ru?"Внимание":"Warnings", count:warnCount, color:"#f59e0b", bg:"rgba(245,158,11,0.08)"},
+            {label: ru?"Советы":"Tips",       count:tipCount,  color:"#6366f1", bg:"rgba(99,102,241,0.08)"},
+            {label: ru?"Всего":"Total",       count:alerts.length, color:"var(--mu)", bg:"var(--card)"},
+          ].map(s=>(
+            <div key={s.label} style={{flex:1, minWidth:100, background:s.bg, border:`1px solid ${s.color}22`, borderRadius:10, padding:"12px 16px", textAlign:"center"}}>
+              <div style={{fontSize:26, fontWeight:700, color:s.color}}>{s.count}</div>
+              <div style={{fontSize:12, color:"var(--mu)", marginTop:2}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Category filter */}
+        <div style={{display:"flex", gap:6, marginBottom:20, flexWrap:"wrap"}}>
+          {CATS.filter(c => c.id==="all" || alerts.some(a=>a.cat===c.id)).map(c=>(
+            <button key={c.id} onClick={()=>setFilterCat(c.id)} style={{
+              padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:500, cursor:"pointer",
+              border: filterCat===c.id ? "none" : "1px solid var(--br)",
+              background: filterCat===c.id ? "var(--ac)" : "var(--bg)",
+              color: filterCat===c.id ? "#fff" : "var(--mu)"
+            }}>{c.label}{c.id!=="all" && <span style={{marginLeft:4, opacity:0.7}}>({alerts.filter(a=>a.cat===c.id).length})</span>}</button>
+          ))}
+        </div>
+
+        {/* Alerts list */}
+        {filtered.length === 0 ? (
+          <div style={{textAlign:"center", padding:"60px 20px", color:"var(--mu)"}}>
+            <div style={{fontSize:48, marginBottom:12, opacity:0.3}}>✓</div>
+            <div style={{fontSize:16, fontWeight:600, color:"var(--tx)", marginBottom:8}}>{ru?"Всё в порядке":"All clear"}</div>
+            <div style={{fontSize:13}}>{ru?"Нарушений не обнаружено в выбранной категории":"No issues detected in the selected category"}</div>
+          </div>
+        ) : (
+          <div style={{display:"flex", flexDirection:"column", gap:10}}>
+            {filtered.map(a => (
+              <div key={a.id} style={{
+                background:"var(--card)", borderRadius:12,
+                borderLeft: `4px solid ${levelColor[a.level]||"#6366f1"}`,
+                padding:"14px 18px",
+                display:"flex", alignItems:"center", gap:16,
+                boxShadow:"0 1px 4px rgba(0,0,0,0.06)"
+              }}>
+                <div style={{
+                  minWidth:72, padding:"3px 8px", borderRadius:6, textAlign:"center",
+                  background: levelBg[a.level]||"var(--bg)",
+                  color: levelColor[a.level]||"#6366f1",
+                  fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px"
+                }}>
+                  {levelLabel[a.level]||a.level}
+                  {a.aiGenerated && <div style={{fontSize:9, opacity:0.7, marginTop:1}}>AI</div>}
+                </div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:14, fontWeight:600, color:"var(--tx)", marginBottom:3}}>{a.title}</div>
+                  <div style={{fontSize:12, color:"var(--mu)", lineHeight:1.5}}>{a.desc}</div>
+                </div>
+                {a.action && (
+                  <button onClick={a.action.fn} style={{
+                    padding:"6px 14px", borderRadius:8, border:"1px solid var(--ac)",
+                    background:"transparent", color:"var(--ac)", fontSize:12,
+                    fontWeight:600, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0
+                  }}>{a.action.label} →</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer tip */}
+        <div style={{marginTop:28, padding:"12px 16px", background:"var(--card)", borderRadius:10, fontSize:12, color:"var(--mu)", textAlign:"center"}}>
+          {ru
+            ? "Локальный анализ работает мгновенно. Кнопка «Глубокий AI анализ» подключает Claude для расширенных рекомендаций."
+            : "Local analysis runs instantly. \"Deep AI Analysis\" connects Claude for advanced recommendations."}
+        </div>
+      </div>
+    );
+  };
 
   /* ══════════════════════════════════════════════════════
      CRM — КОНТАКТЫ / ВОРОНКА / АВТОМАТИЗАЦИИ
@@ -9144,7 +9463,7 @@ function AppInner() {
     dashboard:t.dashboard, departments:t.departments, branches:t.branches,
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
     performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training, crm:t.crm, booking:t.booking,
-    telephony: lang==="ru" ? "Телефония" : "Telephony",
+    ai_center: t.ai_center, telephony: lang==="ru" ? "Телефония" : "Telephony",
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
@@ -9152,7 +9471,7 @@ function AppInner() {
   const navPages   = viewPartner ? wsPages
     : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>, telephony:<Telephony/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>, telephony:<Telephony/>, ai_center:<CorexAI/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
