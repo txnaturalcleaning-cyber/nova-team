@@ -4792,6 +4792,67 @@ function AppInner() {
     const automations = p?.automations||[];
     const canEdit  = isSA||isPartner||isEmp;
 
+    // ── Phone number purchase state ──
+    const myPhone   = p?.purchasedPhone || null;
+    const [phoneModal,  setPhoneModal]  = useState(false);
+    const [phoneStep,   setPhoneStep]   = useState("search"); // search | pay | done
+    const [areaCode,    setAreaCode]    = useState("");
+    const [foundNums,   setFoundNums]   = useState([]);
+    const [searchingN,  setSearchingN]  = useState(false);
+    const [selectedNum, setSelectedNum] = useState(null);
+    const [paying,      setPaying]      = useState(false);
+    const [payError,    setPayError]    = useState("");
+    const [cardNum,     setCardNum]     = useState("");
+    const [cardExp,     setCardExp]     = useState("");
+    const [cardCvc,     setCardCvc]     = useState("");
+
+    const searchNumbers = async () => {
+      setSearchingN(true);
+      setFoundNums([]);
+      try {
+        const r = await fetch("/api/search-numbers", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ areaCode: areaCode.trim() })
+        });
+        const d = await r.json();
+        if (d.success) setFoundNums(d.numbers||[]);
+        else setPayError(d.error||"Search failed");
+      } catch(e) { setPayError(e.message); }
+      setSearchingN(false);
+    };
+
+    const buyNumber = async () => {
+      if (!selectedNum) return;
+      setPaying(true);
+      setPayError("");
+      try {
+        // Step 1: Create Stripe PaymentIntent
+        const r1 = await fetch("/api/buy-phone-number", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ phoneNumber: selectedNum.phoneNumber, partnerId: pid })
+        });
+        const d1 = await r1.json();
+        if (!d1.success) throw new Error(d1.error||"Payment init failed");
+
+        // Step 2: Confirm payment (test mode - auto succeeds with test card)
+        // In production this uses Stripe.js confirmCardPayment
+        // For now we call confirm directly (works in test mode)
+        const r2 = await fetch("/api/confirm-phone-purchase", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ intentId: d1.intentId, phoneNumber: selectedNum.phoneNumber, partnerId: pid })
+        });
+        const d2 = await r2.json();
+        if (!d2.success) throw new Error(d2.error||"Purchase failed");
+
+        // Save to partner
+        setPartners(ps => ps.map(x => x.id===pid ? {...x, purchasedPhone: d2.number} : x));
+        setPhoneStep("done");
+      } catch(e) {
+        setPayError(e.message||"Purchase failed");
+      }
+      setPaying(false);
+    };
+
     const STAGES = [
       {id:"lead",       label:t.stageLead,        color:"var(--mu)"},
       {id:"contact",    label:t.stageContact,     color:"var(--bl)"},
@@ -5409,6 +5470,156 @@ function AppInner() {
 
     return (
       <>
+        {/* ── PHONE NUMBER BANNER ── */}
+        {!myPhone && (isPartner||isSA) && (
+          <div style={{marginBottom:16,padding:"12px 16px",borderRadius:12,background:"linear-gradient(135deg,rgba(99,102,241,0.12),rgba(99,102,241,0.04))",border:"1px solid rgba(99,102,241,0.3)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>
+                {lang==="ru"?"Купи бизнес-номер для CorexPhone":"Get a business phone number for CorexPhone"}
+              </div>
+              <div style={{fontSize:12,color:"var(--mu)"}}>
+                {lang==="ru"?"Принимай звонки и SMS прямо в платформе · $9/мес · Подключение за 1 минуту":"Receive calls & SMS directly in the platform · $9/mo · Setup in 1 minute"}
+              </div>
+            </div>
+            <button onClick={()=>{setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");}}
+              style={{padding:"8px 20px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+              {lang==="ru"?"Купить номер →":"Buy number →"}
+            </button>
+          </div>
+        )}
+
+        {/* ── ACTIVE PHONE NUMBER BADGE ── */}
+        {myPhone && (
+          <div style={{marginBottom:14,padding:"8px 14px",borderRadius:10,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:14}}>📞</span>
+            <div style={{flex:1}}>
+              <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{myPhone.phoneNumber}</span>
+              <span style={{fontSize:11,color:"var(--mu)",marginLeft:10}}>{lang==="ru"?"Активный номер":"Active number"} · {lang==="ru"?"Куплен":"Purchased"} {myPhone.purchasedAt?.slice(0,10)}</span>
+            </div>
+            <span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"rgba(34,197,94,0.15)",color:"#16a34a",fontWeight:600}}>$9/мес</span>
+          </div>
+        )}
+
+        {/* ── PHONE PURCHASE MODAL ── */}
+        {phoneModal && (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>{if(e.target===e.currentTarget)setPhoneModal(false);}}>
+            <div style={{background:"var(--bg)",borderRadius:16,padding:28,width:"100%",maxWidth:480,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+
+              {/* Modal Header */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+                <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>
+                  {phoneStep==="done" ? (lang==="ru"?"Номер подключён!":"Number Connected!") : (lang==="ru"?"Купить телефонный номер":"Buy Phone Number")}
+                </div>
+                <button onClick={()=>setPhoneModal(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--mu)"}}>×</button>
+              </div>
+
+              {/* STEP: SEARCH */}
+              {phoneStep==="search" && (
+                <div>
+                  <div style={{fontSize:13,color:"var(--mu)",marginBottom:16}}>
+                    {lang==="ru"?"Введи код города (например 512 для Остина) или оставь пустым для любого доступного номера":"Enter area code (e.g. 512 for Austin) or leave blank for any available number"}
+                  </div>
+                  <div style={{display:"flex",gap:8,marginBottom:16}}>
+                    <input value={areaCode} onChange={e=>setAreaCode(e.target.value.replace(/\D/g,"").slice(0,3))}
+                      placeholder={lang==="ru"?"Код города (необязательно)":"Area code (optional)"}
+                      style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
+                    <button onClick={searchNumbers} disabled={searchingN}
+                      style={{padding:"9px 18px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                      {searchingN?(lang==="ru"?"Ищу...":"Searching..."):(lang==="ru"?"Найти":"Search")}
+                    </button>
+                  </div>
+
+                  {foundNums.length>0 && (
+                    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16,maxHeight:220,overflowY:"auto"}}>
+                      {foundNums.map(n=>(
+                        <button key={n.phoneNumber} onClick={()=>setSelectedNum(n)}
+                          style={{padding:"10px 14px",borderRadius:8,border:`2px solid ${selectedNum?.phoneNumber===n.phoneNumber?"var(--ac)":"var(--br)"}`,
+                            background:selectedNum?.phoneNumber===n.phoneNumber?"rgba(99,102,241,0.08)":"var(--card)",
+                            cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div>
+                            <div style={{fontSize:14,fontWeight:600,color:"var(--tx)"}}>{n.friendlyName}</div>
+                            <div style={{fontSize:11,color:"var(--mu)"}}>{n.locality}{n.locality&&n.region?", ":""}{n.region}</div>
+                          </div>
+                          {selectedNum?.phoneNumber===n.phoneNumber && <span style={{color:"var(--ac)",fontSize:18}}>✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {payError && <div style={{color:"#ef4444",fontSize:12,marginBottom:12}}>{payError}</div>}
+
+                  <button onClick={()=>setPhoneStep("pay")} disabled={!selectedNum}
+                    style={{width:"100%",padding:"10px",borderRadius:8,border:"none",
+                      background:selectedNum?"var(--ac)":"var(--br)",color:selectedNum?"#fff":"var(--mu)",
+                      fontSize:13,fontWeight:600,cursor:selectedNum?"pointer":"not-allowed"}}>
+                    {lang==="ru"?"Продолжить к оплате →":"Continue to Payment →"}
+                  </button>
+                </div>
+              )}
+
+              {/* STEP: PAY */}
+              {phoneStep==="pay" && (
+                <div>
+                  <div style={{padding:"12px 14px",borderRadius:10,background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",marginBottom:20}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{selectedNum?.friendlyName}</div>
+                    <div style={{fontSize:12,color:"var(--mu)"}}>{selectedNum?.locality}{selectedNum?.locality&&selectedNum?.region?", ":""}{selectedNum?.region}</div>
+                    <div style={{fontSize:16,fontWeight:700,color:"var(--ac)",marginTop:6}}>$9.00 / {lang==="ru"?"мес":"mo"}</div>
+                  </div>
+
+                  <div style={{fontSize:12,color:"var(--mu)",marginBottom:16,padding:"8px 12px",background:"var(--card)",borderRadius:8}}>
+                    {lang==="ru"?"Тестовая карта: 4242 4242 4242 4242 · Срок: 12/34 · CVC: 123":"Test card: 4242 4242 4242 4242 · Exp: 12/34 · CVC: 123"}
+                  </div>
+
+                  <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+                    <input value={cardNum} onChange={e=>setCardNum(e.target.value.replace(/\D/g,"").slice(0,16))}
+                      placeholder={lang==="ru"?"Номер карты":"Card number"}
+                      style={{padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
+                    <div style={{display:"flex",gap:8}}>
+                      <input value={cardExp} onChange={e=>setCardExp(e.target.value.slice(0,5))} placeholder="MM/YY"
+                        style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
+                      <input value={cardCvc} onChange={e=>setCardCvc(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="CVC"
+                        style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
+                    </div>
+                  </div>
+
+                  {payError && <div style={{color:"#ef4444",fontSize:12,marginBottom:12}}>{payError}</div>}
+
+                  <button onClick={buyNumber} disabled={paying||cardNum.length<16}
+                    style={{width:"100%",padding:"11px",borderRadius:8,border:"none",
+                      background:(!paying&&cardNum.length===16)?"var(--ac)":"var(--br)",
+                      color:(!paying&&cardNum.length===16)?"#fff":"var(--mu)",
+                      fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                    {paying?(lang==="ru"?"Обрабатываю...":"Processing..."):(lang==="ru"?"Оплатить $9.00 и подключить номер":"Pay $9.00 and connect number")}
+                  </button>
+
+                  <button onClick={()=>setPhoneStep("search")} style={{width:"100%",marginTop:8,padding:"8px",borderRadius:8,border:"1px solid var(--br)",background:"transparent",color:"var(--mu)",fontSize:12,cursor:"pointer"}}>
+                    ← {lang==="ru"?"Назад":"Back"}
+                  </button>
+                </div>
+              )}
+
+              {/* STEP: DONE */}
+              {phoneStep==="done" && (
+                <div style={{textAlign:"center",padding:"10px 0"}}>
+                  <div style={{fontSize:48,marginBottom:12}}>✅</div>
+                  <div style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>
+                    {lang==="ru"?"Номер успешно подключён!":"Number successfully connected!"}
+                  </div>
+                  <div style={{fontSize:22,fontWeight:700,color:"var(--ac)",margin:"10px 0"}}>{selectedNum?.friendlyName}</div>
+                  <div style={{fontSize:13,color:"var(--mu)",marginBottom:20,lineHeight:1.6}}>
+                    {lang==="ru"?"Теперь ты можешь принимать звонки и SMS прямо в CorexPhone. Номер активен.":"You can now receive calls and SMS directly in CorexPhone. Number is active."}
+                  </div>
+                  <button onClick={()=>setPhoneModal(false)}
+                    style={{padding:"10px 28px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                    {lang==="ru"?"Отлично!":"Got it!"}
+                  </button>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
+
         {/* Tab bar */}
         <div style={{display:"flex",gap:6,marginBottom:18,borderBottom:"1px solid var(--bdr)",paddingBottom:10,flexWrap:"wrap"}}>
           {[{id:"contacts",label:t.crmContacts},{id:"pipeline",label:t.crmPipeline},{id:"tags",label:t.crmTags},{id:"auto",label:t.automations}].map(tb=>(
