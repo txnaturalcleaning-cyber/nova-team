@@ -4272,10 +4272,10 @@ function AppInner() {
     const [filterCat, setFilterCat]   = useState("all");
 
     // Chat state
-    const [chatMsgs, setChatMsgs]   = useState([]);
-    const [chatInput, setChatInput] = useState("");
-    const [chatLoading, setChatLoading] = useState(false);
-    const chatEndRef = useRef(null);
+    const [aiMsgs, setAiMsgs]   = useState([]);
+    const [aiInput, setAiInput] = useState("");
+    const [aiChatLoading, setAiChatLoading] = useState(false);
+    const aiEndRef = useRef(null);
 
     // Memory state
     const [memory, setMemory]       = useState("");
@@ -4293,24 +4293,24 @@ function AppInner() {
       getDoc(ref).then(snap => {
         if (snap.exists()) {
           const hist = snap.data()[`aiChat_${pid}`] || [];
-          setChatMsgs(hist);
+          setAiMsgs(hist);
         }
       }).catch(console.error);
     }, [pid]);
 
     // Save AI chat history to its own Firebase key (separate from partners to avoid re-renders)
-    const chatHistMounted = useRef(false);
+    const aiHistMounted = useRef(false);
     useEffect(() => {
-      if (!chatHistMounted.current) { chatHistMounted.current = true; return; }
-      const toSave = chatMsgs.slice(-50);
+      if (!aiHistMounted.current) { aiHistMounted.current = true; return; }
+      const toSave = aiMsgs.slice(-50);
       const ref = doc(db, "app", "data");
       setDoc(ref, { [`aiChat_${pid}`]: toSave }, { merge: true }).catch(console.error);
-    }, [chatMsgs]);
+    }, [aiMsgs]);
 
     // Auto scroll chat
     useEffect(() => {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [chatMsgs]);
+      aiEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [aiMsgs]);
 
     // ── Save memory to Firebase ──
     const saveMemory = async () => {
@@ -4351,12 +4351,12 @@ function AppInner() {
 
     // ── Send chat message ──
     const sendChat = async () => {
-      const text = chatInput.trim();
-      if (!text || chatLoading) return;
-      setChatInput("");
+      const text = aiInput.trim();
+      if (!text || aiChatLoading) return;
+      setAiInput("");
       const userMsg = { role:"user", content: text, ts: new Date().toLocaleTimeString() };
-      setChatMsgs(prev => [...prev, userMsg]);
-      setChatLoading(true);
+      setAiMsgs(prev => [...prev, userMsg]);
+      setAiChatLoading(true);
 
       // Check if user wants to save something to memory
       const saveKeywords = ru
@@ -4377,14 +4377,14 @@ function AppInner() {
               : `Got it! Added to company memory:\n«${text}»\n\nI'll use this context in all future analyses.`,
             ts: new Date().toLocaleTimeString()
           };
-          setChatMsgs(prev => [...prev, confirmMsg]);
-          setChatLoading(false);
+          setAiMsgs(prev => [...prev, confirmMsg]);
+          setAiChatLoading(false);
           return;
         } catch(e) { console.error(e); }
       }
 
       // Build messages history for API (last 8 messages)
-      const history = chatMsgs.slice(-8).map(m => ({
+      const history = aiMsgs.slice(-8).map(m => ({
         role: m.role, content: m.content
       }));
       history.push({ role: "user", content: text });
@@ -4405,13 +4405,13 @@ function AppInner() {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || "no response");
-        setChatMsgs(prev => [...prev, {
+        setAiMsgs(prev => [...prev, {
           role: "assistant",
           content: data.result,
           ts: new Date().toLocaleTimeString()
         }]);
       } catch(e) {
-        setChatMsgs(prev => [...prev, {
+        setAiMsgs(prev => [...prev, {
           role: "assistant",
           content: ru
             ? "Не удалось подключиться к AI. Проверь интернет-соединение."
@@ -4420,7 +4420,7 @@ function AppInner() {
           error: true
         }]);
       }
-      setChatLoading(false);
+      setAiChatLoading(false);
     };
 
     // ── Local monitor analysis ──
@@ -4649,7 +4649,7 @@ function AppInner() {
           <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
             {/* Messages */}
             <div style={{flex:1,overflowY:"auto",padding:"16px 28px",display:"flex",flexDirection:"column",gap:12}}>
-              {chatMsgs.length===0&&(
+              {aiMsgs.length===0&&(
                 <div style={{textAlign:"center",padding:"40px 20px"}}>
                   <div style={{fontSize:40,marginBottom:12,opacity:0.2}}>AI</div>
                   <div style={{fontSize:15,fontWeight:600,color:"var(--tx)",marginBottom:6}}>
@@ -4663,14 +4663,14 @@ function AppInner() {
                   </div>}
                   <div style={{display:"flex",flexDirection:"column",gap:6,maxWidth:440,margin:"0 auto"}}>
                     {QUICK_PROMPTS.map((q,i)=>(
-                      <button key={i} onClick={()=>{setChatInput(q);}} style={{padding:"8px 14px",borderRadius:8,border:"1px solid var(--br)",background:"var(--card)",color:"var(--tx)",fontSize:12,cursor:"pointer",textAlign:"left"}}>
+                      <button key={i} onClick={()=>{setAiInput(q);}} style={{padding:"8px 14px",borderRadius:8,border:"1px solid var(--br)",background:"var(--card)",color:"var(--tx)",fontSize:12,cursor:"pointer",textAlign:"left"}}>
                         {q}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
-              {chatMsgs.map((m,i)=>(
+              {aiMsgs.map((m,i)=>(
                 <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
                   <div style={{
                     maxWidth:"75%",padding:"10px 14px",borderRadius:12,fontSize:13,lineHeight:1.6,
@@ -4685,27 +4685,27 @@ function AppInner() {
                   </div>
                 </div>
               ))}
-              {chatLoading&&(
+              {aiChatLoading&&(
                 <div style={{display:"flex",justifyContent:"flex-start"}}>
                   <div style={{padding:"10px 16px",borderRadius:12,background:"var(--card)",color:"var(--mu)",fontSize:13}}>
                     <span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span> {ru?"Думаю...":"Thinking..."}
                   </div>
                 </div>
               )}
-              <div ref={chatEndRef}/>
+              <div ref={aiEndRef}/>
             </div>
             {/* Input */}
             <div style={{padding:"12px 28px 20px",borderTop:"1px solid var(--br)"}}>
               <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                 <textarea
-                  value={chatInput}
-                  onChange={e=>setChatInput(e.target.value)}
+                  value={aiInput}
+                  onChange={e=>setAiInput(e.target.value)}
                   onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}}}
                   placeholder={ru?"Задай вопрос о бизнесе... (Enter — отправить, Shift+Enter — новая строка)":"Ask about your business... (Enter to send, Shift+Enter for new line)"}
                   rows={2}
                   style={{flex:1,padding:"10px 14px",borderRadius:10,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13,resize:"none",fontFamily:"inherit",lineHeight:1.5}}
                 />
-                <button onClick={sendChat} disabled={chatLoading||!chatInput.trim()} style={{padding:"10px 20px",borderRadius:10,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",height:60,flexShrink:0}}>
+                <button onClick={sendChat} disabled={aiChatLoading||!aiInput.trim()} style={{padding:"10px 20px",borderRadius:10,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",height:60,flexShrink:0}}>
                   {ru?"Отправить":"Send"}
                 </button>
               </div>
