@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, createContext, useContext, Component } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 
 
 /* ─── FIREBASE ─── */
@@ -4272,7 +4272,7 @@ function AppInner() {
     const [filterCat, setFilterCat]   = useState("all");
 
     // Chat state
-    const [chatMsgs, setChatMsgs]   = useState(p?.aiChatHistory || []);
+    const [chatMsgs, setChatMsgs]   = useState([]);
     const [chatInput, setChatInput] = useState("");
     const [chatLoading, setChatLoading] = useState(false);
     const chatEndRef = useRef(null);
@@ -4283,20 +4283,28 @@ function AppInner() {
     const [memorySaving, setMemorySaving] = useState(false);
     const [memoryEditMode, setMemoryEditMode] = useState(false);
 
-    // Load memory + chat history from Firebase on mount
+    // Load memory from partner, load chat history from separate Firebase key
     useEffect(() => {
       const stored = p?.aiMemory || "";
       setMemory(stored);
       setMemoryEdit(stored);
-      setChatMsgs(p?.aiChatHistory || []);
+      // Load chat history from its own Firebase key
+      const ref = doc(db, "app", "data");
+      getDoc(ref).then(snap => {
+        if (snap.exists()) {
+          const hist = snap.data()[`aiChat_${pid}`] || [];
+          setChatMsgs(hist);
+        }
+      }).catch(console.error);
     }, [pid]);
 
-    // Save chat history to Firebase whenever it changes (keep last 50 messages)
+    // Save AI chat history to its own Firebase key (separate from partners to avoid re-renders)
     const chatHistMounted = useRef(false);
     useEffect(() => {
       if (!chatHistMounted.current) { chatHistMounted.current = true; return; }
       const toSave = chatMsgs.slice(-50);
-      setPartners(ps => ps.map(x => x.id === pid ? { ...x, aiChatHistory: toSave } : x));
+      const ref = doc(db, "app", "data");
+      setDoc(ref, { [`aiChat_${pid}`]: toSave }, { merge: true }).catch(console.error);
     }, [chatMsgs]);
 
     // Auto scroll chat
