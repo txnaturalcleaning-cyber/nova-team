@@ -4263,7 +4263,8 @@ function AppInner() {
     const ru  = lang === "ru";
 
     // Tabs
-    const [tab, setTab] = useState("monitor"); // monitor | chat | memory
+    const [tab, setTab] = useState(() => localStorage.getItem("corexai_tab") || "monitor");
+    const setTabAndSave = (t) => { setTab(t); localStorage.setItem("corexai_tab", t); };
 
     // Monitor state
     const [alerts, setAlerts]         = useState([]);
@@ -4283,43 +4284,26 @@ function AppInner() {
     const [memorySaving, setMemorySaving] = useState(false);
     const [memoryEditMode, setMemoryEditMode] = useState(false);
 
-    // Load memory from partner, load chat history from separate Firebase key
+    // Load memory from partner data
     useEffect(() => {
       const stored = p?.aiMemory || "";
       setMemory(stored);
       setMemoryEdit(stored);
-      // Load chat history from its own Firebase key
-      const ref = doc(db, "app", "data");
-      getDoc(ref).then(snap => {
-        if (snap.exists()) {
-          const hist = snap.data()[`aiChat_${pid}`] || [];
-          setAiMsgs(hist);
-        }
-      }).catch(console.error);
     }, [pid]);
 
-    // Save AI chat history to its own Firebase key (separate from partners to avoid re-renders)
-    const aiHistMounted = useRef(false);
-    useEffect(() => {
-      if (!aiHistMounted.current) { aiHistMounted.current = true; return; }
-      const toSave = aiMsgs.slice(-50);
-      const ref = doc(db, "app", "data");
-      setDoc(ref, { [`aiChat_${pid}`]: toSave }, { merge: true }).catch(console.error);
-    }, [aiMsgs]);
+    // Chat history lives in memory during session (no Firebase save to avoid re-renders)
 
     // Auto scroll chat
     useEffect(() => {
       aiEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [aiMsgs]);
 
-    // ── Save memory to Firebase ──
-    const saveMemory = async () => {
+    // ── Save memory to Firebase via setPartners ──
+    const saveMemory = () => {
       setMemorySaving(true);
-      try {
-        await savePartnerField(pid, "aiMemory", memoryEdit);
-        setMemory(memoryEdit);
-        setMemoryEditMode(false);
-      } catch(e) { console.error(e); }
+      setPartners(ps => ps.map(x => x.id === pid ? {...x, aiMemory: memoryEdit} : x));
+      setMemory(memoryEdit);
+      setMemoryEditMode(false);
       setMemorySaving(false);
     };
 
@@ -4367,7 +4351,7 @@ function AppInner() {
       if (isSaveRequest) {
         const newMemory = (memory ? memory + "\n" : "") + "• " + text;
         try {
-          await savePartnerField(pid, "aiMemory", newMemory);
+          setPartners(ps => ps.map(x => x.id === pid ? {...x, aiMemory: newMemory} : x));
           setMemory(newMemory);
           setMemoryEdit(newMemory);
           const confirmMsg = {
@@ -4586,7 +4570,7 @@ function AppInner() {
           {/* Tabs */}
           <div style={{display:"flex",gap:0}}>
             {TABS.map(tb=>(
-              <button key={tb.id} onClick={()=>setTab(tb.id)} style={{
+              <button key={tb.id} onClick={()=>setTabAndSave(tb.id)} style={{
                 padding:"8px 20px", border:"none", background:"transparent",
                 borderBottom: tab===tb.id ? "2px solid var(--ac)" : "2px solid transparent",
                 color: tab===tb.id ? "var(--ac)" : "var(--mu)",
