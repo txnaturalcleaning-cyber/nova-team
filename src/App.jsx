@@ -653,32 +653,16 @@ function Telephony() {
     if (!call || !call.transcript) return;
     setCalls(prev => prev.map(c => c.id === callId ? {...c, aiLoading: true} : c));
     try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    try {
+      const r = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 800,
-          system: `You are a sales expert for a cleaning company. Analyze the call transcript and return ONLY a raw JSON object (no markdown, no backticks). Schema:
-{
-  "result": "sale" | "no_sale" | "reschedule" | "info" | "spam",
-  "score": 0-100,
-  "category": "new" | "existing" | "spam" | "missed" | "dnd",
-  "failMoment": string or null,
-  "failReason": string or null,
-  "goodMoments": string[],
-  "improvements": string[],
-  "autoSuggestion": string
-}
-Category rules: new=first-time caller, existing=returning client/reschedule, spam=robocall/irrelevant, missed=no answer/no transcript, dnd=asked not to be called.
-Respond in ${ru ? "Russian" : "English"}.`,
-          messages: [{ role: "user", content: `Transcript:\n${call.transcript}` }]
-        })
+        body: JSON.stringify({ mode: "call_analysis", transcript: call.transcript, lang })
       });
-      const data = await resp.json();
-      const text = (data.content || []).map(b => b.text || "").join("").trim();
-      const clean = text.replace(/```json|```/gi, "").trim();
-      const analysis = JSON.parse(clean);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || "no result");
+      const analysis = d.result;
       // Auto-sort: update call.type to AI-detected category
       setCalls(prev => prev.map(c => c.id === callId
         ? { ...c, aiLoading: false, aiAnalysis: analysis, status: "analyzed", type: analysis.category || c.type }
@@ -4581,29 +4565,15 @@ function AppInner() {
           stage: c.stage,
           history: (c.history||[]).slice(-5).map(h=>h.text).join(" | ")
         }));
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        const rr = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1000,
-            system: `You are a CRM analyst for a cleaning business. Classify each contact into exactly one folder based on their interaction history. Return ONLY raw JSON array (no markdown):
-[{"id":"...", "folder":"client|lost|missed|lead|spam|dnd"}]
-Rules:
-- client: booked a cleaning, paid, confirmed appointment, "записала", "booking", "scheduled"
-- lost: said not interested, mentioned cheaper competitor, "подумаю" without callback, rejected quote
-- missed: missed call, no answer, "пропущен", "missed call", left voicemail
-- spam: robocall, irrelevant pitch, "поздравляем", sales call
-- dnd: asked to not be called, "не звоните", "do not call", "remove"
-- lead: everything else, new inquiry, asking for price
-Respond with only the JSON array.`,
-            messages: [{ role: "user", content: `Analyze contacts:
-${JSON.stringify(summaries)}` }]
-          })
+          body: JSON.stringify({ mode: "crm_sort_all", contacts: summaries, lang })
         });
-        const data = await resp.json();
-        const text = (data.content||[]).map(b=>b.text||"").join("").trim().replace(/\`\`\`json|\`\`\`/gi,"").trim();
-        const results = JSON.parse(text);
+        if (!rr.ok) throw new Error(`HTTP ${rr.status}`);
+        const dd = await rr.json();
+        if (!dd.success || !Array.isArray(dd.result)) throw new Error(dd.error || "no result");
+        const results = dd.result;
         // Apply folders + sync stage
         setPartners(ps=>ps.map(x=>{
           if (x.id!==pid) return x;
@@ -4790,11 +4760,12 @@ ${JSON.stringify(summaries)}` }]
                   if(!hist) return;
                   setAiSorting(true);
                   try {
-                    const resp = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:200,system:`Classify contact into ONE folder: client|lost|missed|lead|spam|dnd. Return ONLY JSON: {"folder":"...","reason":"..."}. client=booked cleaning. lost=rejected/competitor. missed=no answer. spam=robocall. dnd=no contact please. lead=everything else. Respond in ${lang==="ru"?"Russian":"English"}.`,messages:[{role:"user",content:`Name: ${openContact.name}
-History: ${hist}`}]})});
-                    const data = await resp.json();
-                    const text = (data.content||[]).map(b=>b.text||"").join("").replace(/\`\`\`json|\`\`\`/gi,"").trim();
-                    const {folder,reason} = JSON.parse(text);
+                    const rs = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {method:"POST",headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({mode:"crm_single",contact:{name:openContact.name,stage:openContact.stage,history:openContact.history||[]},lang})});
+                    if (!rs.ok) throw new Error(`HTTP ${rs.status}`);
+                    const ds = await rs.json();
+                    if (!ds.success) throw new Error(ds.error||"no result");
+                    const folder = ds.result.folder, reason = ds.result.reason;
                     const newStage = folder==="client"?"client":folder==="lost"?"lost":openContact.stage;
                     updateContact(openContact.id,{crmFolder:folder,stage:newStage});
                     addHistoryEntry(openContact.id, `🤖 AI: → ${folder}${reason?" — "+reason:""}`);
