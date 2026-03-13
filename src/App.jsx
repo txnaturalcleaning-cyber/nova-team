@@ -957,6 +957,9 @@ function AppInner() {
   const [saMode,      setSaMode]      = useState("workspace"); // "workspace" | "partners"
   const [page,        setPage]        = useState(()=>localStorage.getItem("nls_page")||"dashboard");
   useEffect(()=>{ if(page) localStorage.setItem("nls_page", page); }, [page]);
+  // CRM open contact — lifted to parent to survive CRM re-renders
+  const [crmOpenId, setCrmOpenId] = useState(null);
+  const [crmSmsText, setCrmSmsText] = useState("");
   const [modal,       setModal]       = useState(null);
   const [chatChannel, setChatChannel] = useState("general");
   const [chatMsgs,    setChatMsgs]    = useState({});
@@ -4900,7 +4903,10 @@ function AppInner() {
     const [cTab,     setCTab]     = useState("contacts");
     const [search,   setSearch]   = useState("");
     const [tagFilter,setTagFilter]= useState("");
-    const [openId,   setOpenId]   = useState(null);
+    const openId = crmOpenId;
+    const setOpenId = setCrmOpenId;
+    const smsText = crmSmsText;
+    const setSmsText = setCrmSmsText;
     const [cF, setCF] = useState({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
     const [cModal,   setCModal]   = useState(false);
     const [noteText, setNoteText] = useState("");
@@ -4909,7 +4915,6 @@ function AppInner() {
     const [aF, setAF] = useState({triggerTag:"",delayHours:"1",msgTemplate:"",name:"",routeToDept:"",routeType:"copy"});
     const [aModal,   setAModal]   = useState(false);
     const [smsModal, setSmsModal] = useState(null); // contactId
-    const [smsText,  setSmsText]  = useState("");
     const [smsSending,setSmsSending] = useState(false);
     const [smsLog,   setSmsLog]   = useState({}); // {contactId: [{text,ts,dir}]}
     const [crmFolder,  setCrmFolder]  = useState("all"); // smart folder filter
@@ -5006,9 +5011,8 @@ function AppInner() {
       return `${m}:${s.toString().padStart(2,"0")}`;
     }
 
-    async function sendSMS(contactId, phone, text) {
+    async function sendSMS(contactId, phone, text, onSuccess) {
       if (!phone||!text.trim()) return;
-      // Normalize phone number to E.164 format
       let normalizedPhone = phone.replace(/[^\d+]/g, '');
       if (!normalizedPhone.startsWith('+')) {
         if (normalizedPhone.length === 10) normalizedPhone = '+1' + normalizedPhone;
@@ -5024,13 +5028,15 @@ function AppInner() {
         });
         const d = await r.json();
         if (d.success) {
-          const entry = {id:"sms_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), dir:"out", sid:d.sid};
+          const entry = {id:"sms_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), dir:"out", sid:d.sid, status:"sent"};
           setSmsLog(prev=>({...prev,[contactId]:[...(prev[contactId]||[]),entry]}));
-          addHistoryEntry(contactId, `📤 SMS отправлено: ${text.trim()}`);
+          addHistoryEntry(contactId, `📤 SMS: ${text.trim()}`);
           setSmsText("");
-          setSmsModal(null);
+          if (onSuccess) onSuccess();
         } else {
-          alert(lang==="ru"?`Ошибка: ${d.error}`:`Error: ${d.error}`);
+          const entry = {id:"sms_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), dir:"out", status:"failed", error:d.error};
+          setSmsLog(prev=>({...prev,[contactId]:[...(prev[contactId]||[]),entry]}));
+          alert(lang==="ru"?`Ошибка SMS: ${d.error}`:`SMS Error: ${d.error}`);
         }
       } catch(e) {
         alert(lang==="ru"?"Ошибка соединения":"Connection error");
@@ -5041,8 +5047,13 @@ function AppInner() {
     // ── CRUD contacts ──
     function saveContact() {
       if (!cF.name.trim()) return;
-      const item = {...cF, id:"c_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], history:[], deptIds: cF.deptId?[cF.deptId]:[]};
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),item]}:x));
+      const isEdit = cModal !== true; // cModal===true means new, cModal===contactId means edit
+      if (isEdit) {
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===cModal?{...c,...cF,deptIds:cF.deptId?[cF.deptId]:[]}:c)}:x));
+      } else {
+        const item = {...cF, id:"c_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], history:[], deptIds: cF.deptId?[cF.deptId]:[]};
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),item]}:x));
+      }
       setCF({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
       setCModal(false);
     }
@@ -5413,7 +5424,7 @@ function AppInner() {
                       fontSize:13,lineHeight:1.5,color:"var(--tx)"
                     }}>
                       {isNote&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📝 {lang==="ru"?"Заметка":"Note"}</div>}
-                      {isSmsOut&&<div style={{fontSize:9,color:"var(--acc)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📤 SMS</div>}
+                      {isSmsOut&&<div style={{fontSize:9,color:"var(--acc)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📤 SMS {m.status==="failed"?<span style={{color:"var(--rd)"}}>✗ {lang==="ru"?"не доставлено":"failed"}</span>:<span style={{color:"var(--gr)"}}>✓</span>}</div>}
                       {isSmsIn&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📥 SMS</div>}
                       <div>{m.text}</div>
                     </div>
@@ -5440,28 +5451,40 @@ function AppInner() {
               <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
                 <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)}
                   style={{flex:1,minHeight:40,maxHeight:100,resize:"none",padding:"8px 12px"}}
-                  placeholder={lang==="ru"?"SMS или заметка... (Enter = заметка, Shift+Enter = строка)":"SMS or note... (Enter = note, Shift+Enter = newline)"}
+                  placeholder={lang==="ru"?"Написать SMS...":"Write SMS..."}
                   onKeyDown={e=>{
-                    if(e.key==="Enter"&&!e.shiftKey){
+                    if(e.key==="Enter"&&!e.shiftKey&&openContact.phone){
                       e.preventDefault();
-                      if(smsText.trim()) addNote(openContact.id); // Enter adds note
+                      if(smsText.trim()) sendSMS(openContact.id, openContact.phone, smsText);
                     }
                   }}/>
                 <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                  {openContact.phone&&(
-                    <button className="btn btn-p btn-sm" style={{padding:"7px 10px"}} disabled={smsSending||!smsText.trim()}
-                      title="Send SMS" onClick={()=>sendSMS(openContact.id,openContact.phone,smsText)}>
-                      {smsSending?"...":IC.sms}
+                  {openContact.phone?(
+                    <button className="btn btn-p" style={{padding:"8px 14px",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}
+                      disabled={smsSending||!smsText.trim()}
+                      onClick={()=>sendSMS(openContact.id, openContact.phone, smsText)}>
+                      {smsSending?"...":<>{IC.sms} SMS</>}
                     </button>
+                  ):(
+                    <div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>
+                      {lang==="ru"?"Нет телефона":"No phone"}
+                    </div>
                   )}
-                  <button className="btn btn-g btn-sm" style={{padding:"7px 10px"}} title={lang==="ru"?"Добавить заметку":"Add note"}
-                    disabled={!smsText.trim()} onClick={()=>addNote(openContact.id)}>
-                    {IC.send}
+                  <button className="btn btn-g btn-sm" style={{padding:"5px 8px",fontSize:10}}
+                    title={lang==="ru"?"Добавить заметку":"Add note"}
+                    disabled={!smsText.trim()} onClick={()=>{
+                      if (!smsText.trim()) return;
+                      const note = {id:"n_"+Date.now(), text:smsText.trim(), ts:new Date().toLocaleString(), author:currentUser.name||currentUser.companyName||"SA"};
+                      const c = contacts.find(x=>x.id===openContact.id);
+                      updateContact(openContact.id, {history:[...(c?.history||[]),note]});
+                      setSmsText("");
+                    }}>
+                    📝 {lang==="ru"?"Заметка":"Note"}
                   </button>
                 </div>
               </div>
               <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>
-                💬 = SMS · ➤ = {lang==="ru"?"заметка":"note"} · {smsText.length}/160
+                {smsText.length}/160 · Enter = SMS · 📝 = {lang==="ru"?"заметка":"note"}
               </div>
             </div>
           </div>
@@ -5774,8 +5797,9 @@ function AppInner() {
                       })}
                       {(c.tags||[]).length>3&&<span style={{fontSize:10,color:"var(--mu)"}}>+{(c.tags||[]).length-3}</span>}
                       <span style={{fontSize:10,padding:"2px 8px",borderRadius:5,background:stage.color+"18",color:stage.color,border:`1px solid ${stage.color}30`,whiteSpace:"nowrap"}}>{stage.label}</span>
-                      {c.phone&&<a href={`tel:${c.phone}`} className="btn btn-g btn-sm" style={{padding:"4px 7px"}} onClick={e=>e.stopPropagation()}>{IC.phone}</a>}
+                      {c.phone&&<button className="btn btn-g btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();startCall(c);}}>{IC.phone}</button>}
                       {c.phone&&<button className="btn btn-bl btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();setSmsModal(c.id);setSmsText("");}}>{IC.sms}</button>}
+                      <button className="btn btn-g btn-sm" style={{padding:"4px 7px",fontSize:10}} onClick={e=>{e.stopPropagation();setCF({name:c.name,phone:c.phone||"",email:c.email||"",stage:c.stage||"lead",tags:c.tags||[],notes:c.notes||[],deptId:c.deptId||""});setCModal(c.id);}}>✏️</button>
                     </div>
                   </div>
                 );
@@ -5936,7 +5960,7 @@ function AppInner() {
         {cModal&&(
           <div className="ovl" onClick={()=>setCModal(false)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-t">{t.addContact}</div>
+              <div className="modal-t">{cModal===true?(t.addContact):(lang==="ru"?"Редактировать контакт":"Edit Contact")}</div>
               <div className="fr">
                 <div className="fg"><label className="lbl">{t.contactName} *</label><input className="inp" value={cF.name} onChange={e=>setCF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
                 <div className="fg"><label className="lbl">{t.contactPhone}</label><input className="inp" value={cF.phone} onChange={e=>setCF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
@@ -5975,7 +5999,7 @@ function AppInner() {
               </div>
               <div className="ma">
                 <button className="btn btn-g" onClick={()=>setCModal(false)}>{t.cancel}</button>
-                <button className="btn btn-p" onClick={saveContact}>{t.create}</button>
+                <button className="btn btn-p" onClick={saveContact}>{cModal===true?t.create:(lang==="ru"?"Сохранить":"Save")}</button>
               </div>
             </div>
           </div>
@@ -9987,7 +10011,7 @@ function AppInner() {
                     );
                   }
                   return (
-                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}>
+                    <button key={p.key} className={`nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);setCrmOpenId(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}>
                       <span className="ni">{p.icon}</span>{p.label}
                       {p.key==="tasks"&&pendingT>0&&<span className="cnt">{pendingT}</span>}
                       {p.key==="chat"&&totalUnread>0&&<span className="cnt" style={{background:"#ef4444",color:"#fff"}}>{totalUnread>99?"99+":totalUnread}</span>}
@@ -10023,7 +10047,7 @@ function AppInner() {
         {/* MOBILE BOTTOM NAV */}
         <nav className="mob-nav">
           {navPages.slice(0,5).map(p=>(
-            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}
+            <button key={p.key} className={`mob-nb ${page===p.key?"act":""}`} onClick={()=>{setPage(p.key);setKbView(null);setCrmOpenId(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}
               style={{position:"relative"}}>
               <span className="mi" style={{position:"relative"}}>
                 {p.icon}
@@ -10061,7 +10085,7 @@ function AppInner() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 {navPages.map(p=>(
                   <button key={p.key} className="btn btn-g" style={{justifyContent:"flex-start",gap:10,padding:"12px 14px"}}
-                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}>
+                    onClick={()=>{setPage(p.key);setKbView(null);setModal(null);setCrmOpenId(null);if(p.key!=="departments"){setSelDeptId(null);setHrOpenCard(null);setSvOpenT(null);setOpsOpenW(null);}}}>
                     <span style={{fontSize:18}}>{p.icon}</span>
                     <span style={{fontSize:13}}>{p.label}</span>
                   </button>
