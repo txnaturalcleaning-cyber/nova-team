@@ -1,21 +1,11 @@
 // api/get-recording.js
-// GET ?callSid=xxx  → returns recording metadata
-// GET ?recordingSid=xxx&audio=1  → proxies MP3 audio from Twilio
-// POST { callSid, transcript }  → saves manual transcript
-
-if (!global._recordings) global._recordings = {};
+// Fetches recording directly from Twilio API by CallSid - no storage needed
 
 export default async function handler(req, res) {
-  // Save manual transcript
+
+  // Save manual transcript (store in Twilio call metadata isn't possible,
+  // so we return success and frontend stores it locally in state)
   if (req.method === 'POST') {
-    const { callSid, transcript } = req.body;
-    if (!callSid || !transcript) {
-      return res.status(400).json({ error: 'callSid and transcript required' });
-    }
-    if (global._recordings[callSid]) {
-      global._recordings[callSid].transcript = transcript;
-      global._recordings[callSid].transcribedAt = new Date().toISOString();
-    }
     return res.json({ success: true });
   }
 
@@ -23,42 +13,61 @@ export default async function handler(req, res) {
 
   const { callSid, recordingSid, audio } = req.query;
 
-  // Proxy audio file with Twilio auth
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  const authHeader = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+  // ── Proxy audio file ──
   if (audio === '1' && recordingSid) {
     try {
-      const accountSid = process.env.TWILIO_ACCOUNT_SID;
-      const authToken  = process.env.TWILIO_AUTH_TOKEN;
-      const audioUrl   = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`;
-
-      const response = await fetch(audioUrl, {
-        headers: {
-          Authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-        },
-      });
+      const audioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`;
+      const response = await fetch(audioUrl, { headers: { Authorization: authHeader } });
 
       if (!response.ok) {
         return res.status(response.status).json({ error: 'Recording not ready yet' });
       }
-
       res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Cache-Control', 'public, max-age=3600');
       const buffer = await response.arrayBuffer();
       return res.send(Buffer.from(buffer));
-
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
   }
 
-  // Get recording metadata by callSid
+  // ── Get recording by CallSid — query Twilio directly ──
   if (callSid) {
-    const recording = global._recordings[callSid] || null;
-    return res.json({ success: !!recording, recording });
+    try {
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings.json?CallSid=${callSid}`;
+      const response = await fetch(url, { headers: { Authorization: authHeader } });
+      const data = await response.json();
+
+      if (!response.ok) {
+        return res.json({ success: false, recording: null, error: data.message });
+      }
+
+      const recordings = data.recordings || [];
+      if (recordings.length === 0) {
+        return res.json({ success: false, recording: null }); // not ready yet
+      }
+
+      // Take most recent recording for this call
+      const rec = recordings[0];
+      return res.json({
+        success: true,
+        recording: {
+          callSid:      rec.call_sid,
+          recordingSid: rec.sid,
+          recordingUrl: `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${rec.sid}`,
+          audioUrl:     `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${rec.sid}.mp3`,
+          duration:     parseInt(rec.duration) || 0,
+          createdAt:    rec.date_created,
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 
-  // List all recordings
-  const recordings = Object.values(global._recordings)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 50);
-  return res.json({ success: true, recordings });
+  return res.json({ success: false, error: 'callSid required' });
 }
