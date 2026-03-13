@@ -5081,17 +5081,25 @@ function AppInner() {
         call.on("disconnect",()=>{
           setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);
           const dur=callDuration;setCallDuration(0);
-          addHistoryEntry(contact.id,`📞 Call ${formatDur(dur)}`);
+          const callSidVal = call.parameters?.CallSid || call.customParameters?.get?.('CallSid');
+          addHistoryEntry(contact.id,`📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
           updateContact(contact.id,{lastContact:new Date().toISOString()});
-          // Fetch recording after a short delay (Twilio processes recording asynchronously)
-          setTimeout(async()=>{
-            try {
-              const callSidVal = call.parameters?.CallSid;
-              if (callSidVal) {
-                addHistoryEntry(contact.id,`🎙 Recording processing (Call SID: ${callSidVal})...`);
-              }
-            } catch(e){}
-          }, 3000);
+          // Poll Firebase every 5s for up to 60s waiting for Twilio recording webhook
+          if (callSidVal) {
+            let attempts = 0;
+            const pollInterval = setInterval(async()=>{
+              attempts++;
+              try {
+                const r = await fetch(`/api/get-recording?callSid=${callSidVal}`);
+                const d = await r.json();
+                if (d.success && d.recording?.recordingSid) {
+                  clearInterval(pollInterval);
+                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${Math.floor((d.recording.duration||0)/60)}:${String((d.recording.duration||0)%60).padStart(2,'0')})`);
+                }
+              } catch(e){}
+              if (attempts >= 12) clearInterval(pollInterval); // stop after 60s
+            }, 5000);
+          }
         });
         call.on("error",err=>{setCallState("idle");setActiveCall(null);console.error("Call error:",err);});
       } catch(e){setCallState("idle");alert(`Call failed: ${e.message}`);}
@@ -5447,10 +5455,32 @@ function AppInner() {
                   ):<div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>No phone</div>}
                 </div>
               </div>
-              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length}/160 · Enter = SMS · 📝 = Note</div>
+              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length}/160 · Enter = SMS</div>
             </div>
           </div>
         </div>
+
+        {/* Reminder modal — also rendered here so it works from inside contact detail */}
+        {remModal&&(
+          <div className="ovl" onClick={()=>setRemModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">🔔 {lang==="ru"?"Новое напоминание":"New Reminder"}</div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Текст напоминания":"Reminder text"}</label>
+                <input className="inp" value={remF.text} onChange={e=>setRemF(f=>({...f,text:e.target.value}))} placeholder="Call back in 30 min, Follow up next week..." autoFocus/>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{lang==="ru"?"Дата и время":"Date & Time"}</label>
+                  <input type="datetime-local" className="inp" value={remF.dueAt} onChange={e=>setRemF(f=>({...f,dueAt:e.target.value}))}/>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:"var(--bl)",padding:"6px 0"}}>📣 {lang==="ru"?"Уведомление автоматически улетит в отдел Sales и Ops":"Notification will be sent to Sales & Ops departments"}</div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setRemModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={saveReminder}>{lang==="ru"?"Сохранить":"Save"}</button>
+              </div>
+            </div>
+          </div>
+        )}
       );
     }
 
@@ -5511,7 +5541,6 @@ function AppInner() {
             {cTab==="numbers"&&<button onClick={()=>{setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Купить номер":"Buy Number"}</button>}
             {cTab==="campaigns"&&<button onClick={()=>setCampModal(true)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Кампания":"Campaign"}</button>}
             {cTab==="reminders"&&<button onClick={()=>{setCrmRemF({text:"",dueAt:"",contactId:""});setCrmRemModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Напоминание":"Reminder"}</button>}
-            {cTab==="reminders"&&<button onClick={()=>{setRemF({text:"",dueAt:"",contactId:""});setRemModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Напоминание":"Reminder"}</button>}
           </div>
         </div>
 
@@ -5915,7 +5944,7 @@ function AppInner() {
             <div className="modal" onClick={e=>e.stopPropagation()}>
               <div className="modal-t">🔔 {lang==="ru"?"Новое напоминание":"New Reminder"}</div>
               <div className="fg"><label className="lbl">{lang==="ru"?"Текст напоминания":"Reminder text"}</label>
-                <input className="inp" value={remF.text} onChange={e=>setRemF(f=>({...f,text:e.target.value}))} placeholder="Call back in 30 min, Follow up next week..."/>
+                <input className="inp" value={remF.text} onChange={e=>setRemF(f=>({...f,text:e.target.value}))} placeholder="Call back in 30 min, Follow up next week..." autoFocus/>
               </div>
               <div className="fr">
                 <div className="fg"><label className="lbl">{lang==="ru"?"Дата и время":"Date & Time"}</label>
@@ -5927,6 +5956,9 @@ function AppInner() {
                     {contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
+              </div>
+              <div style={{fontSize:11,color:"var(--bl)",padding:"6px 0",background:"var(--bl)08",borderRadius:6,paddingLeft:8}}>
+                📣 {lang==="ru"?"Уведомление автоматически улетит в отдел Sales и Ops":"Notification will be sent to Sales & Ops departments"}
               </div>
               <div className="ma">
                 <button className="btn btn-g" onClick={()=>setRemModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
