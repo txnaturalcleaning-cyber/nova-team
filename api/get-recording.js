@@ -1,61 +1,43 @@
 // api/get-recording.js
-// Two modes:
-//   GET ?callSid=xxx         → returns recording metadata from Firebase
-//   GET ?recordingSid=xxx&audio=1  → proxies the MP3 audio from Twilio (handles auth)
-//   POST { callSid, transcript }   → saves manual transcript to Firebase
+// GET ?callSid=xxx  → returns recording metadata
+// GET ?recordingSid=xxx&audio=1  → proxies MP3 audio from Twilio
+// POST { callSid, transcript }  → saves manual transcript
 
-import admin from 'firebase-admin';
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId:   process.env.FIREBASE_PROJECT_ID   || 'nova-launch-system',
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey:  (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    }),
-  });
-}
-
-const db = admin.firestore();
+if (!global._recordings) global._recordings = {};
 
 export default async function handler(req, res) {
-  // ── SAVE MANUAL TRANSCRIPT ──
+  // Save manual transcript
   if (req.method === 'POST') {
-    const { callSid, transcript, partnerId } = req.body;
+    const { callSid, transcript } = req.body;
     if (!callSid || !transcript) {
       return res.status(400).json({ error: 'callSid and transcript required' });
     }
-    try {
-      await db.collection('callRecordings').doc(callSid).set({
-        transcript,
-        transcriptStatus: 'manual',
-        transcribedAt:    admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-      return res.json({ success: true });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
+    if (global._recordings[callSid]) {
+      global._recordings[callSid].transcript = transcript;
+      global._recordings[callSid].transcribedAt = new Date().toISOString();
     }
+    return res.json({ success: true });
   }
 
   if (req.method !== 'GET') return res.status(405).end();
 
-  const { callSid, recordingSid, audio, partnerId } = req.query;
+  const { callSid, recordingSid, audio } = req.query;
 
-  // ── PROXY AUDIO FILE ──
+  // Proxy audio file with Twilio auth
   if (audio === '1' && recordingSid) {
     try {
-      const accountSid  = process.env.TWILIO_ACCOUNT_SID;
-      const authToken   = process.env.TWILIO_AUTH_TOKEN;
-      const audioUrl    = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`;
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken  = process.env.TWILIO_AUTH_TOKEN;
+      const audioUrl   = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`;
 
       const response = await fetch(audioUrl, {
         headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-        }
+          Authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+        },
       });
 
       if (!response.ok) {
-        return res.status(response.status).json({ error: 'Recording not found or not ready' });
+        return res.status(response.status).json({ error: 'Recording not ready yet' });
       }
 
       res.setHeader('Content-Type', 'audio/mpeg');
@@ -68,30 +50,15 @@ export default async function handler(req, res) {
     }
   }
 
-  // ── GET RECORDING METADATA BY callSid ──
+  // Get recording metadata by callSid
   if (callSid) {
-    try {
-      const doc = await db.collection('callRecordings').doc(callSid).get();
-      if (!doc.exists) {
-        return res.json({ success: false, recording: null });
-      }
-      return res.json({ success: true, recording: doc.data() });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
+    const recording = global._recordings[callSid] || null;
+    return res.json({ success: !!recording, recording });
   }
 
-  // ── LIST RECENT RECORDINGS ──
-  try {
-    const limit = parseInt(req.query.limit) || 50;
-    const snapshot = await db.collection('callRecordings')
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get();
-
-    const recordings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    return res.json({ success: true, recordings });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
+  // List all recordings
+  const recordings = Object.values(global._recordings)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 50);
+  return res.json({ success: true, recordings });
 }
