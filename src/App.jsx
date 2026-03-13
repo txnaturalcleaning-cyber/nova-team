@@ -4936,7 +4936,8 @@ function AppInner() {
           method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({identity: currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user", partnerPhone: p?.purchasedPhone?.phoneNumber || null})
         });
-        const {token} = await r.json();
+        const {token, partnerPhone: phoneFromToken} = await r.json();
+        if (phoneFromToken) window._twilioPartnerPhone = phoneFromToken;
         const device = new TwilioDevice(token, {logLevel:1, codecPreferences:["opus","pcmu"]});
         device.on("incoming", call => {
           setCallState("incoming");
@@ -4963,8 +4964,9 @@ function AppInner() {
       setCallContact(contact);
       setCallState("connecting");
       try {
+        const fromNumber = p?.purchasedPhone?.phoneNumber || window._twilioPartnerPhone || '';
         const call = await device.connect({
-          params: { To: contact.phone }
+          params: { To: contact.phone, From: fromNumber }
         });
         setActiveCall(call);
         call.on("accept", ()=>{
