@@ -1,0 +1,45 @@
+// api/debug-recording.js - TEMPORARY - delete after debugging
+// Visit: /api/debug-recording to see what's in Firebase + recent Twilio recordings
+
+export default async function handler(req, res) {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  const twAuth     = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const fbBase     = 'https://nova-launch-system-default-rtdb.firebaseio.com/recordings';
+  const fbAuth     = process.env.FIREBASE_DB_SECRET;
+  const fbSuffix   = fbAuth ? `?auth=${fbAuth}` : '';
+
+  // Get recent Twilio recordings
+  const twRes = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings.json?PageSize=5`,
+    { headers: { Authorization: twAuth } }
+  );
+  const twData = await twRes.json();
+
+  // Get Firebase recordings
+  let fbData = null;
+  try {
+    const fbRes = await fetch(`${fbBase}.json${fbSuffix}&limitToLast=5&orderBy="$key"`);
+    fbData = await fbRes.json();
+  } catch(e) { fbData = { error: e.message }; }
+
+  // Get Firebase index
+  let fbIndex = null;
+  try {
+    const fbRes2 = await fetch(`${fbBase}_by_call.json${fbSuffix}&limitToLast=5`);
+    fbIndex = await fbRes2.json();
+  } catch(e) { fbIndex = { error: e.message }; }
+
+  res.json({
+    env: {
+      hasTwilioSid:    !!accountSid,
+      hasFirebaseSecret: !!fbAuth,
+    },
+    twilio_recordings: (twData.recordings||[]).map(r => ({
+      sid: r.sid, callSid: r.call_sid, duration: r.duration,
+      status: r.status, created: r.date_created,
+    })),
+    firebase_recordings: fbData,
+    firebase_index: fbIndex,
+  });
+}
