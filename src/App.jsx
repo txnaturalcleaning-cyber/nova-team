@@ -680,6 +680,65 @@ function Telephony() {
     loadRecordings();
   }, []);
 
+  // ── Toast notification state ──
+  const [recToast, setRecToast] = useState(null);
+
+  // ── Listen for events dispatched by CRM phone section ──
+  useEffect(() => {
+    const onCallStarted = (e) => {
+      const { callSid, contact } = e.detail;
+      setCalls(prev => {
+        if (prev.find(c => c.id === callSid)) return prev;
+        return [{
+          id: callSid,
+          date: new Date().toLocaleString(),
+          from: contact?.phone || '—',
+          contactName: contact?.name || '',
+          duration: '—',
+          type: 'existing',
+          status: 'pending',
+          transcript: '',
+          recordingSid: null,
+          aiAnalysis: null,
+          aiLoading: false,
+        }, ...prev];
+      });
+    };
+
+    const onRecordingReady = (e) => {
+      const { callSid, parentCallSid, recording, contactName } = e.detail;
+      const key = parentCallSid || callSid;
+      const durSec = recording.duration || 0;
+      const durStr = `${Math.floor(durSec/60)}:${String(durSec%60).padStart(2,'0')}`;
+      setCalls(prev => prev.map(c =>
+        (c.id === key || c.id === callSid)
+          ? { ...c, recordingSid: recording.recordingSid, duration: durStr, status: 'pending' }
+          : c
+      ));
+      setRecordings(prev => ({ ...prev, [key]: recording, [callSid]: recording }));
+      setRecToast({ callSid: key, contactName, duration: durStr, recordingSid: recording.recordingSid });
+      setTimeout(() => setRecToast(null), 12000);
+    };
+
+    window.addEventListener('corex:call-started', onCallStarted);
+    window.addEventListener('corex:recording-ready', onRecordingReady);
+    return () => {
+      window.removeEventListener('corex:call-started', onCallStarted);
+      window.removeEventListener('corex:recording-ready', onRecordingReady);
+    };
+  }, []);
+
+  // ── Auto-load audio when a call is opened and has a recordingSid ──
+  useEffect(() => {
+    if (!openCall) return;
+    const call = calls.find(c => c.id === openCall);
+    if (!call) return;
+    const sid = call.recordingSid || recordings[openCall]?.recordingSid;
+    if (sid && !audioUrls[openCall] && !loadingRec[openCall]) {
+      fetchAudio({ ...call, recordingSid: sid });
+    }
+  }, [openCall]); // eslint-disable-line
+
   async function fetchAudio(call) {
     if (audioUrls[call.id] || loadingRec[call.id]) return;
     const sid = call.recordingSid || recordings[call.id]?.recordingSid;
@@ -826,6 +885,44 @@ function Telephony() {
 
   return (
     <div style={{padding:"0 24px 40px"}}>
+      {/* ── RECORDING READY TOAST ── */}
+      {recToast && (
+        <div style={{
+          position:"fixed", bottom:24, right:24, zIndex:9999,
+          background:"var(--s2)", border:"1px solid var(--gr)",
+          borderRadius:14, padding:"14px 18px", boxShadow:"0 8px 32px rgba(0,0,0,0.25)",
+          display:"flex", alignItems:"center", gap:14, maxWidth:380, animation:"fadeIn .3s ease"
+        }}>
+          <div style={{fontSize:26}}>🎙</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700, fontSize:13, marginBottom:2}}>
+              {ru ? "Запись готова" : "Recording ready"}
+            </div>
+            <div style={{fontSize:12, color:"var(--mu)"}}>
+              {recToast.contactName && <><b>{recToast.contactName}</b> · </>}
+              {recToast.duration}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setOpenCall(recToast.callSid);
+              setActiveTab("all");
+              // auto-fetch audio for this call
+              const call = calls.find(c => c.id === recToast.callSid);
+              if (call) fetchAudio({...call, recordingSid: recToast.recordingSid});
+              setRecToast(null);
+            }}
+            style={{padding:"7px 14px", borderRadius:8, border:"none",
+              background:"var(--gr)", color:"#fff", fontWeight:700,
+              fontSize:12, cursor:"pointer", whiteSpace:"nowrap"}}>
+            ▶ {ru ? "Слушать" : "Listen"}
+          </button>
+          <button onClick={()=>setRecToast(null)}
+            style={{background:"none", border:"none", color:"var(--mu)",
+              cursor:"pointer", fontSize:16, padding:"0 4px"}}>✕</button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:10}}>
         <div>
@@ -5088,16 +5185,21 @@ function AppInner() {
             callDurationRef.current += 1;
             setCallDuration(callDurationRef.current);
           }, 1000);
+          // ✅ Notify Telephony tab: new call started
+          const acceptedSid = call.parameters?.CallSid || call.customParameters?.get?.('CallSid') || 'pending_' + Date.now();
+          window.dispatchEvent(new CustomEvent('corex:call-started', {
+            detail: { callSid: acceptedSid, contact }
+          }));
         });
         call.on("disconnect",()=>{
           setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);
-          const dur = callDurationRef.current; // ← read from ref, not stale state
+          const dur = callDurationRef.current;
           callDurationRef.current = 0;
           setCallDuration(0);
           const callSidVal = call.parameters?.CallSid || call.customParameters?.get?.('CallSid');
           addHistoryEntry(contact.id,`📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
           updateContact(contact.id,{lastContact:new Date().toISOString()});
-          // Poll Firebase every 5s for up to 60s waiting for Twilio recording webhook
+          // Poll Firebase every 5s for up to 90s waiting for Twilio recording webhook
           if (callSidVal) {
             let attempts = 0;
             const pollInterval = setInterval(async()=>{
@@ -5107,10 +5209,21 @@ function AppInner() {
                 const d = await r.json();
                 if (d.success && d.recording?.recordingSid) {
                   clearInterval(pollInterval);
-                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${Math.floor((d.recording.duration||0)/60)}:${String((d.recording.duration||0)%60).padStart(2,'0')})`);
+                  const durSec = d.recording.duration || 0;
+                  const durStr = `${Math.floor(durSec/60)}:${String(durSec%60).padStart(2,'0')}`;
+                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${durStr})`);
+                  // ✅ Notify Telephony tab: recording is ready + dispatch so toast shows
+                  window.dispatchEvent(new CustomEvent('corex:recording-ready', {
+                    detail: {
+                      callSid: callSidVal,
+                      parentCallSid: d.recording.parentCallSid,
+                      recording: d.recording,
+                      contactName: contact.name || contact.phone || '',
+                    }
+                  }));
                 }
               } catch(e){}
-              if (attempts >= 12) clearInterval(pollInterval);
+              if (attempts >= 18) clearInterval(pollInterval); // poll up to 90s
             }, 5000);
           }
         });
