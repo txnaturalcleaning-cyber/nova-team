@@ -5049,7 +5049,8 @@ function AppInner() {
     const [callContact, setCallContact]  = useState(null);
     const [callDuration,setCallDuration] = useState(0);
     const [sdkReady,    setSdkReady]     = useState(false);
-    const callTimerRef = useRef(null);
+    const callTimerRef    = useRef(null);
+    const callDurationRef = useRef(0); // tracks live duration, avoids stale closure
 
     useEffect(()=>{ setSdkReady(true); },[]);
 
@@ -5077,10 +5078,19 @@ function AppInner() {
         const fromNumber = p?.purchasedPhone?.phoneNumber||window._twilioPartnerPhone||'';
         const call = await device.connect({params:{To:contact.phone,From:fromNumber}});
         setActiveCall(call);
-        call.on("accept",()=>{setCallState("active");callTimerRef.current=setInterval(()=>setCallDuration(d=>d+1),1000);});
+        call.on("accept",()=>{
+          setCallState("active");
+          callDurationRef.current = 0;
+          callTimerRef.current = setInterval(()=>{
+            callDurationRef.current += 1;
+            setCallDuration(callDurationRef.current);
+          }, 1000);
+        });
         call.on("disconnect",()=>{
           setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);
-          const dur=callDuration;setCallDuration(0);
+          const dur = callDurationRef.current; // ← read from ref, not stale state
+          callDurationRef.current = 0;
+          setCallDuration(0);
           const callSidVal = call.parameters?.CallSid || call.customParameters?.get?.('CallSid');
           addHistoryEntry(contact.id,`📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
           updateContact(contact.id,{lastContact:new Date().toISOString()});
@@ -5097,7 +5107,7 @@ function AppInner() {
                   addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${Math.floor((d.recording.duration||0)/60)}:${String((d.recording.duration||0)%60).padStart(2,'0')})`);
                 }
               } catch(e){}
-              if (attempts >= 12) clearInterval(pollInterval); // stop after 60s
+              if (attempts >= 12) clearInterval(pollInterval);
             }, 5000);
           }
         });
