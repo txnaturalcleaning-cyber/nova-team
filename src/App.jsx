@@ -5282,6 +5282,7 @@ function AppInner() {
       const contactReminders=reminders.filter(r=>r.contactId===openContact.id&&!r.done);
 
       return (
+        <>
         <div style={{display:"flex",height:"calc(100vh - 130px)",minHeight:500,gap:0,borderRadius:14,overflow:"hidden",border:"1px solid var(--bdr)"}}>
 
           {/* LEFT PANEL: Contact info */}
@@ -5481,6 +5482,7 @@ function AppInner() {
             </div>
           </div>
         )}
+      </>
       );
     }
 
