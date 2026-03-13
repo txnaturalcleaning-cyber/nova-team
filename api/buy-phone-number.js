@@ -1,4 +1,4 @@
-// api/buy-phone-number.js — Create AND confirm Stripe PaymentIntent
+// api/buy-phone-number.js
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -7,17 +7,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { phoneNumber, partnerId } = req.body || {};
-  if (!phoneNumber || !partnerId) {
-    return res.status(400).json({ error: 'Missing phoneNumber or partnerId' });
-  }
+  if (!phoneNumber || !partnerId) return res.status(400).json({ error: 'Missing fields' });
 
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecret) return res.status(500).json({ error: 'Stripe not configured' });
 
-  const isTest = stripeSecret.startsWith('sk_test_');
-
   try {
-    // Step 1: Create PaymentIntent
+    // Create PaymentIntent with no-redirect card only
     const createRes = await fetch('https://api.stripe.com/v1/payment_intents', {
       method: 'POST',
       headers: {
@@ -27,7 +23,8 @@ export default async function handler(req, res) {
       body: new URLSearchParams({
         amount: '900',
         currency: 'usd',
-        description: `Phone number ${phoneNumber} - 1 month`,
+        'payment_method_types[]': 'card',
+        description: `Phone number ${phoneNumber}`,
         'metadata[phoneNumber]': phoneNumber,
         'metadata[partnerId]': partnerId,
       }).toString(),
@@ -36,27 +33,22 @@ export default async function handler(req, res) {
     const intent = await createRes.json();
     if (!createRes.ok) return res.status(400).json({ error: intent.error?.message || 'Stripe error' });
 
-    // Step 2: In test mode — confirm with test card automatically
-    if (isTest) {
-      const confirmRes = await fetch(`https://api.stripe.com/v1/payment_intents/${intent.id}/confirm`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${stripeSecret}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          payment_method: 'pm_card_visa',
-        }).toString(),
-      });
+    // Confirm with test card (works in test mode)
+    const confirmRes = await fetch(`https://api.stripe.com/v1/payment_intents/${intent.id}/confirm`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${stripeSecret}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        payment_method: 'pm_card_visa',
+      }).toString(),
+    });
 
-      const confirmed = await confirmRes.json();
-      if (!confirmRes.ok) return res.status(400).json({ error: confirmed.error?.message || 'Confirmation failed' });
+    const confirmed = await confirmRes.json();
+    if (!confirmRes.ok) return res.status(400).json({ error: confirmed.error?.message || 'Confirmation failed' });
 
-      return res.status(200).json({ success: true, intentId: confirmed.id, status: confirmed.status });
-    }
-
-    // Production: return clientSecret for Stripe.js frontend confirmation
-    return res.status(200).json({ success: true, clientSecret: intent.client_secret, intentId: intent.id });
+    return res.status(200).json({ success: true, intentId: confirmed.id, status: confirmed.status });
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
