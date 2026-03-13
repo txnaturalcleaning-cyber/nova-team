@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, createContext, useContext, Component } from "react";
+import { Device as TwilioDevice } from "@twilio/voice-sdk";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
@@ -4924,54 +4925,19 @@ function AppInner() {
     const callTimerRef = useRef(null);
 
     useEffect(()=>{
-      // Check if already loaded
-      if (window.Twilio?.Device) { setSdkReady(true); return; }
-
-      // Check if script already exists in DOM
-      const existing = document.querySelector('script[src*="twilio"]');
-      if (!existing) {
-        const script = document.createElement("script");
-        script.src = "https://media.twiliocdn.com/sdk/js/client/releases/1.14.0/twilio.min.js";
-        script.async = true;
-        script.onload = () => {
-          if (window.Twilio?.Device) setSdkReady(true);
-        };
-        document.head.appendChild(script);
-      } else {
-        // Script exists, might already be loaded
-        if (window.Twilio?.Device) { setSdkReady(true); return; }
-      }
-
-      // Poll until Twilio.Device is available (max 10 seconds)
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        if (window.Twilio?.Device) {
-          setSdkReady(true);
-          clearInterval(interval);
-          console.log("Twilio Voice SDK ready");
-        } else if (attempts > 50) {
-          clearInterval(interval);
-          console.error("Twilio SDK failed to load after 10s");
-        }
-      }, 200);
-
-      return () => clearInterval(interval);
+      setSdkReady(true);
+      console.log("Twilio Voice SDK ready");
     },[]);
 
     async function initTwilioDevice() {
       if (twilioDevice) return twilioDevice;
-      if (!window.Twilio?.Device) {
-        console.log("Twilio SDK not ready yet");
-        return null;
-      }
       try {
         const r = await fetch("/api/voice-token", {
           method:"POST", headers:{"Content-Type":"application/json"},
           body: JSON.stringify({identity: currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user", partnerPhone: p?.purchasedPhone?.phoneNumber || null})
         });
         const {token} = await r.json();
-        const device = new window.Twilio.Device(token, {logLevel:1, codecPreferences:["opus","pcmu"]});
+        const device = new TwilioDevice(token, {logLevel:1, codecPreferences:["opus","pcmu"]});
         device.on("incoming", call => {
           setCallState("incoming");
           setActiveCall(call);
