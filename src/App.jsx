@@ -658,8 +658,8 @@ function Telephony() {
           setRecordings(map);
           // Merge real calls with demo calls (real calls first)
           const realCalls = d.recordings.map(rec => ({
-            id:         rec.callSid,
-            date:       rec.createdAt ? new Date(rec.createdAt._seconds * 1000).toLocaleString() : '—',
+            id:         rec.parentCallSid || rec.callSid,
+            date:       rec.createdAt ? new Date(rec.createdAt).toLocaleString() : '—',
             from:       rec.from || '—',
             duration:   rec.duration ? `${Math.floor(rec.duration/60)}:${String(rec.duration%60).padStart(2,'0')}` : '—',
             type:       'existing',
@@ -702,10 +702,13 @@ function Telephony() {
     if (!text?.trim()) return;
     setSavingTranscript(callId);
     try {
+      // ✅ FIX: API expects recordingSid, not callSid — look it up from call state
+      const call = calls.find(c => c.id === callId);
+      const recSid = call?.recordingSid || recordings[callId]?.recordingSid || callId;
       await fetch('/api/get-recording', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ callSid: callId, transcript: text.trim() })
+        body: JSON.stringify({ recordingSid: recSid, transcript: text.trim() })
       });
       // Update local state
       setCalls(prev => prev.map(c => c.id === callId ? {...c, transcript: text.trim()} : c));
@@ -5078,61 +5081,40 @@ function AppInner() {
         const fromNumber = p?.purchasedPhone?.phoneNumber||window._twilioPartnerPhone||'';
         const call = await device.connect({params:{To:contact.phone,From:fromNumber}});
         setActiveCall(call);
-        let capturedCallSid = null; // capture at accept time
-        call.on("accept", (acceptedCall)=>{
+        call.on("accept",()=>{
           setCallState("active");
           callDurationRef.current = 0;
           callTimerRef.current = setInterval(()=>{
             callDurationRef.current += 1;
             setCallDuration(callDurationRef.current);
           }, 1000);
-          // Capture CallSid as soon as call is accepted
-          capturedCallSid = acceptedCall?.parameters?.CallSid
-            || call.parameters?.CallSid
-            || call.outboundConnectionId
-            || null;
-          console.log("Call accepted, CallSid:", capturedCallSid, "params:", call.parameters);
         });
-        call.on("disconnect", ()=>{
-          setCallState("idle"); setActiveCall(null); clearInterval(callTimerRef.current);
-          const dur = callDurationRef.current;
+        call.on("disconnect",()=>{
+          setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);
+          const dur = callDurationRef.current; // ← read from ref, not stale state
           callDurationRef.current = 0;
           setCallDuration(0);
-          // Try all possible CallSid locations
-          const callSidVal = capturedCallSid
-            || call.parameters?.CallSid
-            || call.customParameters?.get?.('CallSid')
-            || null;
-          console.log("Call disconnected, CallSid:", callSidVal, "duration:", dur);
-          addHistoryEntry(contact.id, `📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
-          updateContact(contact.id, {lastContact: new Date().toISOString()});
-          // Poll Twilio every 8s for up to 3 min (recordings take 15-60s to process)
+          const callSidVal = call.parameters?.CallSid || call.customParameters?.get?.('CallSid');
+          addHistoryEntry(contact.id,`📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
+          updateContact(contact.id,{lastContact:new Date().toISOString()});
+          // Poll Firebase every 5s for up to 60s waiting for Twilio recording webhook
           if (callSidVal) {
-            addHistoryEntry(contact.id, `⏳ ${lang==="ru"?"Запись обрабатывается...":"Recording processing..."}`);
             let attempts = 0;
             const pollInterval = setInterval(async()=>{
               attempts++;
               try {
                 const r = await fetch(`/api/get-recording?callSid=${callSidVal}`);
                 const d = await r.json();
-                console.log(`Recording poll #${attempts}:`, d);
                 if (d.success && d.recording?.recordingSid) {
                   clearInterval(pollInterval);
-                  // Update the "processing" entry with "ready"
-                  addHistoryEntry(contact.id, `🎙 ${lang==="ru"?"Запись готова":"Recording ready"} · ${formatDur(d.recording.duration||0)} · SID: ${d.recording.recordingSid}`);
+                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${Math.floor((d.recording.duration||0)/60)}:${String((d.recording.duration||0)%60).padStart(2,'0')})`);
                 }
-              } catch(e){ console.log("Poll error:", e.message); }
-              if (attempts >= 22) { // stop after ~3 min
-                clearInterval(pollInterval);
-                console.log("Recording poll timed out for", callSidVal);
-              }
-            }, 8000);
-          } else {
-            console.warn("No CallSid found — cannot poll for recording. call.parameters:", call.parameters);
+              } catch(e){}
+              if (attempts >= 12) clearInterval(pollInterval);
+            }, 5000);
           }
         });
-        call.on("error", err=>{setCallState("idle"); setActiveCall(null); console.error("Call error:", err);});
-      } catch(e){setCallState("idle"); alert(`Call failed: ${e.message}`);}
+        call.on("error",err=>{setCallState("idle");setActiveCall(null);console.error("Call error:",err);});
       } catch(e){setCallState("idle");alert(`Call failed: ${e.message}`);}
     }
 
