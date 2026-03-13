@@ -4924,13 +4924,33 @@ function AppInner() {
     const callTimerRef = useRef(null);
 
     useEffect(()=>{
+      // Check if already loaded
       if (window.Twilio?.Device) { setSdkReady(true); return; }
-      const script = document.createElement("script");
-      script.src = "https://sdk.twilio.com/js/client/releases/2.7.2/twilio.js";
-      script.async = true;
-      script.onload = () => { setSdkReady(true); console.log("Twilio Voice SDK loaded"); };
-      document.head.appendChild(script);
-      return ()=>{};
+
+      // Check if script already exists in DOM
+      const existing = document.querySelector('script[src*="twilio"]');
+      if (!existing) {
+        const script = document.createElement("script");
+        script.src = "https://sdk.twilio.com/js/client/releases/2.10.0/twilio.js";
+        script.async = true;
+        document.head.appendChild(script);
+      }
+
+      // Poll until Twilio.Device is available (max 10 seconds)
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (window.Twilio?.Device) {
+          setSdkReady(true);
+          clearInterval(interval);
+          console.log("Twilio Voice SDK ready");
+        } else if (attempts > 50) {
+          clearInterval(interval);
+          console.error("Twilio SDK failed to load after 10s");
+        }
+      }, 200);
+
+      return () => clearInterval(interval);
     },[]);
 
     async function initTwilioDevice() {
