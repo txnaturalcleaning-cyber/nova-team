@@ -5047,6 +5047,7 @@ function AppInner() {
      CRM — КОНТАКТЫ / ВОРОНКА / АВТОМАТИЗАЦИИ
   ══════════════════════════════════════════════════════ */
   const CRM = () => {
+    const ru       = lang === "ru"; // ← needed for all ru? ternaries in CRM
     const pid      = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p        = getPartner(pid)||{};
     const contacts = p?.contacts||[];
