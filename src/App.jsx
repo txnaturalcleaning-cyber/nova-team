@@ -4794,12 +4794,13 @@ function AppInner() {
     const contacts = p?.contacts||[];
     const crmTags  = p?.crmTags||[];
     const automations = p?.automations||[];
-    const canEdit  = isSA||isPartner||isEmp;
+    const reminders   = p?.reminders||[];
+    const campaigns   = p?.campaigns||[];
 
     // ── Phone number purchase state ──
     const myPhone   = p?.purchasedPhone || null;
     const [phoneModal,  setPhoneModal]  = useState(false);
-    const [phoneStep,   setPhoneStep]   = useState("search"); // search | pay | done
+    const [phoneStep,   setPhoneStep]   = useState("search");
     const [areaCode,    setAreaCode]    = useState("");
     const [foundNums,   setFoundNums]   = useState([]);
     const [searchingN,  setSearchingN]  = useState(false);
@@ -4811,526 +4812,350 @@ function AppInner() {
     const [cardCvc,     setCardCvc]     = useState("");
 
     const searchNumbers = async () => {
-      setSearchingN(true);
-      setFoundNums([]);
+      setSearchingN(true); setFoundNums([]);
       try {
-        const r = await fetch("/api/search-numbers", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ areaCode: areaCode.trim() })
-        });
+        const r = await fetch("/api/search-numbers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({areaCode:areaCode.trim()})});
         const d = await r.json();
-        if (d.success) setFoundNums(d.numbers||[]);
-        else setPayError(d.error||"Search failed");
-      } catch(e) { setPayError(e.message); }
+        if (d.success) setFoundNums(d.numbers||[]); else setPayError(d.error||"Search failed");
+      } catch(e){setPayError(e.message);}
       setSearchingN(false);
     };
 
     const buyNumber = async () => {
-      if (!selectedNum) return;
-      setPaying(true);
-      setPayError("");
+      if (!selectedNum) return; setPaying(true); setPayError("");
       try {
-        // Step 1: Create Stripe PaymentIntent
-        const r1 = await fetch("/api/buy-phone-number", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ phoneNumber: selectedNum.phoneNumber, partnerId: pid })
-        });
-        const d1 = await r1.json();
-        if (!d1.success) throw new Error(d1.error||"Payment init failed");
-
-        // Step 2: Confirm payment (test mode - auto succeeds with test card)
-        // In production this uses Stripe.js confirmCardPayment
-        // For now we call confirm directly (works in test mode)
-        const r2 = await fetch("/api/confirm-phone-purchase", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ intentId: d1.intentId, phoneNumber: selectedNum.phoneNumber, partnerId: pid })
-        });
-        const d2 = await r2.json();
-        if (!d2.success) throw new Error(d2.error||"Purchase failed");
-
-        // Save to partner
-        setPartners(ps => ps.map(x => x.id===pid ? {...x, purchasedPhone: d2.number} : x));
+        const r1 = await fetch("/api/buy-phone-number",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phoneNumber:selectedNum.phoneNumber,partnerId:pid})});
+        const d1 = await r1.json(); if(!d1.success) throw new Error(d1.error||"Payment init failed");
+        const r2 = await fetch("/api/confirm-phone-purchase",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({intentId:d1.intentId,phoneNumber:selectedNum.phoneNumber,partnerId:pid})});
+        const d2 = await r2.json(); if(!d2.success) throw new Error(d2.error||"Purchase failed");
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,purchasedPhone:d2.number}:x));
         setPhoneStep("done");
-      } catch(e) {
-        setPayError(e.message||"Purchase failed");
-      }
+      } catch(e){setPayError(e.message||"Purchase failed");}
       setPaying(false);
     };
 
+    // ── CRM Stages (from TZ) ──
     const STAGES = [
-      {id:"lead",       label:t.stageLead,        color:"var(--mu)"},
-      {id:"contact",    label:t.stageContact,     color:"var(--bl)"},
-      {id:"negotiation",label:t.stageNegotiation, color:"var(--acc)"},
-      {id:"client",     label:t.stageClient,      color:"var(--gr)"},
-      {id:"lost",       label:t.stageLost,        color:"var(--rd)"},
+      {id:"new_lead",     label:lang==="ru"?"Новый лид":"New Lead",           color:"#94a3b8"},
+      {id:"contacted",    label:lang==="ru"?"Связались":"Contacted",          color:"#3b82f6"},
+      {id:"booked",       label:lang==="ru"?"Забронировал":"Booked",          color:"#f0a500"},
+      {id:"active",       label:lang==="ru"?"Активный клиент":"Active Client",color:"#22c55e"},
+      {id:"regular",      label:lang==="ru"?"Постоянный клиент":"Regular Client",color:"#10b981"},
+      {id:"lost",         label:lang==="ru"?"Потерянный":"Lost Client",       color:"#ef4444"},
+      {id:"declined",     label:lang==="ru"?"Отказ от услуг":"Declined Service",color:"#f97316"},
+      {id:"no_response",  label:lang==="ru"?"Нет ответа":"No Response",       color:"#64748b"},
+      {id:"former",       label:lang==="ru"?"Бывший клиент":"Former Client",  color:"#8b5cf6"},
     ];
-
-    // HR Pipeline — fixed English keys, bilingual labels
-    const HR_PIPELINE = {
-      cleaner: [
-        {tag:"Cleaner-Candidate",  label:lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8", dept:"hr",  hired:false},
-        {tag:"Cleaner-Trainee",    label:lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",        color:"#f0a500", dept:"hr",  hired:false},
-        {tag:"Cleaner-Intern",     label:lang==="ru"?"Клинер-стажер":"Cleaner-Intern",         color:"#3b82f6", dept:"ops", hired:false},
-        {tag:"Cleaner-Active",     label:lang==="ru"?"Клинер-активный":"Cleaner-Active",       color:"#22c55e", dept:"ops", hired:true},
-      ],
-      manager: [
-        {tag:"Manager-Candidate",  label:lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8", dept:"hr",  hired:false},
-        {tag:"Manager-Trainee",    label:lang==="ru"?"Менеджер-ученик":"Manager-Trainee",      color:"#f0a500", dept:"hr",  hired:false},
-        {tag:"Manager-Intern",     label:lang==="ru"?"Менеджер-стажер":"Manager-Intern",       color:"#3b82f6", dept:"ops", hired:false},
-        {tag:"Manager-Active",     label:lang==="ru"?"Менеджер-активный":"Manager-Active",     color:"#22c55e", dept:"ops", hired:true},
-      ],
-    };
-    const ALL_HR_TAGS = [...HR_PIPELINE.cleaner, ...HR_PIPELINE.manager];
-    const HIRED_TAGS  = ALL_HR_TAGS.filter(t=>t.hired).map(t=>t.tag);
-
-    // Check if contact is "hired" (semi-transparent in HR view)
-    function isHired(c) {
-      return (c.tags||[]).some(tag=>HIRED_TAGS.includes(tag));
-    }
-
-    // Get HR pipeline stage info for a contact
-    function getHRStage(c) {
-      const tags = c.tags||[];
-      // Find the most advanced HR tag
-      for (let i=ALL_HR_TAGS.length-1; i>=0; i--) {
-        if (tags.includes(ALL_HR_TAGS[i].tag)) return ALL_HR_TAGS[i];
-      }
-      return null;
-    }
 
     const TAG_COLORS = ["#f0a500","#3b82f6","#22c55e","#ef4444","#a855f7","#ec4899","#06b6d4","#f97316","#84cc16","#14b8a6"];
 
-    const [cTab,     setCTab]     = useState("contacts");
-    const [search,   setSearch]   = useState("");
-    const [tagFilter,setTagFilter]= useState("");
-    const openId = crmOpenId;
+    // ── Lifted state (from parent, survives re-renders) ──
+    const openId    = crmOpenId;
     const setOpenId = setCrmOpenId;
-    const smsText = crmSmsText;
-    const setSmsText = setCrmSmsText;
-    const [cF, setCF] = useState({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
-    const [cModal,   setCModal]   = useState(false);
-    const [noteText, setNoteText] = useState("");
-    const [tagMgr,   setTagMgr]   = useState(false);
-    const [newTag,   setNewTag]   = useState({name:"",color:"#f0a500"});
-    const [aF, setAF] = useState({triggerTag:"",delayHours:"1",msgTemplate:"",name:"",routeToDept:"",routeType:"copy"});
-    const [aModal,   setAModal]   = useState(false);
-    const [smsModal, setSmsModal] = useState(null); // contactId
-    const [smsSending,setSmsSending] = useState(false);
-    const [smsLog,   setSmsLog]   = useState({}); // {contactId: [{text,ts,dir}]}
-    const [crmFolder,  setCrmFolder]  = useState("all"); // smart folder filter
-    const [aiSorting,  setAiSorting]  = useState(false);
+    const smsText   = crmSmsText;
+    const setSmsText= setCrmSmsText;
 
-    // ── TWILIO VOICE ──
-    const [twilioDevice, setTwilioDevice]   = useState(null);
-    const [callState,    setCallState]      = useState("idle"); // idle|connecting|active|incoming
-    const [activeCall,   setActiveCall]     = useState(null);
-    const [callContact,  setCallContact]    = useState(null);
-    const [callDuration, setCallDuration]   = useState(0);
-    const [sdkReady,     setSdkReady]       = useState(false);
+    // ── Local state ──
+    const [cTab,       setCTab]       = useState("contacts");
+    const [search,     setSearch]     = useState("");
+    const [tagFilter,  setTagFilter]  = useState("");
+    const [stageFilter,setStageFilter]= useState("all");
+    const [cF,         setCF]         = useState({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
+    const [cModal,     setCModal]     = useState(false);
+    const [tagMgr,     setTagMgr]     = useState(false);
+    const [newTag,     setNewTag]     = useState({name:"",color:"#f0a500"});
+    const [smsModal,   setSmsModal]   = useState(null);
+    const [smsSending, setSmsSending] = useState(false);
+    const [smsLog,     setSmsLog]     = useState({});
+    const [aiSorting,  setAiSorting]  = useState(false);
+    // Campaigns
+    const [campF,      setCampF]      = useState({name:"",audienceType:"stage",audienceValue:"lost",msgTemplate:"",delayDays:"0"});
+    const [campModal,  setCampModal]  = useState(false);
+    const [campSending,setCampSending]= useState(null);
+    // Reminders
+    const [remF,       setRemF]       = useState({text:"",dueAt:"",contactId:""});
+    const [remModal,   setRemModal]   = useState(false);
+    // Twilio voice
+    const [twilioDevice,setTwilioDevice] = useState(null);
+    const [callState,   setCallState]    = useState("idle");
+    const [activeCall,  setActiveCall]   = useState(null);
+    const [callContact, setCallContact]  = useState(null);
+    const [callDuration,setCallDuration] = useState(0);
+    const [sdkReady,    setSdkReady]     = useState(false);
     const callTimerRef = useRef(null);
 
-    useEffect(()=>{
-      setSdkReady(true);
-      console.log("Twilio Voice SDK ready");
-    },[]);
+    useEffect(()=>{ setSdkReady(true); },[]);
 
+    // ── Twilio voice functions ──
     async function initTwilioDevice() {
       if (twilioDevice) return twilioDevice;
       try {
-        const r = await fetch("/api/voice-token", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({identity: currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user", partnerPhone: p?.purchasedPhone?.phoneNumber || null})
-        });
-        const {token, partnerPhone: phoneFromToken} = await r.json();
+        const r = await fetch("/api/voice-token",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identity:currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user",partnerPhone:p?.purchasedPhone?.phoneNumber||null})});
+        const {token, partnerPhone:phoneFromToken} = await r.json();
         if (phoneFromToken) window._twilioPartnerPhone = phoneFromToken;
-        const device = new TwilioDevice(token, {logLevel:1, codecPreferences:["opus","pcmu"]});
-        device.on("incoming", call => {
-          setCallState("incoming");
-          setActiveCall(call);
-        });
-        device.on("error", err => {
-          console.error("Twilio Device error:", err);
-          setCallState("idle");
-        });
+        const device = new TwilioDevice(token,{logLevel:1,codecPreferences:["opus","pcmu"]});
+        device.on("incoming",call=>{setCallState("incoming");setActiveCall(call);});
+        device.on("error",err=>{console.error("Twilio Device error:",err);setCallState("idle");});
         await device.register();
         setTwilioDevice(device);
         return device;
-      } catch(e) {
-        console.error("Init device error:", e);
-        alert(lang==="ru"?`Ошибка инициализации: ${e.message}`:`Init error: ${e.message}`);
-        return null;
-      }
+      } catch(e){ console.error("Init device error:",e); alert(`Init error: ${e.message}`); return null; }
     }
 
     async function startCall(contact) {
       const device = await initTwilioDevice();
-      if (!device) return;
-      if (!contact.phone) return;
-      setCallContact(contact);
-      setCallState("connecting");
+      if (!device||!contact.phone) return;
+      setCallContact(contact); setCallState("connecting");
       try {
-        const fromNumber = p?.purchasedPhone?.phoneNumber || window._twilioPartnerPhone || '';
-        const call = await device.connect({
-          params: { To: contact.phone, From: fromNumber }
-        });
+        const fromNumber = p?.purchasedPhone?.phoneNumber||window._twilioPartnerPhone||'';
+        const call = await device.connect({params:{To:contact.phone,From:fromNumber}});
         setActiveCall(call);
-        call.on("accept", ()=>{
-          setCallState("active");
-          callTimerRef.current = setInterval(()=>setCallDuration(d=>d+1), 1000);
+        call.on("accept",()=>{setCallState("active");callTimerRef.current=setInterval(()=>setCallDuration(d=>d+1),1000);});
+        call.on("disconnect",()=>{
+          setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);
+          const dur=callDuration;setCallDuration(0);
+          addHistoryEntry(contact.id,`📞 Call ${formatDur(dur)}`);
+          updateContact(contact.id,{lastContact:new Date().toISOString()});
         });
-        call.on("disconnect", ()=>{
-          setCallState("idle");
-          setActiveCall(null);
-          clearInterval(callTimerRef.current);
-          const dur = callDuration;
-          setCallDuration(0);
-          addHistoryEntry(contact.id, `📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
-        });
-        call.on("error", err=>{
-          setCallState("idle");
-          setActiveCall(null);
-          console.error("Call error:", err);
-        });
-      } catch(e) {
-        setCallState("idle");
-        console.error("Call failed:", e);
-        alert(lang==="ru"?`Не удалось позвонить: ${e.message}`:`Call failed: ${e.message}`);
-      }
+        call.on("error",err=>{setCallState("idle");setActiveCall(null);console.error("Call error:",err);});
+      } catch(e){setCallState("idle");alert(`Call failed: ${e.message}`);}
     }
 
     function hangUp() {
-      if (activeCall) activeCall.disconnect();
-      setCallState("idle");
-      setActiveCall(null);
-      clearInterval(callTimerRef.current);
-      setCallDuration(0);
+      if(activeCall) activeCall.disconnect();
+      setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);setCallDuration(0);
     }
 
-    function formatDur(sec) {
-      const m = Math.floor(sec/60), s = sec%60;
-      return `${m}:${s.toString().padStart(2,"0")}`;
-    }
+    function formatDur(sec){const m=Math.floor(sec/60),s=sec%60;return `${m}:${s.toString().padStart(2,"0")}`;}
 
-    async function sendSMS(contactId, phone, text, onSuccess) {
+    async function sendSMS(contactId, phone, text) {
       if (!phone||!text.trim()) return;
-      let normalizedPhone = phone.replace(/[^\d+]/g, '');
-      if (!normalizedPhone.startsWith('+')) {
-        if (normalizedPhone.length === 10) normalizedPhone = '+1' + normalizedPhone;
-        else if (normalizedPhone.length === 11 && normalizedPhone.startsWith('1')) normalizedPhone = '+' + normalizedPhone;
-        else normalizedPhone = '+' + normalizedPhone;
-      }
+      let p2=phone.replace(/[^\d+]/g,'');
+      if(!p2.startsWith('+')){if(p2.length===10)p2='+1'+p2;else if(p2.length===11&&p2.startsWith('1'))p2='+'+p2;else p2='+'+p2;}
       setSmsSending(true);
       try {
-        const r = await fetch("/api/send-sms", {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({to: normalizedPhone, message: text.trim(), fromNumber: p?.purchasedPhone?.phoneNumber || null})
-        });
-        const d = await r.json();
-        if (d.success) {
-          const entry = {id:"sms_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), dir:"out", sid:d.sid, status:"sent"};
+        const r=await fetch("/api/send-sms",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:p2,message:text.trim(),fromNumber:p?.purchasedPhone?.phoneNumber||null})});
+        const d=await r.json();
+        if(d.success){
+          const entry={id:"sms_"+Date.now(),text:text.trim(),ts:new Date().toLocaleString(),dir:"out",sid:d.sid,status:"sent"};
           setSmsLog(prev=>({...prev,[contactId]:[...(prev[contactId]||[]),entry]}));
-          addHistoryEntry(contactId, `📤 SMS: ${text.trim()}`);
+          addHistoryEntry(contactId,`📤 SMS: ${text.trim()}`);
+          updateContact(contactId,{lastContact:new Date().toISOString()});
           setSmsText("");
-          if (onSuccess) onSuccess();
         } else {
-          const entry = {id:"sms_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), dir:"out", status:"failed", error:d.error};
+          const entry={id:"sms_"+Date.now(),text:text.trim(),ts:new Date().toLocaleString(),dir:"out",status:"failed",error:d.error};
           setSmsLog(prev=>({...prev,[contactId]:[...(prev[contactId]||[]),entry]}));
-          alert(lang==="ru"?`Ошибка SMS: ${d.error}`:`SMS Error: ${d.error}`);
+          alert(`SMS Error: ${d.error}`);
         }
-      } catch(e) {
-        alert(lang==="ru"?"Ошибка соединения":"Connection error");
-      }
+      } catch(e){alert("Connection error");}
       setSmsSending(false);
     }
 
-    // ── CRUD contacts ──
+    // ── CRUD ──
     function saveContact() {
-      if (!cF.name.trim()) return;
-      const isEdit = cModal !== true; // cModal===true means new, cModal===contactId means edit
-      if (isEdit) {
-        setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===cModal?{...c,...cF,deptIds:cF.deptId?[cF.deptId]:[]}:c)}:x));
+      if(!cF.name.trim()) return;
+      const isEdit = cModal!==true;
+      if(isEdit){
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===cModal?{...c,...cF}:c)}:x));
       } else {
-        const item = {...cF, id:"c_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], history:[], deptIds: cF.deptId?[cF.deptId]:[]};
+        const item={...cF,id:"c_"+Date.now(),createdAt:new Date().toISOString().split("T")[0],history:[],lastContact:null};
         setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),item]}:x));
       }
-      setCF({name:"",phone:"",email:"",stage:"lead",tags:[],notes:[]});
+      setCF({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
       setCModal(false);
     }
 
-    function deleteContact(id) {
+    function deleteContact(id){
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).filter(c=>c.id!==id)}:x));
-      if (openId===id) setOpenId(null);
+      if(openId===id) setOpenId(null);
     }
 
-    function updateContact(id, patch) {
+    function updateContact(id,patch){
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===id?{...c,...patch}:c)}:x));
     }
 
-    function moveStage(id, stage) { updateContact(id,{stage}); }
-
-    function addNote(contactId) {
-      if (!noteText.trim()) return;
-      const note = {id:"n_"+Date.now(), text:noteText.trim(), ts:new Date().toLocaleString(), author:currentUser.name||currentUser.companyName||"SA"};
-      const c = contacts.find(x=>x.id===contactId);
-      updateContact(contactId, {history:[...(c?.history||[]),note]});
-      setNoteText("");
-    }
-
-    function toggleTag(contactId, tag) {
-      const c = contacts.find(x=>x.id===contactId);
-      const tags = c?.tags||[];
-      const newTags = tags.includes(tag) ? tags.filter(t=>t!==tag) : [...tags,tag];
-      updateContact(contactId, {tags:newTags});
-      // trigger automations
-      if (!tags.includes(tag)) {
-        const triggered = automations.filter(a=>a.triggerTag===tag&&a.active);
-        triggered.forEach(a=>{
-          // SMS automation — calls Twilio API if phone exists
-          if (a.msgTemplate && c?.phone) {
-            const delay = parseInt(a.delayHours||0)*3600*1000;
-            setTimeout(()=>{
-              const msg = a.msgTemplate
-                .replace(/\{name\}/gi, c?.name||"")
-                .replace(/\{phone\}/gi, c?.phone||"")
-                .replace(/\[\[ClientName\]\]/gi, c?.name||"")
-                .replace(/\[\[CleanerName\]\]/gi, "");
-              // Send real SMS via Twilio serverless function
-              fetch("/api/send-sms", {
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({to:c.phone, message:msg, fromNumber: p?.purchasedPhone?.phoneNumber || null})
-              }).then(r=>r.json()).then(data=>{
-                const status = data.sid ? "✅ отправлено" : "❌ ошибка";
-                addHistoryEntry(contactId, `Auto SMS (${a.name||a.triggerTag}): ${msg} — ${status}`);
-              }).catch(()=>{
-                addHistoryEntry(contactId, `Auto SMS (${a.name||a.triggerTag}): ${msg} — ⚠️ нет связи`);
-              });
-            }, delay);
-          }
-          // Department routing automation
-          if (a.routeToDept) {
-            const dept = p?.departments?.find(d=>d.id===a.routeToDept);
-            if (a.routeType==="move") {
-              updateContact(contactId, {deptId: a.routeToDept});
-              addHistoryEntry(contactId, `🔀 ${lang==="ru"?"Передано в отдел":"Routed to dept"}: ${dept?.name||a.routeToDept}`);
-            } else {
-              // copy — add dept to deptIds array
-              const c2 = contacts.find(x=>x.id===contactId);
-              const deptIds = c2?.deptIds||[];
-              if (!deptIds.includes(a.routeToDept)) {
-                updateContact(contactId, {deptIds:[...deptIds, a.routeToDept]});
-                addHistoryEntry(contactId, `📋 ${lang==="ru"?"Добавлен в отдел":"Added to dept"}: ${dept?.name||a.routeToDept}`);
-              }
-            }
-          }
-        });
-      }
-    }
-
-    function addHistoryEntry(contactId, text) {
+    function addHistoryEntry(contactId,text){
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>{
-        if (c.id!==contactId) return c;
-        const note = {id:"n_"+Date.now(), text, ts:new Date().toLocaleString(), author:"System"};
-        return {...c, history:[...(c.history||[]),note]};
+        if(c.id!==contactId) return c;
+        const note={id:"n_"+Date.now(),text,ts:new Date().toLocaleString(),author:"System"};
+        return {...c,history:[...(c.history||[]),note]};
       })}:x));
     }
 
-    // ── AI Smart Folder Analysis ──
-    function getContactFolder(c) {
-      // Returns the smart folder for a contact based on stage + history
-      if (c.crmFolder) return c.crmFolder;
-      const hist = ((c.history||[]).map(h=>h.text||"").join(" ")).toLowerCase();
-      const stage = c.stage || "lead";
-      if (stage === "client" || hist.includes("booking") || hist.includes("забронировал") || hist.includes("уборка запланирована") || hist.includes("cleaning scheduled")) return "client";
-      if (stage === "lost" || hist.includes("потерян") || hist.includes("конкурент") || hist.includes("дешевле") || hist.includes("не нужно") || hist.includes("not interested") || hist.includes("competitor")) return "lost";
-      if (hist.includes("пропущен") || hist.includes("missed") || hist.includes("не ответил") || hist.includes("не дозвонился") || hist.includes("no answer")) return "missed";
-      if (hist.includes("спам") || hist.includes("spam") || hist.includes("робот") || hist.includes("robot") || hist.includes("поздравляем")) return "spam";
-      if (hist.includes("dnd") || hist.includes("не звоните") || hist.includes("do not call")) return "dnd";
-      return "lead";
-    }
-
-    async function aiSortAll() {
-      if (!contacts.length) return;
-      setAiSorting(true);
-      const contactsToAnalyze = contacts.filter(c => (c.history||[]).length > 0 || c.stage !== "lead");
-      if (contactsToAnalyze.length === 0) {
-        setAiSorting(false);
-        return;
-      }
-      try {
-        const summaries = contactsToAnalyze.map(c => ({
-          id: c.id,
-          name: c.name,
-          stage: c.stage,
-          history: (c.history||[]).slice(-5).map(h=>h.text).join(" | ")
-        }));
-        const rr = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "crm_sort_all", contacts: summaries, lang })
+    function toggleTag(contactId,tag){
+      const c=contacts.find(x=>x.id===contactId);
+      const tags=c?.tags||[];
+      const newTags=tags.includes(tag)?tags.filter(t=>t!==tag):[...tags,tag];
+      updateContact(contactId,{tags:newTags});
+      // trigger automations
+      if(!tags.includes(tag)){
+        const triggered=automations.filter(a=>a.triggerTag===tag&&a.active);
+        triggered.forEach(a=>{
+          if(a.msgTemplate&&c?.phone){
+            const delay=parseInt(a.delayHours||0)*3600*1000;
+            setTimeout(()=>{
+              const msg=a.msgTemplate.replace(/\{name\}/gi,c?.name||"");
+              fetch("/api/send-sms",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:c.phone,message:msg,fromNumber:p?.purchasedPhone?.phoneNumber||null})})
+                .then(r=>r.json()).then(data=>{addHistoryEntry(contactId,`Auto SMS (${a.name||tag}): ${msg} — ${data.sid?"✅":"❌"}`);})
+                .catch(()=>addHistoryEntry(contactId,`Auto SMS (${a.name||tag}): ${msg} — ⚠️`));
+            },delay);
+          }
         });
-        if (!rr.ok) throw new Error(`HTTP ${rr.status}`);
-        const dd = await rr.json();
-        if (!dd.success || !Array.isArray(dd.result)) throw new Error(dd.error || "no result");
-        const results = dd.result;
-        // Apply folders + sync stage
-        setPartners(ps=>ps.map(x=>{
-          if (x.id!==pid) return x;
-          const updated = (x.contacts||[]).map(c=>{
-            const r = results.find(r=>r.id===c.id);
-            if (!r) return c;
-            // Sync: if AI says client, also update stage
-            const newStage = r.folder==="client"?"client": r.folder==="lost"?"lost":c.stage;
-            return {...c, crmFolder:r.folder, stage:newStage};
-          });
-          return {...x, contacts:updated};
-        }));
-      } catch(e) {
-        // Fallback: use pattern matching for all contacts
-        setPartners(ps=>ps.map(x=>{
-          if (x.id!==pid) return x;
-          const updated = (x.contacts||[]).map(c=>({...c, crmFolder:getContactFolder(c)}));
-          return {...x, contacts:updated};
-        }));
       }
-      setAiSorting(false);
     }
 
-    // Auto-detect folder when stage changes
-    function moveStageSmart(id, stage) {
-      // When moved to client → set folder to client; lost → lost
-      const folderMap = {client:"client", lost:"lost"};
-      const patch = {stage};
-      if (folderMap[stage]) patch.crmFolder = folderMap[stage];
-      updateContact(id, patch);
-    }
-
-    // ── Tag management ──
-    function saveTag() {
-      if (!newTag.name.trim()) return;
+    function saveTag(){
+      if(!newTag.name.trim()) return;
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,crmTags:[...(x.crmTags||[]),{...newTag,id:"tag_"+Date.now()}]}:x));
       setNewTag({name:"",color:"#f0a500"});
     }
-    function deleteTag(id) {
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,crmTags:(x.crmTags||[]).filter(t=>t.id!==id)}:x));
+    function deleteTag(id){setPartners(ps=>ps.map(x=>x.id===pid?{...x,crmTags:(x.crmTags||[]).filter(t=>t.id!==id)}:x));}
+
+    // ── Reminders ──
+    function saveReminder(){
+      if(!remF.text.trim()||!remF.dueAt) return;
+      const item={...remF,id:"rem_"+Date.now(),done:false,createdAt:new Date().toISOString()};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,reminders:[...(x.reminders||[]),item]}:x));
+      setRemF({text:"",dueAt:"",contactId:""});
+      setRemModal(false);
+    }
+    function toggleReminder(id){setPartners(ps=>ps.map(x=>x.id===pid?{...x,reminders:(x.reminders||[]).map(r=>r.id===id?{...r,done:!r.done}:r)}:x));}
+    function deleteReminder(id){setPartners(ps=>ps.map(x=>x.id===pid?{...x,reminders:(x.reminders||[]).filter(r=>r.id!==id)}:x));}
+
+    // ── Campaigns ──
+    function saveCampaign(){
+      if(!campF.name.trim()||!campF.msgTemplate.trim()) return;
+      const item={...campF,id:"camp_"+Date.now(),status:"draft",createdAt:new Date().toISOString().split("T")[0],sentCount:0};
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,campaigns:[...(x.campaigns||[]),item]}:x));
+      setCampF({name:"",audienceType:"stage",audienceValue:"lost",msgTemplate:"",delayDays:"0"});
+      setCampModal(false);
     }
 
-    // ── Automations ──
-    function saveAutomation() {
-      if (!aF.triggerTag||!aF.msgTemplate.trim()) return;
-      const item = {...aF, id:"auto_"+Date.now(), active:true, createdAt:new Date().toISOString().split("T")[0], sentCount:0};
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,automations:[...(x.automations||[]),item]}:x));
-      setAF({triggerTag:"",delayHours:"1",msgTemplate:"",name:""});
-      setAModal(false);
+    async function sendCampaign(camp){
+      const audience = contacts.filter(c=>{
+        if(camp.audienceType==="stage") return c.stage===camp.audienceValue;
+        if(camp.audienceType==="tag")   return (c.tags||[]).includes(camp.audienceValue);
+        return true;
+      }).filter(c=>c.phone);
+      if(!audience.length){alert(lang==="ru"?"Нет контактов в аудитории":"No contacts in audience");return;}
+      if(!confirm(`${lang==="ru"?"Отправить SMS":"Send SMS"} ${audience.length} ${lang==="ru"?"контактам?":"contacts?"}`)) return;
+      setCampSending(camp.id);
+      let sent=0;
+      for(const c of audience){
+        const msg=camp.msgTemplate.replace(/\{name\}/gi,c.name||"");
+        try{
+          const r=await fetch("/api/send-sms",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:c.phone,message:msg,fromNumber:p?.purchasedPhone?.phoneNumber||null})});
+          const d=await r.json();
+          if(d.sid){sent++;addHistoryEntry(c.id,`📣 Campaign "${camp.name}": ${msg}`);}
+        }catch(e){}
+      }
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,campaigns:(x.campaigns||[]).map(ca=>ca.id===camp.id?{...ca,status:"sent",sentCount:sent,sentAt:new Date().toISOString().split("T")[0]}:ca)}:x));
+      setCampSending(null);
+      alert(`${lang==="ru"?"Отправлено":"Sent"}: ${sent}/${audience.length}`);
     }
-    function toggleAuto(id) {
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,automations:(x.automations||[]).map(a=>a.id===id?{...a,active:!a.active}:a)}:x));
-    }
-    function deleteAuto(id) {
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,automations:(x.automations||[]).filter(a=>a.id!==id)}:x));
+
+    function deleteCampaign(id){setPartners(ps=>ps.map(x=>x.id===pid?{...x,campaigns:(x.campaigns||[]).filter(c=>c.id!==id)}:x));}
+
+    // ── Export CSV ──
+    function exportCSV(){
+      const rows=[["Name","Phone","Email","Stage","Tags","Source","Created","Last Contact"]];
+      const toExport=filtered.length?filtered:contacts;
+      toExport.forEach(c=>{
+        rows.push([c.name||"",c.phone||"",c.email||"",c.stage||"",(c.tags||[]).join(";"),c.source||"",c.createdAt||"",c.lastContact?new Date(c.lastContact).toLocaleDateString():""]);
+      });
+      const csv=rows.map(r=>r.map(v=>`"${(v+"").replace(/"/g,'""')}"`).join(",")).join("\n");
+      const blob=new Blob([csv],{type:"text/csv"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");a.href=url;a.download="contacts.csv";a.click();URL.revokeObjectURL(url);
     }
 
     // ── Filtered contacts ──
-    // Dept-based visibility
-    const myDeptId = isEmp ? currentUser.deptId : null;
-    const myDept   = myDeptId ? p?.departments?.find(d=>d.id===myDeptId) : null;
-    const isHR     = myDept?.name?.toLowerCase().includes("hr") || myDept?.name?.toLowerCase().includes("кадр") || myDept?.name?.toLowerCase().includes("персонал");
-    const canSeeAll= isSA || isPartner || isHR;
-
-    const deptContacts = canSeeAll ? contacts : contacts.filter(c=>{
-      if (c.deptId===myDeptId) return true;
-      if ((c.deptIds||[]).includes(myDeptId)) return true;
-      return false;
+    const filtered = contacts.filter(c=>{
+      const matchSearch=!search||(c.name||"").toLowerCase().includes(search.toLowerCase())||(c.phone||"").includes(search)||(c.email||"").toLowerCase().includes(search.toLowerCase());
+      const matchTag=!tagFilter||(c.tags||[]).includes(tagFilter);
+      const matchStage=stageFilter==="all"||c.stage===stageFilter;
+      return matchSearch&&matchTag&&matchStage;
     });
 
-    const filtered = deptContacts.filter(c=>{
-      const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone||"").includes(search) || (c.email||"").toLowerCase().includes(search.toLowerCase());
-      const matchTag    = !tagFilter || (c.tags||[]).includes(tagFilter);
-      const matchFolder = crmFolder==="all" || (c.crmFolder||getContactFolder(c))===crmFolder;
-      return matchSearch && matchTag && matchFolder;
-    });
+    // ── Pending reminders ──
+    const pendingReminders=reminders.filter(r=>!r.done&&r.dueAt&&new Date(r.dueAt)<new Date(Date.now()+3600000));
 
-    // ── Open contact detail ──
+    // ── Contact detail view (full screen) ──
     const openContact = contacts.find(c=>c.id===openId);
 
-    if (openContact) {
-      const stage = STAGES.find(s=>s.id===openContact.stage)||STAGES[0];
-      // Merge SMS log + notes into unified chat timeline
-      const smsHistory = (smsLog[openContact.id]||[]).map(m=>({...m, type:"sms"}));
-      const noteHistory = (openContact.history||[]).map(m=>({...m, type:"note"}));
-      const allMessages = [...smsHistory, ...noteHistory].sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+    if(openContact){
+      const stage=STAGES.find(s=>s.id===openContact.stage)||STAGES[0];
+      const smsHistory=(smsLog[openContact.id]||[]).map(m=>({...m,type:"sms"}));
+      const noteHistory=(openContact.history||[]).map(m=>({...m,type:"note"}));
+      const allMessages=[...smsHistory,...noteHistory].sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+      const contactReminders=reminders.filter(r=>r.contactId===openContact.id&&!r.done);
 
       return (
-        <div style={{display:"flex",gap:14,maxWidth:1000,margin:"0 auto",height:"calc(100vh - 160px)",minHeight:500}}>
+        <div style={{display:"flex",height:"calc(100vh - 130px)",minHeight:500,gap:0,borderRadius:14,overflow:"hidden",border:"1px solid var(--bdr)"}}>
 
-          {/* LEFT: Contact info panel */}
-          <div style={{width:240,flexShrink:0,display:"flex",flexDirection:"column",gap:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",color:"var(--mu)",fontSize:12,marginBottom:4}}
-              onClick={()=>setOpenId(null)}>← {lang==="ru"?"Назад":"Back"}
+          {/* LEFT PANEL: Contact info */}
+          <div style={{width:260,flexShrink:0,borderRight:"1px solid var(--bdr)",background:"var(--s1)",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+            <div style={{padding:"12px 14px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",gap:8}}>
+              <button onClick={()=>setOpenId(null)} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:18,padding:"0 4px 0 0"}}>←</button>
+              <span style={{fontWeight:700,fontSize:13,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{openContact.name}</span>
+              <button onClick={()=>{setCF({name:openContact.name,phone:openContact.phone||"",email:openContact.email||"",stage:openContact.stage||"new_lead",tags:openContact.tags||[],source:openContact.source||"",notes:openContact.notes||""});setCModal(openContact.id);}} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:15,padding:0}}>✏️</button>
+              <button onClick={()=>{if(confirm(lang==="ru"?"Удалить контакт?":"Delete contact?"))deleteContact(openContact.id);}} style={{background:"none",border:"none",color:"var(--rd)",cursor:"pointer",fontSize:15,padding:0}}>🗑</button>
             </div>
-            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:14,display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
-              <Av name={openContact.name} color={stage.color} style={{width:48,height:48,fontSize:18}}/>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15}}>{openContact.name}</div>
-              {openContact.phone&&<div style={{fontSize:12,color:"var(--mu)"}}>{openContact.phone}</div>}
+
+            {/* Avatar + basic info */}
+            <div style={{padding:16,textAlign:"center",borderBottom:"1px solid var(--bdr)"}}>
+              <div style={{width:56,height:56,borderRadius:"50%",background:stage.color+"25",border:`2px solid ${stage.color}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:700,color:stage.color,margin:"0 auto 10px"}}>
+                {(openContact.name||"?")[0].toUpperCase()}
+              </div>
+              <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{openContact.name}</div>
+              {openContact.phone&&<div style={{fontSize:12,color:"var(--mu)",marginBottom:2}}>{openContact.phone}</div>}
               {openContact.email&&<div style={{fontSize:11,color:"var(--mu2)",wordBreak:"break-all"}}>{openContact.email}</div>}
-              {/* Dept badges */}
-              {((openContact.deptIds||[]).length>0||(openContact.deptId))&&(
-                <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:4}}>
-                  {[...(openContact.deptIds||[]), ...(openContact.deptId&&!(openContact.deptIds||[]).includes(openContact.deptId)?[openContact.deptId]:[])].map(did=>{
-                    const dept=p?.departments?.find(d=>d.id===did);
-                    return dept?<span key={did} style={{fontSize:9,padding:"1px 6px",borderRadius:4,background:"var(--bl)15",color:"var(--bl)",border:"1px solid var(--bl)25"}}>{dept.name}</span>:null;
-                  })}
-                </div>
-              )}
-              <div style={{fontSize:10,color:"var(--mu2)"}}>📅 {openContact.createdAt}</div>
+              {openContact.source&&<div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>📍 {openContact.source}</div>}
+              {openContact.lastContact&&<div style={{fontSize:10,color:"var(--mu2)",marginTop:2}}>🕐 {lang==="ru"?"Последний контакт":"Last contact"}: {new Date(openContact.lastContact).toLocaleDateString()}</div>}
+              <div style={{fontSize:10,color:"var(--mu2)",marginTop:2}}>📅 {lang==="ru"?"Создан":"Created"}: {openContact.createdAt}</div>
             </div>
 
-            {/* Stage */}
-            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:12}}>
-              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>{t.crmStage}</div>
-              {STAGES.map(s=>(
-                <button key={s.id} onClick={()=>moveStageSmart(openContact.id,s.id)}
-                  style={{width:"100%",padding:"5px 10px",borderRadius:7,marginBottom:3,border:`1px solid ${s.id===openContact.stage?s.color:"transparent"}`,
-                    background:s.id===openContact.stage?s.color+"18":"transparent",
-                    color:s.id===openContact.stage?s.color:"var(--mu)",
-                    fontSize:11,fontWeight:s.id===openContact.stage?700:400,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:s.color,flexShrink:0}}/>
-                  {s.label}
-                </button>
-              ))}
+            {/* Call buttons */}
+            {openContact.phone&&(
+              <div style={{padding:"10px 14px",borderBottom:"1px solid var(--bdr)",display:"flex",gap:6}}>
+                {callState==="idle"?(
+                  <button className="btn btn-p" style={{flex:1,gap:5,display:"flex",alignItems:"center",justifyContent:"center",opacity:sdkReady?1:0.5,fontSize:12}} disabled={!sdkReady} onClick={()=>startCall(openContact)}>
+                    {IC.phone} {lang==="ru"?"Позвонить":"Call"}
+                  </button>
+                ):(callState==="connecting"||callState==="active")&&callContact?.id===openContact.id?(
+                  <div style={{flex:1,display:"flex",gap:6,alignItems:"center"}}>
+                    <div style={{flex:1,fontSize:11,color:"var(--gr)",display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:"var(--gr)",animation:"pulse 1s infinite",display:"inline-block"}}/>
+                      {callState==="connecting"?"Connecting...":formatDur(callDuration)}
+                    </div>
+                    <button className="btn btn-d btn-sm" onClick={hangUp} style={{background:"var(--rd)20",color:"var(--rd)",border:"1px solid var(--rd)30"}}>📵</button>
+                  </div>
+                ):null}
+              </div>
+            )}
+
+            {/* Stage selector */}
+            <div style={{padding:"10px 14px",borderBottom:"1px solid var(--bdr)"}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Stage</div>
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                {STAGES.map(s=>(
+                  <button key={s.id} onClick={()=>updateContact(openContact.id,{stage:s.id,lastContact:new Date().toISOString()})}
+                    style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${s.id===openContact.stage?s.color:"transparent"}`,background:s.id===openContact.stage?s.color+"18":"transparent",color:s.id===openContact.stage?s.color:"var(--mu)",fontSize:11,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:6,fontWeight:s.id===openContact.stage?700:400}}>
+                    <span style={{width:6,height:6,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Tags */}
-            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:12}}>
-              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>{t.crmTags}</div>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
+            <div style={{padding:"10px 14px",borderBottom:"1px solid var(--bdr)"}}>
+              <div style={{fontSize:10,color:"var(--mu)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Tags</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
                 {(openContact.tags||[]).map(tag=>{
                   const td=crmTags.find(t=>t.name===tag);
-                  return <span key={tag} style={{fontSize:10,padding:"2px 7px",borderRadius:5,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)",cursor:"pointer",border:`1px solid ${td?.color||"var(--acc)"}30`}}
-                    onClick={()=>toggleTag(openContact.id,tag)}>{tag} ×</span>;
+                  return <span key={tag} onClick={()=>toggleTag(openContact.id,tag)} style={{fontSize:10,padding:"2px 7px",borderRadius:5,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)",cursor:"pointer",border:`1px solid ${td?.color||"var(--acc)"}30`}}>{tag} ×</span>;
                 })}
-              </div>
-              {/* HR Pipeline quick-set */}
-              <div style={{marginBottom:8}}>
-                <div style={{fontSize:9,color:"var(--mu2)",marginBottom:5,textTransform:"uppercase",letterSpacing:.5}}>HR Pipeline</div>
-                <div style={{display:"flex",flexDirection:"column",gap:3}}>
-                  {ALL_HR_TAGS.map(ht=>{
-                    const active=(openContact.tags||[]).includes(ht.tag);
-                    return (
-                      <button key={ht.tag} onClick={()=>toggleTag(openContact.id,ht.tag)}
-                        style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${active?ht.color:"var(--bdr)"}`,
-                          background:active?ht.color+"22":"transparent",
-                          color:active?ht.color:"var(--mu2)",fontSize:10,cursor:"pointer",
-                          textAlign:"left",display:"flex",alignItems:"center",gap:5,
-                          fontWeight:active?700:400}}>
-                        <span style={{width:6,height:6,borderRadius:"50%",background:ht.color,flexShrink:0,opacity:active?1:.4}}/>
-                        {ht.label||ht.tag}
-                        {ht.hired&&<span style={{marginLeft:"auto",fontSize:8,background:"#22c55e20",color:"#22c55e",padding:"1px 4px",borderRadius:3}}>✓</span>}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
               <select style={{width:"100%",fontSize:11,padding:"4px 6px",borderRadius:6,background:"var(--s2)",border:"1px solid var(--bdr)",color:"var(--mu)",cursor:"pointer"}}
                 value="" onChange={e=>{if(e.target.value)toggleTag(openContact.id,e.target.value);}}>
@@ -5339,1062 +5164,539 @@ function AppInner() {
               </select>
             </div>
 
-            {/* Delete */}
-            {(isSA||isPartner)&&(
-              <button className="btn btn-d btn-sm" onClick={()=>deleteContact(openContact.id)}>{IC.trash} {t.delete}</button>
-            )}
+            {/* Reminders for this contact */}
+            <div style={{padding:"10px 14px",flex:1}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:1}}>🔔 {lang==="ru"?"Напоминания":"Reminders"}</div>
+                <button onClick={()=>{setRemF({text:"",dueAt:"",contactId:openContact.id});setRemModal(true);}} style={{background:"none",border:"none",color:"var(--acc)",cursor:"pointer",fontSize:16,padding:0}}>+</button>
+              </div>
+              {contactReminders.length===0&&<div style={{fontSize:11,color:"var(--mu2)"}}>{lang==="ru"?"Нет напоминаний":"No reminders"}</div>}
+              {contactReminders.map(r=>(
+                <div key={r.id} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:6,padding:"6px 8px",borderRadius:7,background:"var(--s2)",border:"1px solid var(--bdr)"}}>
+                  <input type="checkbox" onChange={()=>toggleReminder(r.id)} style={{marginTop:2,cursor:"pointer"}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:11,color:"var(--tx)"}}>{r.text}</div>
+                    <div style={{fontSize:10,color:new Date(r.dueAt)<new Date()?"var(--rd)":"var(--mu2)"}}>{new Date(r.dueAt).toLocaleString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* RIGHT: Chat window */}
-          <div style={{flex:1,display:"flex",flexDirection:"column",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,overflow:"hidden"}}>
-
-            {/* Chat header */}
-            <div style={{padding:"12px 16px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-              <Av name={openContact.name} color={stage.color}/>
+          {/* RIGHT PANEL: Full Messenger */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",background:"var(--bg)"}}>
+            {/* Messenger header */}
+            <div style={{padding:"12px 16px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",gap:10,background:"var(--s1)",flexShrink:0}}>
               <div style={{flex:1}}>
                 <div style={{fontWeight:700,fontSize:14}}>{openContact.name}</div>
                 <div style={{fontSize:11,color:"var(--mu)"}}>{openContact.phone||openContact.email||""}</div>
               </div>
+              <span style={{fontSize:11,padding:"3px 10px",borderRadius:20,background:stage.color+"18",color:stage.color,border:`1px solid ${stage.color}30`,fontWeight:600}}>{stage.label}</span>
               <button onClick={async()=>{
-                  const hist = (openContact.history||[]).slice(-8).map(h=>h.text).join(" | ");
-                  if(!hist) return;
-                  setAiSorting(true);
-                  try {
-                    const rs = await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule", {method:"POST",headers:{"Content-Type":"application/json"},
-                      body:JSON.stringify({mode:"crm_single",contact:{name:openContact.name,stage:openContact.stage,history:openContact.history||[]},lang})});
-                    if (!rs.ok) throw new Error(`HTTP ${rs.status}`);
-                    const ds = await rs.json();
-                    if (!ds.success) throw new Error(ds.error||"no result");
-                    const folder = ds.result.folder, reason = ds.result.reason;
-                    const newStage = folder==="client"?"client":folder==="lost"?"lost":openContact.stage;
-                    updateContact(openContact.id,{crmFolder:folder,stage:newStage});
-                    addHistoryEntry(openContact.id, `AI: → ${folder}${reason?" — "+reason:""}`);
-                  } catch(e) {
-                    updateContact(openContact.id,{crmFolder:getContactFolder(openContact)});
+                const hist=(openContact.history||[]).slice(-8).map(h=>h.text).join(" | ");
+                if(!hist) return;
+                setAiSorting(true);
+                try{
+                  const rs=await fetch("https://us-central1-nova-launch-system.cloudfunctions.net/aiSchedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"crm_single",contact:{name:openContact.name,stage:openContact.stage,history:openContact.history||[]},lang})});
+                  const ds=await rs.json();
+                  if(ds.success){
+                    const stageMap={client:"active",lost:"lost",lead:"new_lead",missed:"no_response"};
+                    updateContact(openContact.id,{stage:stageMap[ds.result?.folder]||openContact.stage});
                   }
-                  setAiSorting(false);
-                }}
-                style={{flexShrink:0,padding:"5px 10px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--mu)",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-                🤖 AI
+                }catch(e){}
+                setAiSorting(false);
+              }} style={{padding:"5px 10px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--mu)",fontSize:11,cursor:"pointer"}}>
+                {aiSorting?"⏳":"🤖"} AI
               </button>
-              {openContact.phone&&(
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  {callState==="idle"&&(
-                    <button className="btn btn-p btn-sm" style={{gap:5,display:"flex",alignItems:"center",opacity:sdkReady?1:0.5}}
-                      disabled={!sdkReady}
-                      title={!sdkReady?(lang==="ru"?"Загрузка...":"Loading..."):undefined}
-                      onClick={()=>startCall(openContact)}>
-                      {IC.phone} {sdkReady?(lang==="ru"?"Позвонить":"Call"):(lang==="ru"?"Загрузка...":"Loading...")}
-                    </button>
-                  )}
-                  {(callState==="connecting"||callState==="active")&&callContact?.id===openContact.id&&(
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--gr)15",border:"1px solid var(--gr)30",borderRadius:8,padding:"5px 10px",fontSize:12,color:"var(--gr)"}}>
-                        <span style={{width:7,height:7,borderRadius:"50%",background:"var(--gr)",animation:"pulse 1s infinite"}}/>
-                        {callState==="connecting"?(lang==="ru"?"Соединение...":"Connecting..."):`${lang==="ru"?"Звонок":"Call"} ${formatDur(callDuration)}`}
-                      </div>
-                      <button className="btn btn-d btn-sm" onClick={hangUp} style={{background:"var(--rd)20",color:"var(--rd)",border:"1px solid var(--rd)30"}}>
-                        📵 {lang==="ru"?"Завершить":"Hang up"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Messages area */}
             <div style={{flex:1,overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:10}}>
               {allMessages.length===0&&(
                 <div style={{textAlign:"center",color:"var(--mu)",marginTop:60}}>
-                  <div style={{fontSize:32,marginBottom:8}}>💬</div>
-                  <div style={{fontSize:13}}>{lang==="ru"?"Начните общение — отправьте SMS или добавьте заметку":"Start the conversation — send an SMS or add a note"}</div>
+                  <div style={{fontSize:40,marginBottom:10}}>💬</div>
+                  <div style={{fontSize:13}}>{lang==="ru"?"Начните общение — отправьте SMS":"Start the conversation — send an SMS"}</div>
                 </div>
               )}
               {allMessages.map(m=>{
-                const isOut = m.dir==="out"||m.type==="note";
-                const isSmsOut = m.type==="sms"&&m.dir==="out";
-                const isSmsIn  = m.type==="sms"&&m.dir==="in";
-                const isNote   = m.type==="note";
+                const isOut=m.dir==="out"||m.type==="note";
+                const isSmsIn=m.type==="sms"&&m.dir==="in";
+                const isNote=m.type==="note";
                 return (
                   <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isSmsIn?"flex-start":"flex-end"}}>
-                    <div style={{
-                      maxWidth:"72%",padding:"9px 13px",borderRadius:isSmsIn?"4px 14px 14px 14px":"14px 4px 14px 14px",
-                      background: isSmsIn?"var(--s2)": isSmsOut?"var(--acc)22": "var(--bl)12",
-                      border:`1px solid ${isSmsIn?"var(--bdr)":isSmsOut?"var(--acc)35":"var(--bl)25"}`,
-                      fontSize:13,lineHeight:1.5,color:"var(--tx)"
-                    }}>
-                      {isNote&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📝 {lang==="ru"?"Заметка":"Note"}</div>}
-                      {isSmsOut&&<div style={{fontSize:9,color:"var(--acc)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📤 SMS {m.status==="failed"?<span style={{color:"var(--rd)"}}>✗ {lang==="ru"?"не доставлено":"failed"}</span>:<span style={{color:"var(--gr)"}}>✓</span>}</div>}
-                      {isSmsIn&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📥 SMS</div>}
+                    <div style={{maxWidth:"70%",padding:"10px 14px",borderRadius:isSmsIn?"4px 16px 16px 16px":"16px 4px 16px 16px",
+                      background:isSmsIn?"var(--s2)":isNote?"var(--bl)12":"var(--acc)18",
+                      border:`1px solid ${isSmsIn?"var(--bdr)":isNote?"var(--bl)25":"var(--acc)35"}`,
+                      fontSize:13,lineHeight:1.5}}>
+                      {isNote&&<div style={{fontSize:9,color:"var(--bl)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📝 Note</div>}
+                      {m.type==="sms"&&m.dir==="out"&&<div style={{fontSize:9,color:"var(--acc)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📤 SMS {m.status==="failed"?<span style={{color:"var(--rd)"}}>✗ failed</span>:<span style={{color:"var(--gr)"}}>✓</span>}</div>}
+                      {isSmsIn&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📥 Incoming SMS</div>}
                       <div>{m.text}</div>
                     </div>
-                    <div style={{fontSize:9,color:"var(--mu2)",marginTop:2,paddingLeft:4,paddingRight:4}}>{m.author&&m.type==="note"?`${m.author} · `:""}{m.ts}</div>
+                    <div style={{fontSize:9,color:"var(--mu2)",marginTop:2,paddingLeft:4,paddingRight:4}}>{m.ts}</div>
                   </div>
                 );
               })}
             </div>
 
+            {/* Quick templates */}
+            <div style={{padding:"8px 16px 0",display:"flex",gap:5,overflowX:"auto",flexShrink:0}}>
+              {["Thanks for your interest!","Cleaning scheduled ✓","Can we help you?","We'll be in touch soon!"].map((tmpl,i)=>(
+                <button key={i} onClick={()=>setSmsText(tmpl)} style={{fontSize:10,padding:"3px 10px",borderRadius:20,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",whiteSpace:"nowrap",cursor:"pointer",flexShrink:0}}>{tmpl}</button>
+              ))}
+            </div>
+
             {/* Input area */}
-            <div style={{borderTop:"1px solid var(--bdr)",padding:12,flexShrink:0}}>
-              {/* Quick templates */}
-              <div style={{display:"flex",gap:5,marginBottom:8,overflowX:"auto",paddingBottom:2}}>
-                {[
-                  lang==="ru"?"Спасибо за интерес!":"Thanks for your interest!",
-                  lang==="ru"?"Уборка запланирована ✓":"Cleaning scheduled ✓",
-                  lang==="ru"?"Можем ли мы помочь?":"Can we help you?",
-                  lang==="ru"?"Свяжемся скоро!":"We'll be in touch!",
-                ].map((tmpl,i)=>(
-                  <button key={i} className="btn btn-g btn-sm" style={{fontSize:10,padding:"2px 8px",whiteSpace:"nowrap",flexShrink:0}}
-                    onClick={()=>setSmsText(tmpl)}>{tmpl}</button>
-                ))}
-              </div>
+            <div style={{padding:12,borderTop:"1px solid var(--bdr)",flexShrink:0,background:"var(--s1)"}}>
               <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-                <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)}
-                  style={{flex:1,minHeight:40,maxHeight:100,resize:"none",padding:"8px 12px"}}
-                  placeholder={lang==="ru"?"Написать SMS...":"Write SMS..."}
-                  onKeyDown={e=>{
-                    if(e.key==="Enter"&&!e.shiftKey&&openContact.phone){
-                      e.preventDefault();
-                      if(smsText.trim()) sendSMS(openContact.id, openContact.phone, smsText);
-                    }
-                  }}/>
+                <textarea value={smsText} onChange={e=>setSmsText(e.target.value)}
+                  style={{flex:1,minHeight:44,maxHeight:120,resize:"none",padding:"10px 14px",borderRadius:12,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",fontSize:13,lineHeight:1.5,fontFamily:"inherit"}}
+                  placeholder={openContact.phone?(lang==="ru"?"Написать SMS...":"Write SMS..."):(lang==="ru"?"Нет номера телефона":"No phone number")}
+                  disabled={!openContact.phone}
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&openContact.phone){e.preventDefault();if(smsText.trim())sendSMS(openContact.id,openContact.phone,smsText);}}}/>
                 <div style={{display:"flex",flexDirection:"column",gap:5}}>
                   {openContact.phone?(
-                    <button className="btn btn-p" style={{padding:"8px 14px",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}
+                    <button onClick={()=>sendSMS(openContact.id,openContact.phone,smsText)}
                       disabled={smsSending||!smsText.trim()}
-                      onClick={()=>sendSMS(openContact.id, openContact.phone, smsText)}>
-                      {smsSending?"...":<>{IC.sms} SMS</>}
+                      style={{padding:"10px 16px",borderRadius:10,border:"none",background:(!smsSending&&smsText.trim())?"var(--acc)":"var(--s2)",color:(!smsSending&&smsText.trim())?"#fff":"var(--mu)",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>
+                      {smsSending?"⏳":<>{IC.sms} SMS</>}
                     </button>
-                  ):(
-                    <div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>
-                      {lang==="ru"?"Нет телефона":"No phone"}
-                    </div>
-                  )}
-                  <button className="btn btn-g btn-sm" style={{padding:"5px 8px",fontSize:10}}
-                    title={lang==="ru"?"Добавить заметку":"Add note"}
-                    disabled={!smsText.trim()} onClick={()=>{
-                      if (!smsText.trim()) return;
-                      const note = {id:"n_"+Date.now(), text:smsText.trim(), ts:new Date().toLocaleString(), author:currentUser.name||currentUser.companyName||"SA"};
-                      const c = contacts.find(x=>x.id===openContact.id);
-                      updateContact(openContact.id, {history:[...(c?.history||[]),note]});
-                      setSmsText("");
-                    }}>
-                    📝 {lang==="ru"?"Заметка":"Note"}
+                  ):<div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>No phone</div>}
+                  <button onClick={()=>{
+                    if(!smsText.trim()) return;
+                    const note={id:"n_"+Date.now(),text:smsText.trim(),ts:new Date().toLocaleString(),author:currentUser?.name||"Me"};
+                    const c=contacts.find(x=>x.id===openContact.id);
+                    updateContact(openContact.id,{history:[...(c?.history||[]),note]});
+                    setSmsText("");
+                  }} disabled={!smsText.trim()} style={{padding:"6px 10px",borderRadius:10,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--mu)",cursor:"pointer",fontSize:11}}>
+                    📝
                   </button>
                 </div>
               </div>
-              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>
-                {smsText.length}/160 · Enter = SMS · 📝 = {lang==="ru"?"заметка":"note"}
-              </div>
+              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length}/160 · Enter = SMS · 📝 = Note</div>
             </div>
           </div>
         </div>
       );
     }
 
+    // ── MAIN VIEW ──
     return (
       <>
-        {/* ── PHONE NUMBER BANNER ── */}
-        {!myPhone && (isPartner||isSA) && (
+        {/* Phone number banner */}
+        {!myPhone&&(isSA||isPartner)&&(
           <div style={{marginBottom:16,padding:"12px 16px",borderRadius:12,background:"linear-gradient(135deg,rgba(99,102,241,0.12),rgba(99,102,241,0.04))",border:"1px solid rgba(99,102,241,0.3)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
             <div>
-              <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>
-                {lang==="ru"?"Купи бизнес-номер для CorexPhone":"Get a business phone number for CorexPhone"}
-              </div>
-              <div style={{fontSize:12,color:"var(--mu)"}}>
-                {lang==="ru"?"Принимай звонки и SMS прямо в платформе · $9/мес · Подключение за 1 минуту":"Receive calls & SMS directly in the platform · $9/mo · Setup in 1 minute"}
-              </div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{lang==="ru"?"Купи бизнес-номер для CorexPhone":"Get a business phone number for CorexPhone"}</div>
+              <div style={{fontSize:12,color:"var(--mu)"}}>{lang==="ru"?"Принимай звонки и SMS прямо в платформе · $9/мес":"Receive calls & SMS directly in the platform · $9/mo"}</div>
             </div>
             <button onClick={()=>{setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");}}
-              style={{padding:"8px 20px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",flexShrink:0}}>
-              {lang==="ru"?"Купить номер →":"Buy number →"}
+              style={{padding:"8px 16px",borderRadius:8,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>
+              📞 {lang==="ru"?"Получить номер":"Get number"}
             </button>
           </div>
         )}
 
-        {/* ── ACTIVE PHONE NUMBER BADGE ── */}
-        {myPhone && (
-          <div style={{marginBottom:14,padding:"8px 14px",borderRadius:10,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-            <span style={{fontSize:14}}>📞</span>
-            <div style={{flex:1}}>
-              <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{myPhone.phoneNumber}</span>
-              <span style={{fontSize:11,color:"var(--mu)",marginLeft:10}}>{lang==="ru"?"Активный номер":"Active number"} · {lang==="ru"?"Куплен":"Purchased"} {myPhone.purchasedAt?.slice(0,10)}</span>
+        {myPhone&&(
+          <div style={{marginBottom:16,padding:"10px 16px",borderRadius:10,background:"var(--gr)08",border:"1px solid var(--gr)25",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:16}}>📞</span>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--gr)"}}>{myPhone.friendlyName||myPhone.phoneNumber}</div>
+              <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"Активный номер · SMS и звонки готовы":"Active number · SMS and calls ready"}</div>
             </div>
-            <span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"rgba(34,197,94,0.15)",color:"#16a34a",fontWeight:600}}>$9/мес</span>
-          </div>
-        )}
-
-        {/* ── PHONE PURCHASE MODAL ── */}
-        {phoneModal && (
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>{if(e.target===e.currentTarget)setPhoneModal(false);}}>
-            <div style={{background:"var(--bg)",borderRadius:16,padding:28,width:"100%",maxWidth:480,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
-
-              {/* Modal Header */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-                <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>
-                  {phoneStep==="done" ? (lang==="ru"?"Номер подключён!":"Number Connected!") : (lang==="ru"?"Купить телефонный номер":"Buy Phone Number")}
-                </div>
-                <button onClick={()=>setPhoneModal(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--mu)"}}>×</button>
+            {pendingReminders.length>0&&(
+              <div style={{marginLeft:"auto",padding:"4px 10px",borderRadius:20,background:"var(--rd)15",border:"1px solid var(--rd)30",fontSize:11,color:"var(--rd)",fontWeight:600}}>
+                🔔 {pendingReminders.length} {lang==="ru"?"напоминаний":"reminders due"}
               </div>
-
-              {/* STEP: SEARCH */}
-              {phoneStep==="search" && (
-                <div>
-                  <div style={{fontSize:13,color:"var(--mu)",marginBottom:16}}>
-                    {lang==="ru"?"Введи код города (например 512 для Остина) или оставь пустым для любого доступного номера":"Enter area code (e.g. 512 for Austin) or leave blank for any available number"}
-                  </div>
-                  <div style={{display:"flex",gap:8,marginBottom:16}}>
-                    <input value={areaCode} onChange={e=>setAreaCode(e.target.value.replace(/\D/g,"").slice(0,3))}
-                      placeholder={lang==="ru"?"Код города (необязательно)":"Area code (optional)"}
-                      style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
-                    <button onClick={searchNumbers} disabled={searchingN}
-                      style={{padding:"9px 18px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-                      {searchingN?(lang==="ru"?"Ищу...":"Searching..."):(lang==="ru"?"Найти":"Search")}
-                    </button>
-                  </div>
-
-                  {foundNums.length>0 && (
-                    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16,maxHeight:220,overflowY:"auto"}}>
-                      {foundNums.map(n=>(
-                        <button key={n.phoneNumber} onClick={()=>setSelectedNum(n)}
-                          style={{padding:"10px 14px",borderRadius:8,border:`2px solid ${selectedNum?.phoneNumber===n.phoneNumber?"var(--ac)":"var(--br)"}`,
-                            background:selectedNum?.phoneNumber===n.phoneNumber?"rgba(99,102,241,0.08)":"var(--card)",
-                            cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                          <div>
-                            <div style={{fontSize:14,fontWeight:600,color:"var(--tx)"}}>{n.friendlyName}</div>
-                            <div style={{fontSize:11,color:"var(--mu)"}}>{n.locality}{n.locality&&n.region?", ":""}{n.region}</div>
-                          </div>
-                          {selectedNum?.phoneNumber===n.phoneNumber && <span style={{color:"var(--ac)",fontSize:18}}>✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {payError && <div style={{color:"#ef4444",fontSize:12,marginBottom:12}}>{payError}</div>}
-
-                  <button onClick={()=>setPhoneStep("pay")} disabled={!selectedNum}
-                    style={{width:"100%",padding:"10px",borderRadius:8,border:"none",
-                      background:selectedNum?"var(--ac)":"var(--br)",color:selectedNum?"#fff":"var(--mu)",
-                      fontSize:13,fontWeight:600,cursor:selectedNum?"pointer":"not-allowed"}}>
-                    {lang==="ru"?"Продолжить к оплате →":"Continue to Payment →"}
-                  </button>
-                </div>
-              )}
-
-              {/* STEP: PAY */}
-              {phoneStep==="pay" && (
-                <div>
-                  <div style={{padding:"12px 14px",borderRadius:10,background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",marginBottom:20}}>
-                    <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{selectedNum?.friendlyName}</div>
-                    <div style={{fontSize:12,color:"var(--mu)"}}>{selectedNum?.locality}{selectedNum?.locality&&selectedNum?.region?", ":""}{selectedNum?.region}</div>
-                    <div style={{fontSize:16,fontWeight:700,color:"var(--ac)",marginTop:6}}>$9.00 / {lang==="ru"?"мес":"mo"}</div>
-                  </div>
-
-                  <div style={{fontSize:12,color:"var(--mu)",marginBottom:16,padding:"8px 12px",background:"var(--card)",borderRadius:8}}>
-                    {lang==="ru"?"Тестовая карта: 4242 4242 4242 4242 · Срок: 12/34 · CVC: 123":"Test card: 4242 4242 4242 4242 · Exp: 12/34 · CVC: 123"}
-                  </div>
-
-                  <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
-                    <input value={cardNum} onChange={e=>setCardNum(e.target.value.replace(/\D/g,"").slice(0,16))}
-                      placeholder={lang==="ru"?"Номер карты":"Card number"}
-                      style={{padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
-                    <div style={{display:"flex",gap:8}}>
-                      <input value={cardExp} onChange={e=>setCardExp(e.target.value.slice(0,5))} placeholder="MM/YY"
-                        style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
-                      <input value={cardCvc} onChange={e=>setCardCvc(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="CVC"
-                        style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--bg)",color:"var(--tx)",fontSize:13}}/>
-                    </div>
-                  </div>
-
-                  {payError && <div style={{color:"#ef4444",fontSize:12,marginBottom:12}}>{payError}</div>}
-
-                  <button onClick={buyNumber} disabled={paying||cardNum.length<16}
-                    style={{width:"100%",padding:"11px",borderRadius:8,border:"none",
-                      background:(!paying&&cardNum.length===16)?"var(--ac)":"var(--br)",
-                      color:(!paying&&cardNum.length===16)?"#fff":"var(--mu)",
-                      fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                    {paying?(lang==="ru"?"Обрабатываю...":"Processing..."):(lang==="ru"?"Оплатить $9.00 и подключить номер":"Pay $9.00 and connect number")}
-                  </button>
-
-                  <button onClick={()=>setPhoneStep("search")} style={{width:"100%",marginTop:8,padding:"8px",borderRadius:8,border:"1px solid var(--br)",background:"transparent",color:"var(--mu)",fontSize:12,cursor:"pointer"}}>
-                    ← {lang==="ru"?"Назад":"Back"}
-                  </button>
-                </div>
-              )}
-
-              {/* STEP: DONE */}
-              {phoneStep==="done" && (
-                <div style={{textAlign:"center",padding:"10px 0"}}>
-                  <div style={{fontSize:48,marginBottom:12}}>✅</div>
-                  <div style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>
-                    {lang==="ru"?"Номер успешно подключён!":"Number successfully connected!"}
-                  </div>
-                  <div style={{fontSize:22,fontWeight:700,color:"var(--ac)",margin:"10px 0"}}>{selectedNum?.friendlyName}</div>
-                  <div style={{fontSize:13,color:"var(--mu)",marginBottom:20,lineHeight:1.6}}>
-                    {lang==="ru"?"Теперь ты можешь принимать звонки и SMS прямо в CorexPhone. Номер активен.":"You can now receive calls and SMS directly in CorexPhone. Number is active."}
-                  </div>
-                  <button onClick={()=>setPhoneModal(false)}
-                    style={{padding:"10px 28px",borderRadius:8,border:"none",background:"var(--ac)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
-                    {lang==="ru"?"Отлично!":"Got it!"}
-                  </button>
-                </div>
-              )}
-
-            </div>
+            )}
           </div>
         )}
 
-        {/* Tab bar */}
-        <div style={{display:"flex",gap:6,marginBottom:18,borderBottom:"1px solid var(--bdr)",paddingBottom:10,flexWrap:"wrap"}}>
-          {[{id:"contacts",label:t.crmContacts},{id:"pipeline",label:t.crmPipeline},{id:"tags",label:t.crmTags},{id:"auto",label:t.automations}].map(tb=>(
-            <button key={tb.id} className={`btn ${cTab===tb.id?"btn-p":"btn-g"}`} style={{fontSize:12}} onClick={()=>setCTab(tb.id)}>{tb.label}</button>
+        {/* Tabs */}
+        <div style={{display:"flex",gap:4,marginBottom:16,borderBottom:"1px solid var(--bdr)",paddingBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+          {[
+            {id:"contacts",label:lang==="ru"?"👥 Контакты":"👥 Contacts"},
+            {id:"pipeline",label:lang==="ru"?"📊 Воронка":"📊 Pipeline"},
+            {id:"campaigns",label:lang==="ru"?"📣 Кампании":"📣 Campaigns"},
+            {id:"reminders",label:lang==="ru"?"🔔 Напоминания":"🔔 Reminders"},
+            {id:"tags",label:lang==="ru"?"🏷 Теги":"🏷 Tags"},
+          ].map(tb=>(
+            <button key={tb.id} onClick={()=>setCTab(tb.id)}
+              style={{padding:"6px 12px",borderRadius:8,border:"none",background:cTab===tb.id?"var(--acc)":"transparent",color:cTab===tb.id?"#fff":"var(--mu)",fontSize:12,fontWeight:cTab===tb.id?600:400,cursor:"pointer"}}>
+              {tb.label}
+              {tb.id==="reminders"&&reminders.filter(r=>!r.done).length>0&&<span style={{marginLeft:5,background:"var(--rd)",color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10}}>{reminders.filter(r=>!r.done).length}</span>}
+            </button>
           ))}
-          {cTab==="contacts"&&(
-            <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-              <button className="btn btn-g" style={{fontSize:12}} onClick={()=>{setImportTarget("crm");setImportStep(1);setImportRows([]);setImportHeaders([]);setImportMap({});setImportDone(null);setShowImport(true);}}>
-                📥 {lang==="ru"?"Импорт CSV":"Import CSV"}
-              </button>
-              <button className="btn btn-p" style={{fontSize:12}} onClick={()=>setCModal(true)}>{IC.plus} {t.addContact}</button>
-            </div>
-          )}
-          {cTab==="tags"&&(
-            <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setTagMgr(s=>!s)}>{IC.tag} {t.manageTagsTitle}</button>
-          )}
-          {cTab==="auto"&&(
-            <button className="btn btn-p" style={{fontSize:12,marginLeft:"auto"}} onClick={()=>setAModal(true)}>{IC.plus} {t.addAutomation}</button>
-          )}
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            {cTab==="contacts"&&<>
+              <button onClick={exportCSV} style={{padding:"6px 10px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",fontSize:11,cursor:"pointer"}}>📤 CSV</button>
+              <button onClick={()=>{setImportTarget("crm");setImportStep(1);setImportRows([]);setImportHeaders([]);setImportMap({});setImportDone(null);setShowImport(true);}} style={{padding:"6px 10px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",fontSize:11,cursor:"pointer"}}>📥 {lang==="ru"?"Импорт":"Import"}</button>
+              <button onClick={()=>{setCF({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});setCModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Контакт":"Contact"}</button>
+            </>}
+            {cTab==="campaigns"&&<button onClick={()=>setCampModal(true)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Кампания":"Campaign"}</button>}
+            {cTab==="reminders"&&<button onClick={()=>{setRemF({text:"",dueAt:"",contactId:""});setRemModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Напоминание":"Reminder"}</button>}
+          </div>
         </div>
 
         {/* ── TAB: CONTACTS ── */}
         {cTab==="contacts"&&(
           <>
-            {/* ── SMART FOLDERS ── */}
-            {(()=>{
-              const FOLDERS = [
-                {id:"all",    icon:null, label:lang==="ru"?"Все":"All"},
-                {id:"lead",   icon:null, label:lang==="ru"?"Новые лиды":"New Leads"},
-                {id:"client", icon:null, label:lang==="ru"?"Клиенты":"Clients"},
-                {id:"lost",   icon:null, label:lang==="ru"?"Потерянные":"Lost"},
-                {id:"missed", icon:null, label:lang==="ru"?"Пропущенные":"Missed"},
-                {id:"spam",   icon:null, label:"Spam"},
-                {id:"dnd",    icon:null, label:"DND"},
-              ];
-              const folderCount = id => id==="all" ? contacts.length : contacts.filter(c=>(c.crmFolder||getContactFolder(c))===id).length;
-              return (
-                <div style={{marginBottom:14}}>
-                  <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:6,marginBottom:8}}>
-                    {FOLDERS.map(f=>{
-                      const cnt = folderCount(f.id);
-                      const active = crmFolder===f.id;
-                      return (
-                        <button key={f.id} onClick={()=>setCrmFolder(f.id)}
-                          style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
-                            border:`1px solid ${active?"var(--acc)":"var(--bdr)"}`,
-                            background:active?"var(--acc)18":"var(--s1)",
-                            color:active?"var(--acc)":"var(--mu)",
-                            fontSize:12,fontWeight:active?700:400,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
-                          {f.icon} {f.label}
-                          <span style={{background:active?"var(--acc)30":"var(--bdr2)",borderRadius:10,padding:"0 5px",fontSize:10,color:active?"var(--acc)":"var(--mu2)"}}>{cnt}</span>
-                        </button>
-                      );
-                    })}
-                    <button onClick={aiSortAll} disabled={aiSorting}
-                      style={{marginLeft:"auto",flexShrink:0,display:"flex",alignItems:"center",gap:5,padding:"6px 12px",
-                        borderRadius:8,border:"1px solid var(--bdr)",background:"var(--s2)",
-                        color:"var(--mu)",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>
-                      {aiSorting?<><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span>{lang==="ru"?" AI сортирует...":" AI sorting..."}</>:<>🤖 {lang==="ru"?"AI разложить по папкам":"AI Auto-sort"}</>}
-                    </button>
-                  </div>
-                  {crmFolder!=="all"&&(
-                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:8,padding:"6px 10px",background:"var(--s2)",borderRadius:7,border:"1px solid var(--bdr)"}}>
-                      {lang==="ru"
-                        ? {lead:"🆕 Новые входящие лиды — ещё не обработаны",client:"✅ Клиенты — уборка подтверждена или оплачена",lost:"❌ Потерянные — отказались или ушли к конкурентам",missed:"📵 Пропущенные звонки — перезвонить!",spam:"🚫 Спам — автоматически помечен AI",dnd:"🔕 DND — попросили не беспокоить"}[crmFolder]
-                        : {lead:"🆕 New incoming leads — not yet processed",client:"✅ Clients — cleaning confirmed or paid",lost:"❌ Lost — declined or went to competitor",missed:"📵 Missed calls — call back!",spam:"🚫 Spam — auto-flagged by AI",dnd:"🔕 DND — requested no contact"}[crmFolder]}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            {/* Search + filter */}
-            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-              <input className="inp" value={search} onChange={e=>setSearch(e.target.value)}
-                placeholder={t.searchContacts} style={{flex:1,minWidth:200}}/>
-              <select className="inp" value={tagFilter} onChange={e=>setTagFilter(e.target.value)} style={{width:160}}>
+            {/* Search + filter row */}
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)}
+                style={{flex:1,minWidth:180,padding:"8px 12px",borderRadius:8,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:13}}
+                placeholder={lang==="ru"?"🔍 Поиск по имени, телефону...":"🔍 Search name, phone..."}/>
+              <select value={stageFilter} onChange={e=>setStageFilter(e.target.value)}
+                style={{padding:"8px 10px",borderRadius:8,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12,cursor:"pointer"}}>
+                <option value="all">{lang==="ru"?"Все стадии":"All stages"}</option>
+                {STAGES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <select value={tagFilter} onChange={e=>setTagFilter(e.target.value)}
+                style={{padding:"8px 10px",borderRadius:8,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--tx)",fontSize:12,cursor:"pointer"}}>
                 <option value="">{lang==="ru"?"Все теги":"All tags"}</option>
                 {crmTags.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
               </select>
             </div>
-            {/* HR Pipeline stats */}
-            {canSeeAll&&(
-              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"10px 14px",marginBottom:12}}>
-                <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>HR Pipeline</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {ALL_HR_TAGS.map(ht=>{
-                    const cnt=contacts.filter(c=>(c.tags||[]).includes(ht.tag)).length;
-                    return (
-                      <div key={ht.tag} onClick={()=>setTagFilter(ht.tag===tagFilter?"":ht.tag)}
-                        style={{padding:"5px 10px",borderRadius:7,cursor:"pointer",
-                          border:`1px solid ${ht.tag===tagFilter?ht.color:"var(--bdr)"}`,
-                          background:ht.tag===tagFilter?ht.color+"18":"var(--s2)",
-                          transition:"all .15s"}}>
-                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:ht.color}}>{cnt}</div>
-                        <div style={{fontSize:9,color:ht.tag===tagFilter?ht.color:"var(--mu)",whiteSpace:"nowrap"}}>{ht.label||ht.tag}</div>
-                      </div>
-                    );
-                  })}
-                  <div style={{padding:"5px 10px",borderRadius:7,border:"1px solid #22c55e30",background:"#22c55e08",marginLeft:"auto"}}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:"#22c55e"}}>{contacts.filter(c=>isHired(c)).length}</div>
-                    <div style={{fontSize:9,color:"#22c55e"}}>{lang==="ru"?"✓ Нанято":"✓ Hired"}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* Funnel stages row */}
-            <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-              {STAGES.map(s=>{
-                const cnt = filtered.filter(c=>c.stage===s.id).length;
-                return (
-                  <div key={s.id} style={{background:"var(--s1)",border:`1px solid ${cnt>0?s.color+"30":"var(--bdr)"}`,borderRadius:9,padding:"7px 14px",cursor:"pointer",transition:"all .15s"}}
-                    onClick={()=>setSearch("")}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:s.color}}>{cnt}</div>
-                    <div style={{fontSize:10,color:"var(--mu)"}}>{s.label}</div>
-                  </div>
-                );
-              })}
-            </div>
-            {/* Contact cards */}
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {filtered.map(c=>{
-                const stage = STAGES.find(s=>s.id===c.stage)||STAGES[0];
-                return (
-                  <div key={c.id} style={{background:isHired(c)&&canSeeAll?"var(--s1)":"var(--s1)",
-                    border:`1px solid ${isHired(c)&&canSeeAll?"#22c55e30":"var(--bdr)"}`,
-                    borderRadius:11,padding:"12px 16px",opacity:isHired(c)&&canSeeAll?.75:1,
-                    display:"flex",alignItems:"center",gap:14,cursor:"pointer",
-                    transition:"all .15s",position:"relative",overflow:"hidden"}}
-                    onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=isHired(c)&&canSeeAll?"#22c55e50":"var(--bdr2)"}}
-                    onMouseLeave={e=>{e.currentTarget.style.opacity=isHired(c)&&canSeeAll?".75":"1";e.currentTarget.style.borderColor=isHired(c)&&canSeeAll?"#22c55e30":"var(--bdr)"}}>
-                    <div onClick={()=>setOpenId(c.id)} style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}>
-                      <Av name={c.name} color={stage.color}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:600,fontSize:14}}>{c.name}</div>
-                        <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:10,flexWrap:"wrap"}}>
-                          {c.phone&&<span>{c.phone}</span>}
-                          {c.email&&<span>{c.email}</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}}>
-                      {(()=>{
-                      const folder = c.crmFolder||getContactFolder(c);
-                      const folderBadge = {client:{icon:"✅",color:"var(--gr)"},lost:{icon:"❌",color:"var(--rd)"},missed:{icon:"📵",color:"var(--acc)"},spam:{icon:"🚫",color:"var(--mu)"},dnd:{icon:"🔕",color:"var(--pu)"},lead:{icon:"🆕",color:"var(--bl)"}};
-                      const fb = folderBadge[folder];
-                      return fb&&folder!=="lead"?<span style={{fontSize:10,padding:"2px 6px",borderRadius:5,background:fb.color+"18",color:fb.color,border:`1px solid ${fb.color}30`,whiteSpace:"nowrap"}}>{fb.icon}</span>:null;
-                    })()}
-                    {(c.tags||[]).slice(0,3).map(tag=>{
-                        const td=crmTags.find(t=>t.name===tag);
-                        return <span key={tag} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)"}}>{tag}</span>;
-                      })}
-                      {(c.tags||[]).length>3&&<span style={{fontSize:10,color:"var(--mu)"}}>+{(c.tags||[]).length-3}</span>}
-                      <span style={{fontSize:10,padding:"2px 8px",borderRadius:5,background:stage.color+"18",color:stage.color,border:`1px solid ${stage.color}30`,whiteSpace:"nowrap"}}>{stage.label}</span>
-                      {c.phone&&<button className="btn btn-g btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();startCall(c);}}>{IC.phone}</button>}
-                      {c.phone&&<button className="btn btn-bl btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();setSmsModal(c.id);setSmsText("");}}>{IC.sms}</button>}
-                      <button className="btn btn-g btn-sm" style={{padding:"4px 7px",fontSize:10}} onClick={e=>{e.stopPropagation();setCF({name:c.name,phone:c.phone||"",email:c.email||"",stage:c.stage||"lead",tags:c.tags||[],notes:c.notes||[],deptId:c.deptId||""});setCModal(c.id);}}>✏️</button>
-                    </div>
-                  </div>
-                );
-              })}
+
+            <div style={{fontSize:11,color:"var(--mu)",marginBottom:10}}>{filtered.length} {lang==="ru"?"контактов":"contacts"}</div>
+
+            {/* Contact list */}
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {!filtered.length&&(
                 <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
-                  <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.crm}</div>
-                  <div>{contacts.length?lang==="ru"?"Нет совпадений":"No matches":t.noContacts}</div>
+                  <div style={{fontSize:36,marginBottom:8}}>👥</div>
+                  <div>{contacts.length?lang==="ru"?"Нет совпадений":"No matches":lang==="ru"?"Контактов пока нет":"No contacts yet"}</div>
                 </div>
               )}
+              {filtered.map(c=>{
+                const stage=STAGES.find(s=>s.id===c.stage)||STAGES[0];
+                const hasReminder=reminders.some(r=>r.contactId===c.id&&!r.done);
+                return (
+                  <div key={c.id} onClick={()=>setOpenId(c.id)}
+                    style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:11,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--acc)50"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
+                    {/* Avatar */}
+                    <div style={{width:38,height:38,borderRadius:"50%",background:stage.color+"20",border:`2px solid ${stage.color}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:stage.color,flexShrink:0}}>
+                      {(c.name||"?")[0].toUpperCase()}
+                    </div>
+                    {/* Info */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                        {c.name}
+                        {hasReminder&&<span style={{fontSize:12}}>🔔</span>}
+                      </div>
+                      <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:8,flexWrap:"wrap",marginTop:1}}>
+                        {c.phone&&<span>{c.phone}</span>}
+                        {c.email&&<span>{c.email}</span>}
+                        {c.source&&<span style={{color:"var(--mu2)"}}>· {c.source}</span>}
+                      </div>
+                    </div>
+                    {/* Right side */}
+                    <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}} onClick={e=>e.stopPropagation()}>
+                      {(c.tags||[]).slice(0,2).map(tag=>{
+                        const td=crmTags.find(t=>t.name===tag);
+                        return <span key={tag} style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:(td?.color||"var(--acc)")+"18",color:td?.color||"var(--acc)",whiteSpace:"nowrap"}}>{tag}</span>;
+                      })}
+                      <span style={{fontSize:10,padding:"3px 8px",borderRadius:10,background:stage.color+"15",color:stage.color,border:`1px solid ${stage.color}25`,whiteSpace:"nowrap",fontWeight:600}}>{stage.label}</span>
+                      {c.phone&&<button className="btn btn-g btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();startCall(c);}}>{IC.phone}</button>}
+                      {c.phone&&<button className="btn btn-bl btn-sm" style={{padding:"4px 7px"}} onClick={e=>{e.stopPropagation();setOpenId(c.id);}}>{IC.sms}</button>}
+                      <button onClick={e=>{e.stopPropagation();setCF({name:c.name,phone:c.phone||"",email:c.email||"",stage:c.stage||"new_lead",tags:c.tags||[],source:c.source||"",notes:c.notes||""});setCModal(c.id);}} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✏️</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
 
-        {/* ── TAB: PIPELINE (Kanban) ── */}
+        {/* ── TAB: PIPELINE ── */}
         {cTab==="pipeline"&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,overflowX:"auto",minWidth:"min(900px,100%)",WebkitOverflowScrolling:"touch"}}>
+          <div style={{display:"flex",gap:10,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:8}}>
             {STAGES.map(stage=>{
-              const stageContacts = contacts.filter(c=>c.stage===stage.id);
+              const stageContacts=contacts.filter(c=>c.stage===stage.id);
               return (
-                <div key={stage.id} style={{background:"var(--s1)",border:`1px solid ${stage.color}20`,borderTop:`3px solid ${stage.color}`,borderRadius:10,padding:12,minHeight:300}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
-                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:stage.color}}>{stage.label}</span>
-                    <span style={{marginLeft:"auto",background:stage.color+"18",color:stage.color,fontSize:10,padding:"2px 7px",borderRadius:10}}>{stageContacts.length}</span>
+                <div key={stage.id} style={{minWidth:200,flexShrink:0,background:"var(--s1)",border:`1px solid ${stage.color}20`,borderTop:`3px solid ${stage.color}`,borderRadius:10,padding:12}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+                    <span style={{fontWeight:700,fontSize:12,color:stage.color}}>{stage.label}</span>
+                    <span style={{marginLeft:"auto",background:stage.color+"18",color:stage.color,fontSize:10,padding:"1px 7px",borderRadius:10}}>{stageContacts.length}</span>
                   </div>
                   {stageContacts.map(c=>(
-                    <div key={c.id} style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:8,padding:"9px 10px",marginBottom:7,cursor:"pointer"}}
-                      onClick={()=>setOpenId(c.id)}>
-                      <div style={{fontWeight:600,fontSize:12,marginBottom:3}}>{c.name}</div>
-                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:5}}>{c.phone||c.email||""}</div>
-                      <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                        {(c.tags||[]).slice(0,2).map(tag=>{
-                          const td=crmTags.find(t=>t.name===tag);
-                          return <span key={tag} style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:(td?.color||"var(--acc)")+"20",color:td?.color||"var(--acc)"}}>{tag}</span>;
-                        })}
-                      </div>
+                    <div key={c.id} onClick={()=>setOpenId(c.id)} style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:8,padding:"8px 10px",marginBottom:6,cursor:"pointer"}}>
+                      <div style={{fontWeight:600,fontSize:12,marginBottom:2}}>{c.name}</div>
+                      <div style={{fontSize:10,color:"var(--mu)"}}>{c.phone||c.email||""}</div>
+                      {(c.tags||[]).slice(0,2).map(tag=>{const td=crmTags.find(t=>t.name===tag);return <span key={tag} style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:(td?.color||"var(--acc)")+"18",color:td?.color||"var(--acc)",marginRight:3}}>{tag}</span>;})}
                     </div>
                   ))}
-                  {!stageContacts.length&&<div style={{textAlign:"center",color:"var(--mu2)",fontSize:11,padding:"16px 0"}}>{lang==="ru"?"Пусто":"Empty"}</div>}
+                  {!stageContacts.length&&<div style={{fontSize:11,color:"var(--mu2)",textAlign:"center",padding:"12px 0"}}>—</div>}
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* ── TAB: TAGS ── */}
-        {cTab==="tags"&&(
-          <>
-            {tagMgr&&(
-              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginBottom:16}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>{t.manageTagsTitle}</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-                  {crmTags.map(tag=>(
-                    <div key={tag.id} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:7,background:tag.color+"18",border:`1px solid ${tag.color}30`}}>
-                      <span style={{width:8,height:8,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
-                      <span style={{fontSize:12,color:tag.color,fontWeight:600}}>{tag.name}</span>
-                      <span style={{fontSize:10,color:"var(--mu)",marginLeft:2}}>{contacts.filter(c=>(c.tags||[]).includes(tag.name)).length}</span>
-                      <button onClick={()=>deleteTag(tag.id)} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:13,padding:0,lineHeight:1}}>×</button>
-                    </div>
-                  ))}
-                </div>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                  <input className="inp" value={newTag.name} onChange={e=>setNewTag(f=>({...f,name:e.target.value}))}
-                    placeholder={lang==="ru"?"Название тега...":"Tag name..."} style={{flex:1,minWidth:150}}
-                    onKeyDown={e=>{if(e.key==="Enter")saveTag();}}/>
-                  <div style={{display:"flex",gap:4}}>
-                    {TAG_COLORS.map(c=>(
-                      <div key={c} onClick={()=>setNewTag(f=>({...f,color:c}))}
-                        style={{width:22,height:22,borderRadius:5,background:c,cursor:"pointer",border:newTag.color===c?"2px solid #fff":"2px solid transparent"}}/>
-                    ))}
-                  </div>
-                  <button className="btn btn-p btn-sm" onClick={saveTag}>{IC.plus} {t.addTag}</button>
-                </div>
+        {/* ── TAB: CAMPAIGNS ── */}
+        {cTab==="campaigns"&&(
+          <div>
+            {!campaigns.length&&(
+              <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+                <div style={{fontSize:36,marginBottom:8}}>📣</div>
+                <div style={{marginBottom:12}}>{lang==="ru"?"Кампаний пока нет":"No campaigns yet"}</div>
+                <button onClick={()=>setCampModal(true)} style={{padding:"8px 20px",borderRadius:8,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Создать кампанию":"Create campaign"}</button>
               </div>
             )}
-            {/* Tags overview */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
-              {crmTags.map(tag=>{
-                const tagContacts = contacts.filter(c=>(c.tags||[]).includes(tag.name));
-                return (
-                  <div key={tag.id} style={{background:"var(--s1)",border:`1px solid ${tag.color}25`,borderLeft:`4px solid ${tag.color}`,borderRadius:10,padding:14,cursor:"pointer"}}
-                    onClick={()=>{setTagFilter(tag.name);setCTab("contacts");}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <span style={{width:10,height:10,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
-                      <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:tag.color}}>{tag.name}</span>
-                      <span style={{marginLeft:"auto",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:20,color:tag.color}}>{tagContacts.length}</span>
-                    </div>
-                    <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"контактов":"contacts"}</div>
-                    <div style={{display:"flex",gap:4,marginTop:8,flexWrap:"wrap"}}>
-                      {tagContacts.slice(0,4).map(c=><Av key={c.id} name={c.name} color={tag.color}/>)}
-                      {tagContacts.length>4&&<span style={{fontSize:10,color:"var(--mu)",alignSelf:"center"}}>+{tagContacts.length-4}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-              {!crmTags.length&&(
-                <div style={{gridColumn:"1/-1",textAlign:"center",padding:40,color:"var(--mu)"}}>
-                  <div style={{marginBottom:8,opacity:.4,display:"flex",justifyContent:"center"}}>{IC.tag}</div>
-                  <div>{lang==="ru"?"Тегов пока нет — создай первый":"No tags yet — create the first one"}</div>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ── TAB: AUTOMATIONS ── */}
-        {cTab==="auto"&&(
-          <>
-            <div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:10,padding:12,marginBottom:16,fontSize:12,color:"var(--mu)",display:"flex",gap:10,alignItems:"flex-start"}}>
-              <span style={{fontSize:16}}>🤖</span>
-              <span>{lang==="ru"?"Воронка работает автоматически: когда контакту добавляется тег — система ждёт заданное время и отправляет SMS шаблон. (SMS отправка активируется после подключения Twilio)":"Funnel works automatically: when a tag is added to a contact — the system waits the set time and sends the SMS template. (SMS sending activates after Twilio connection)"}</span>
-            </div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {automations.map(a=>{
-                const tag = crmTags.find(t=>t.name===a.triggerTag);
+              {campaigns.map(camp=>{
+                const count=contacts.filter(c=>camp.audienceType==="stage"?c.stage===camp.audienceValue:(c.tags||[]).includes(camp.audienceValue)).filter(c=>c.phone).length;
                 return (
-                  <div key={a.id} style={{background:"var(--s1)",border:`1px solid ${a.active?"var(--gr)20":"var(--bdr)"}`,borderRadius:11,padding:16,opacity:a.active?1:.6}}>
-                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                      <div style={{fontWeight:600,fontSize:14,flex:1}}>{a.name||lang==="ru"?"Автоматизация":"Automation"}</div>
-                      <Bdg cls={a.active?"b-gr":"b-mu"}>{a.active?(lang==="ru"?"Активна":"Active"):(lang==="ru"?"Пауза":"Paused")}</Bdg>
-                      <button className="btn btn-g btn-sm" onClick={()=>toggleAuto(a.id)}>{a.active?(lang==="ru"?"Пауза":"Pause"):(lang==="ru"?"Активировать":"Activate")}</button>
-                      <button className="btn btn-d btn-sm" onClick={()=>deleteAuto(a.id)}>{IC.trash}</button>
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",fontSize:12}}>
-                      <div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:6}}>
-                        {IC.tag} <span>{lang==="ru"?"Тег:":"Tag:"}</span>
-                        <span style={{color:tag?.color||"var(--acc)",fontWeight:600}}>{a.triggerTag}</span>
+                  <div key={camp.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{camp.name}</div>
+                        <div style={{fontSize:12,color:"var(--mu)",marginBottom:6,fontStyle:"italic",lineHeight:1.4}}>"{camp.msgTemplate.slice(0,100)}{camp.msgTemplate.length>100?"...":""}"</div>
+                        <div style={{display:"flex",gap:10,fontSize:11,color:"var(--mu2)"}}>
+                          <span>👥 {camp.audienceType==="stage"?`Stage: ${STAGES.find(s=>s.id===camp.audienceValue)?.label||camp.audienceValue}`:`Tag: ${camp.audienceValue}`} · {count} {lang==="ru"?"контактов":"contacts"}</span>
+                          {camp.sentCount>0&&<span>✅ {lang==="ru"?"Отправлено":"Sent"}: {camp.sentCount}</span>}
+                          {camp.sentAt&&<span>📅 {camp.sentAt}</span>}
+                        </div>
                       </div>
-                      <span style={{color:"var(--mu)"}}>→</span>
-                      <div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px"}}>
-                        ⏱ {a.delayHours}h
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        <button onClick={()=>sendCampaign(camp)} disabled={!!campSending||!count}
+                          style={{padding:"6px 14px",borderRadius:7,border:"none",background:(campSending||!count)?"var(--s2)":"var(--acc)",color:(campSending||!count)?"var(--mu)":"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                          {campSending===camp.id?"⏳ Sending...":"📤 Send"}
+                        </button>
+                        <button onClick={()=>deleteCampaign(camp.id)} style={{padding:"6px 8px",borderRadius:7,border:"1px solid var(--bdr)",background:"transparent",color:"var(--rd)",cursor:"pointer",fontSize:12}}>🗑</button>
                       </div>
-                      <span style={{color:"var(--mu)"}}>→</span>
-                      {a.msgTemplate&&<div style={{background:"var(--s2)",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:6,flex:1,minWidth:120}}>
-                        💬 <span style={{color:"var(--mu)",fontSize:11}}>{a.msgTemplate.slice(0,40)}{a.msgTemplate.length>40?"...":""}</span>
-                      </div>}
-                      {a.routeToDept&&(()=>{
-                        const dept=p?.departments?.find(d=>d.id===a.routeToDept);
-                        return <div style={{background:"var(--bl)12",border:"1px solid var(--bl)25",borderRadius:7,padding:"6px 10px",display:"flex",alignItems:"center",gap:5,fontSize:11}}>
-                          🔀 <span style={{color:"var(--bl)"}}>{a.routeType==="move"?"→":"📋"} {dept?.name||a.routeToDept}</span>
-                        </div>;
-                      })()}
                     </div>
                   </div>
                 );
               })}
-              {!automations.length&&(
-                <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
-                  <div style={{fontSize:32,marginBottom:8}}>🤖</div>
-                  <div>{lang==="ru"?"Автоматизаций пока нет":"No automations yet"}</div>
-                </div>
-              )}
             </div>
-          </>
+          </div>
         )}
 
-        {/* ── CONTACT CREATE MODAL ── */}
+        {/* ── TAB: REMINDERS ── */}
+        {cTab==="reminders"&&(
+          <div>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <div style={{fontSize:12,color:"var(--mu)",padding:"6px 0"}}>{reminders.filter(r=>!r.done).length} {lang==="ru"?"активных":"active"} · {reminders.filter(r=>r.done).length} {lang==="ru"?"выполнено":"done"}</div>
+            </div>
+            {!reminders.length&&(
+              <div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
+                <div style={{fontSize:36,marginBottom:8}}>🔔</div>
+                <div>{lang==="ru"?"Напоминаний пока нет":"No reminders yet"}</div>
+              </div>
+            )}
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {[...reminders].sort((a,b)=>a.done-b.done||new Date(a.dueAt)-new Date(b.dueAt)).map(r=>{
+                const c=r.contactId?contacts.find(x=>x.id===r.contactId):null;
+                const overdue=!r.done&&r.dueAt&&new Date(r.dueAt)<new Date();
+                return (
+                  <div key={r.id} style={{background:"var(--s1)",border:`1px solid ${overdue?"var(--rd)30":r.done?"var(--bdr)":"var(--acc)20"}`,borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,opacity:r.done?0.6:1}}>
+                    <input type="checkbox" checked={r.done} onChange={()=>toggleReminder(r.id)} style={{cursor:"pointer",width:16,height:16,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:13,textDecoration:r.done?"line-through":"none"}}>{r.text}</div>
+                      <div style={{fontSize:11,color:overdue?"var(--rd)":"var(--mu)",marginTop:2,display:"flex",gap:8}}>
+                        {r.dueAt&&<span>{overdue?"⚠️ ":""}{new Date(r.dueAt).toLocaleString()}</span>}
+                        {c&&<span style={{color:"var(--acc)",cursor:"pointer"}} onClick={()=>setOpenId(c.id)}>👤 {c.name}</span>}
+                      </div>
+                    </div>
+                    <button onClick={()=>deleteReminder(r.id)} style={{background:"none",border:"none",color:"var(--mu)",cursor:"pointer",fontSize:14}}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB: TAGS ── */}
+        {cTab==="tags"&&(
+          <div style={{maxWidth:600}}>
+            <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"flex-end"}}>
+              <div style={{flex:1}}><label style={{fontSize:11,color:"var(--mu)",display:"block",marginBottom:4}}>{lang==="ru"?"Название тега":"Tag name"}</label>
+                <input value={newTag.name} onChange={e=>setNewTag(n=>({...n,name:e.target.value}))} className="inp" placeholder="New Lead, VIP, etc."/></div>
+              <div><label style={{fontSize:11,color:"var(--mu)",display:"block",marginBottom:4}}>Color</label>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",maxWidth:160}}>
+                  {TAG_COLORS.map(c=><button key={c} onClick={()=>setNewTag(n=>({...n,color:c}))} style={{width:20,height:20,borderRadius:"50%",background:c,border:newTag.color===c?"2px solid var(--tx)":"2px solid transparent",cursor:"pointer",padding:0}}/>)}
+                </div>
+              </div>
+              <button onClick={saveTag} style={{padding:"8px 16px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Добавить":"Add"}</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {!crmTags.length&&<div style={{color:"var(--mu)",fontSize:13,padding:12}}>{lang==="ru"?"Тегов пока нет":"No tags yet"}</div>}
+              {crmTags.map(tag=>{
+                const count=contacts.filter(c=>(c.tags||[]).includes(tag.name)).length;
+                return (
+                  <div key={tag.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:9}}>
+                    <span style={{width:10,height:10,borderRadius:"50%",background:tag.color,flexShrink:0}}/>
+                    <span style={{flex:1,fontWeight:600,fontSize:13}}>{tag.name}</span>
+                    <span style={{fontSize:11,color:"var(--mu)"}}>{count} {lang==="ru"?"контактов":"contacts"}</span>
+                    <button onClick={()=>deleteTag(tag.id)} style={{background:"none",border:"none",color:"var(--rd)",cursor:"pointer",fontSize:14}}>×</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── MODALS ── */}
+
+        {/* Contact modal */}
         {cModal&&(
           <div className="ovl" onClick={()=>setCModal(false)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-t">{cModal===true?(t.addContact):(lang==="ru"?"Редактировать контакт":"Edit Contact")}</div>
+              <div className="modal-t">{cModal===true?(lang==="ru"?"Новый контакт":"New Contact"):(lang==="ru"?"Редактировать контакт":"Edit Contact")}</div>
               <div className="fr">
-                <div className="fg"><label className="lbl">{t.contactName} *</label><input className="inp" value={cF.name} onChange={e=>setCF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
-                <div className="fg"><label className="lbl">{t.contactPhone}</label><input className="inp" value={cF.phone} onChange={e=>setCF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label><input className="inp" value={cF.name} onChange={e=>setCF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={cF.phone} onChange={e=>setCF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
               </div>
               <div className="fr">
-                <div className="fg"><label className="lbl">{t.contactEmail}</label><input className="inp" value={cF.email} onChange={e=>setCF(f=>({...f,email:e.target.value}))} placeholder="jane@example.com"/></div>
-                <div className="fg">
-                  <label className="lbl">{t.crmStage}</label>
+                <div className="fg"><label className="lbl">Email</label><input className="inp" value={cF.email} onChange={e=>setCF(f=>({...f,email:e.target.value}))} placeholder="jane@example.com"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Источник лида":"Lead Source"}</label><input className="inp" value={cF.source} onChange={e=>setCF(f=>({...f,source:e.target.value}))} placeholder="Google, Facebook, Referral..."/></div>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">Stage</label>
                   <select className="inp" value={cF.stage} onChange={e=>setCF(f=>({...f,stage:e.target.value}))}>
                     {STAGES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                 </div>
               </div>
               <div className="fg">
-                <label className="lbl">{lang==="ru"?"Отдел (назначить)":"Assign to dept"}</label>
-                <select className="inp" value={cF.deptId||""} onChange={e=>setCF(f=>({...f,deptId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
-                  {(p?.departments||[]).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-              <div className="fg">
-                <label className="lbl">{t.contactTags}</label>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap",padding:"6px 0"}}>
+                <label className="lbl">Tags</label>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",padding:"6px 0"}}>
                   {crmTags.map(tag=>(
                     <button key={tag.id} type="button"
-                      style={{fontSize:11,padding:"3px 10px",borderRadius:6,cursor:"pointer",border:`1px solid ${(cF.tags||[]).includes(tag.name)?tag.color:"var(--bdr)"}`,
-                        background:(cF.tags||[]).includes(tag.name)?tag.color+"22":"transparent",
-                        color:(cF.tags||[]).includes(tag.name)?tag.color:"var(--mu)"}}
-                      onClick={()=>{
-                        const tags=cF.tags||[];
-                        setCF(f=>({...f,tags:tags.includes(tag.name)?tags.filter(t=>t!==tag.name):[...tags,tag.name]}));
-                      }}>{tag.name}</button>
+                      style={{fontSize:11,padding:"3px 10px",borderRadius:6,cursor:"pointer",border:`1px solid ${(cF.tags||[]).includes(tag.name)?tag.color:"var(--bdr)"}`,background:(cF.tags||[]).includes(tag.name)?tag.color+"22":"transparent",color:(cF.tags||[]).includes(tag.name)?tag.color:"var(--mu)"}}
+                      onClick={()=>{const tags=cF.tags||[];setCF(f=>({...f,tags:tags.includes(tag.name)?tags.filter(t=>t!==tag.name):[...tags,tag.name]}));}}>
+                      {tag.name}
+                    </button>
                   ))}
-                  {!crmTags.length&&<span style={{fontSize:11,color:"var(--mu2)"}}>{lang==="ru"?"Сначала создайте теги во вкладке Теги":"Create tags first in the Tags tab"}</span>}
+                  {!crmTags.length&&<span style={{fontSize:11,color:"var(--mu2)"}}>{lang==="ru"?"Сначала создайте теги":"Create tags first"}</span>}
                 </div>
               </div>
               <div className="ma">
-                <button className="btn btn-g" onClick={()=>setCModal(false)}>{t.cancel}</button>
-                <button className="btn btn-p" onClick={saveContact}>{cModal===true?t.create:(lang==="ru"?"Сохранить":"Save")}</button>
+                <button className="btn btn-g" onClick={()=>setCModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={saveContact}>{cModal===true?(lang==="ru"?"Создать":"Create"):(lang==="ru"?"Сохранить":"Save")}</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ── SMS MODAL ── */}
-        {smsModal&&(()=>{
-          const c = contacts.find(x=>x.id===smsModal);
-          const history = smsLog[smsModal]||[];
-          return (
-            <div className="ovl" onClick={()=>setSmsModal(null)}>
-              <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
-                <div className="modal-t" style={{display:"flex",alignItems:"center",gap:10}}>
-                  {IC.sms} SMS → {c?.name}
-                  <span style={{fontSize:12,color:"var(--mu)",fontWeight:400,marginLeft:4}}>{c?.phone}</span>
-                </div>
-                {/* SMS history */}
-                {history.length>0&&(
-                  <div style={{maxHeight:180,overflowY:"auto",marginBottom:14,display:"flex",flexDirection:"column",gap:6}}>
-                    {history.map(m=>(
-                      <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:m.dir==="out"?"flex-end":"flex-start"}}>
-                        <div style={{background:m.dir==="out"?"var(--acc)18":"var(--s2)",border:`1px solid ${m.dir==="out"?"var(--acc)30":"var(--bdr)"}`,
-                          borderRadius:9,padding:"7px 11px",maxWidth:"80%",fontSize:12}}>
-                          {m.text}
-                        </div>
-                        <div style={{fontSize:9,color:"var(--mu)",marginTop:2}}>{m.ts}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="fg">
-                  <label className="lbl">{lang==="ru"?"Сообщение":"Message"}</label>
-                  <textarea className="inp" value={smsText} onChange={e=>setSmsText(e.target.value)}
-                    style={{minHeight:80}} placeholder={lang==="ru"?"Введите сообщение...":"Type your message..."}
-                    onKeyDown={e=>{if(e.key==="Enter"&&e.metaKey)sendSMS(smsModal,c?.phone,smsText);}}/>
-                  <div style={{fontSize:10,color:"var(--mu)",marginTop:3,textAlign:"right"}}>{smsText.length}/160</div>
-                </div>
-                {/* Templates */}
-                <div style={{marginBottom:12}}>
-                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{lang==="ru"?"Быстрые шаблоны:":"Quick templates:"}</div>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                    {[
-                      lang==="ru"?"Спасибо за интерес! Свяжемся в ближайшее время.":"Thanks for your interest! We'll be in touch soon.",
-                      lang==="ru"?"Ваша уборка запланирована. Увидимся!":"Your cleaning is scheduled. See you soon!",
-                      lang==="ru"?"Хотите узнать подробнее о наших услугах?":"Want to learn more about our services?",
-                    ].map((tmpl,i)=>(
-                      <button key={i} className="btn btn-g btn-sm" style={{fontSize:10,padding:"3px 8px",textAlign:"left"}}
-                        onClick={()=>setSmsText(tmpl)}>{tmpl.slice(0,30)}...</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="ma">
-                  <button className="btn btn-g" onClick={()=>setSmsModal(null)}>{t.cancel}</button>
-                  <button className="btn btn-p" disabled={smsSending||!smsText.trim()} onClick={()=>sendSMS(smsModal,c?.phone,smsText)}>
-                    {smsSending?(lang==="ru"?"Отправка...":"Sending..."):<>{IC.send} {lang==="ru"?"Отправить":"Send"}</>}
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── AUTOMATION CREATE MODAL ── */}
-        {aModal&&(
-          <div className="ovl" onClick={()=>setAModal(false)}>
+        {/* Campaign modal */}
+        {campModal&&(
+          <div className="ovl" onClick={()=>setCampModal(false)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-t">{t.addAutomation}</div>
-              <div className="fg"><label className="lbl">{lang==="ru"?"Название автоматизации":"Automation name"}</label><input className="inp" value={aF.name} onChange={e=>setAF(f=>({...f,name:e.target.value}))} placeholder={lang==="ru"?"Приветственное SMS":"Welcome SMS"}/></div>
+              <div className="modal-t">📣 {lang==="ru"?"Новая кампания":"New Campaign"}</div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Название":"Name"}</label><input className="inp" value={campF.name} onChange={e=>setCampF(f=>({...f,name:e.target.value}))} placeholder="Re-engagement, Seasonal Discount..."/></div>
               <div className="fr">
-                <div className="fg">
-                  <label className="lbl">{t.triggerTag}</label>
-                  <select className="inp" value={aF.triggerTag} onChange={e=>setAF(f=>({...f,triggerTag:e.target.value}))}>
-                    <option value="">{lang==="ru"?"— Выберите тег —":"— Select tag —"}</option>
-                    {crmTags.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+                <div className="fg"><label className="lbl">{lang==="ru"?"Тип аудитории":"Audience Type"}</label>
+                  <select className="inp" value={campF.audienceType} onChange={e=>setCampF(f=>({...f,audienceType:e.target.value,audienceValue:""}))}>
+                    <option value="stage">{lang==="ru"?"По стадии":"By Stage"}</option>
+                    <option value="tag">{lang==="ru"?"По тегу":"By Tag"}</option>
                   </select>
                 </div>
-                <div className="fg">
-                  <label className="lbl">{t.delayHours}</label>
-                  <input type="number" className="inp" value={aF.delayHours} onChange={e=>setAF(f=>({...f,delayHours:e.target.value}))} min="0" placeholder="1"/>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Значение":"Value"}</label>
+                  <select className="inp" value={campF.audienceValue} onChange={e=>setCampF(f=>({...f,audienceValue:e.target.value}))}>
+                    {campF.audienceType==="stage"?STAGES.map(s=><option key={s.id} value={s.id}>{s.label}</option>):crmTags.map(t=><option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
                 </div>
               </div>
-              <div style={{background:"var(--s2)",borderRadius:10,padding:12,marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>🔀 {lang==="ru"?"Маршрутизация в отдел":"Route to department"}</div>
-                <div className="fr">
-                  <div className="fg">
-                    <label className="lbl">{lang==="ru"?"Назначить в отдел":"Assign to dept"}</label>
-                    <select className="inp" value={aF.routeToDept} onChange={e=>setAF(f=>({...f,routeToDept:e.target.value}))}>
-                      <option value="">{lang==="ru"?"— Не назначать —":"— Don't route —"}</option>
-                      {(p?.departments||[]).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="fg">
-                    <label className="lbl">{lang==="ru"?"Тип":"Type"}</label>
-                    <select className="inp" value={aF.routeType} onChange={e=>setAF(f=>({...f,routeType:e.target.value}))}>
-                      <option value="copy">{lang==="ru"?"Копировать (виден в обоих)":"Copy (visible in both)"}</option>
-                      <option value="move">{lang==="ru"?"Перенести (только новый отдел)":"Move (new dept only)"}</option>
-                    </select>
-                  </div>
-                </div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Текст сообщения":"Message"} <span style={{color:"var(--mu)",fontWeight:400}}>(use {"{name}"})</span></label>
+                <textarea className="inp" value={campF.msgTemplate} onChange={e=>setCampF(f=>({...f,msgTemplate:e.target.value}))} rows={4} placeholder={lang==="ru"?"Hi {name}, we haven't seen you in a while. This week we offer 20% off!":"Hi {name}, we haven't seen you in a while. This week we offer 20% off!"}/>
               </div>
-              <div className="fg">
-                <label className="lbl">{lang==="ru"?"SMS шаблон (опционально)":"SMS template (optional)"}</label>
-                <textarea className="inp" value={aF.msgTemplate} onChange={e=>setAF(f=>({...f,msgTemplate:e.target.value}))} style={{minHeight:60}}
-                  placeholder={lang==="ru"?"Привет, {name}! Благодарим за интерес...":"Hi {name}! Thanks for your interest..."}/>
-                <div style={{fontSize:10,color:"var(--mu)",marginTop:3}}>{"{name}"} = {lang==="ru"?"имя контакта":"contact name"}, {"{phone}"} = {lang==="ru"?"телефон":"phone"}</div>
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:8}}>
+                👥 {contacts.filter(c=>campF.audienceType==="stage"?c.stage===campF.audienceValue:(c.tags||[]).includes(campF.audienceValue)).filter(c=>c.phone).length} {lang==="ru"?"контактов с телефоном":"contacts with phone"}
               </div>
               <div className="ma">
-                <button className="btn btn-g" onClick={()=>setAModal(false)}>{t.cancel}</button>
-                <button className="btn btn-p" onClick={saveAutomation}>{t.create}</button>
+                <button className="btn btn-g" onClick={()=>setCampModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={saveCampaign}>{lang==="ru"?"Сохранить как черновик":"Save as draft"}</button>
               </div>
             </div>
           </div>
         )}
-      </>
-    );
-  };
 
-
-  /* ══════════════════════════════════════════════════════
-     LMS — ОБУЧЕНИЕ (Training / Learning Management)
-  ══════════════════════════════════════════════════════ */
-
-  /* ══════════════════════════════════════════════════════
-     HR STAFF CARDS — карточки кандидатов/сотрудников
-  ══════════════════════════════════════════════════════ */
-  const HRCards = () => {
-    const pid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
-    const p   = getPartner(pid)||{};
-    const hrCards = p?.hrCards||[];
-    const depts   = p?.departments||[];
-
-    const HR_TAGS_LIST = [
-      {tag:"Cleaner-Candidate",  label:lang==="ru"?"Клинер-кандидат":"Cleaner-Candidate",   color:"#94a3b8"},
-      {tag:"Cleaner-Trainee",    label:lang==="ru"?"Клинер-ученик":"Cleaner-Trainee",        color:"#f0a500"},
-      {tag:"Cleaner-Intern",     label:lang==="ru"?"Клинер-стажер":"Cleaner-Intern",         color:"#3b82f6"},
-      {tag:"Cleaner-Active",     label:lang==="ru"?"Клинер-активный":"Cleaner-Active",       color:"#22c55e"},
-      {tag:"Manager-Candidate",  label:lang==="ru"?"Менеджер-кандидат":"Manager-Candidate", color:"#94a3b8"},
-      {tag:"Manager-Trainee",    label:lang==="ru"?"Менеджер-ученик":"Manager-Trainee",      color:"#f0a500"},
-      {tag:"Manager-Intern",     label:lang==="ru"?"Менеджер-стажер":"Manager-Intern",       color:"#3b82f6"},
-      {tag:"Manager-Active",     label:lang==="ru"?"Менеджер-активный":"Manager-Active",     color:"#22c55e"},
-    ];
-    const HIRED = ["Cleaner-Active","Manager-Active"];
-
-    const [cards,    setCards]    = useState(hrCards);
-    const [openCard, setOpenCard] = useState(null);
-    const [search,   setSearch]   = useState("");
-    const [tagF,     setTagF]     = useState("");
-    const [showForm, setShowForm] = useState(false);
-    const [editId,   setEditId]   = useState(null);
-    const [form, setForm] = useState({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",branchId:"",comment:"",status:"active"});
-
-    // Sync with Firebase partner data
-    useEffect(()=>{ setCards(p?.hrCards||[]); },[p?.hrCards]);
-
-    function saveCard() {
-      if (!form.firstName.trim()) return;
-      const item = editId
-        ? (p?.hrCards||[]).map(c=>c.id===editId?{...c,...form,updatedAt:new Date().toISOString().split("T")[0]}:c)
-        : [...(p?.hrCards||[]), {...form, id:"hr_"+Date.now(), createdAt:new Date().toISOString().split("T")[0], notes:[]}];
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:item}:x));
-      setShowForm(false); setEditId(null);
-      setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",branchId:"",comment:"",status:"active"});
-    }
-
-    function deleteCard(id) {
-      if (!window.confirm(lang==="ru"?"Удалить карточку?":"Delete card?")) return;
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).filter(c=>c.id!==id)}:x));
-    }
-
-    function addNote(cardId, text) {
-      if (!text.trim()) return;
-      const note = {id:"n_"+Date.now(), text:text.trim(), ts:new Date().toLocaleString(), author:currentUser?.name||"HR"};
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===cardId?{...c,notes:[...(c.notes||[]),note]}:c)}:x));
-    }
-
-    function updateTag(cardId, tag) {
-      setPartners(ps=>ps.map(x=>x.id===pid?{...x,hrCards:(x.hrCards||[]).map(c=>c.id===cardId?{...c,tag,updatedAt:new Date().toISOString().split("T")[0]}:c)}:x));
-      // Trigger CRM automations if contact exists
-      const hrC = (p?.hrCards||[]).find(c=>c.id===cardId);
-      const crmContact = (p?.contacts||[]).find(c=>c.email===hrC?.email||c.phone===hrC?.phone);
-      if (crmContact) {
-        // sync tag to CRM contact
-        const cTags = crmContact.tags||[];
-        if (!cTags.includes(tag)) {
-          setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===crmContact.id?{...c,tags:[...cTags,tag]}:c)}:x));
-        }
-      }
-    }
-
-    const [noteInputs, setNoteInputs] = useState({});
-    const filtered = (p?.hrCards||[]).filter(c=>{
-      const q = search.toLowerCase();
-      const matchS = !q||(c.firstName+" "+c.lastName).toLowerCase().includes(q)||(c.phone||"").includes(q)||(c.email||"").toLowerCase().includes(q);
-      const matchT = !tagF||c.tag===tagF;
-      return matchS&&matchT;
-    });
-
-    const openC = openCard ? (p?.hrCards||[]).find(c=>c.id===openCard) : null;
-    const tagInfo = t => HR_TAGS_LIST.find(h=>h.tag===t);
-
-    if (openC) {
-      const ti = tagInfo(openC.tag);
-      const hired = HIRED.includes(openC.tag);
-      return (
-        <div style={{maxWidth:700,margin:"0 auto"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",color:"var(--mu)",fontSize:12}} onClick={()=>setOpenCard(null)}>
-            ← {lang==="ru"?"Назад к списку":"Back to list"}
-          </div>
-          <div style={{background:"var(--s1)",border:`1px solid ${hired?"#22c55e30":"var(--bdr)"}`,borderRadius:14,padding:20,marginBottom:14,opacity:hired?.85:1}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
-              <Av name={openC.firstName+" "+openC.lastName} color={ti?.color||"var(--acc)"} style={{width:52,height:52,fontSize:20}}/>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800}}>{openC.firstName} {openC.lastName}</div>
-                  {hired&&<span style={{background:"#22c55e20",color:"#22c55e",fontSize:10,padding:"2px 8px",borderRadius:5,fontWeight:700}}>✓ {lang==="ru"?"НАНЯТ":"HIRED"}</span>}
-                </div>
-                <div style={{fontSize:12,color:"var(--mu)",display:"flex",gap:14,flexWrap:"wrap",marginBottom:8}}>
-                  {openC.phone&&<span>📞 {openC.phone}</span>}
-                  {openC.email&&<span>✉ {openC.email}</span>}
-                  <span>📅 {openC.createdAt}</span>
-                  {openC.branchId&&p?.branches?.find(b=>b.id===openC.branchId)&&(
-                    <span>📍 {p.branches.find(b=>b.id===openC.branchId)?.name}</span>
-                  )}
-                </div>
-                {openC.comment&&<div style={{fontSize:12,color:"var(--mu2)",fontStyle:"italic",marginBottom:8}}>"{openC.comment}"</div>}
+        {/* Reminder modal */}
+        {remModal&&(
+          <div className="ovl" onClick={()=>setRemModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">🔔 {lang==="ru"?"Новое напоминание":"New Reminder"}</div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Текст напоминания":"Reminder text"}</label>
+                <input className="inp" value={remF.text} onChange={e=>setRemF(f=>({...f,text:e.target.value}))} placeholder="Call back in 30 min, Follow up next week..."/>
               </div>
-              <div style={{display:"flex",gap:6}}>
-                <button className="btn btn-g btn-sm" onClick={()=>{setForm({firstName:openC.firstName,lastName:openC.lastName,email:openC.email||"",phone:openC.phone||"",tag:openC.tag||"",deptId:openC.deptId||"",branchId:openC.branchId||"",comment:openC.comment||"",status:openC.status||"active"});setEditId(openC.id);setShowForm(true);setOpenCard(null);}}>✏️</button>
-                <button className="btn btn-d btn-sm" onClick={()=>deleteCard(openC.id)}>{IC.trash}</button>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{lang==="ru"?"Дата и время":"Date & Time"}</label>
+                  <input type="datetime-local" className="inp" value={remF.dueAt} onChange={e=>setRemF(f=>({...f,dueAt:e.target.value}))}/>
+                </div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Привязать к контакту":"Link to contact"}</label>
+                  <select className="inp" value={remF.contactId} onChange={e=>setRemF(f=>({...f,contactId:e.target.value}))}>
+                    <option value="">{lang==="ru"?"— Без контакта —":"— No contact —"}</option>
+                    {contacts.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setRemModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={saveReminder}>{lang==="ru"?"Сохранить":"Save"}</button>
               </div>
             </div>
-            {/* Pipeline tags */}
-            <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--bdr)"}}>
-              <div style={{fontSize:10,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>Pipeline</div>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                {HR_TAGS_LIST.map(ht=>(
-                  <button key={ht.tag} onClick={()=>updateTag(openC.id,ht.tag)}
-                    style={{padding:"4px 10px",borderRadius:7,border:`1px solid ${openC.tag===ht.tag?ht.color:"var(--bdr)"}`,
-                      background:openC.tag===ht.tag?ht.color+"20":"transparent",
-                      color:openC.tag===ht.tag?ht.color:"var(--mu)",
-                      fontSize:11,cursor:"pointer",fontWeight:openC.tag===ht.tag?700:400}}>
-                    {ht.label||ht.tag}
+          </div>
+        )}
+
+        {/* Phone number modal */}
+        {phoneModal&&(
+          <div className="ovl" onClick={()=>setPhoneModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:420}}>
+              <div className="modal-t">📞 {lang==="ru"?"Получить бизнес-номер":"Get Business Number"}</div>
+              {phoneStep==="search"&&(<>
+                <div style={{fontSize:13,color:"var(--mu)",marginBottom:14}}>{lang==="ru"?"Введи код города (area code) для поиска:":"Enter area code to search:"}</div>
+                <div style={{display:"flex",gap:8,marginBottom:14}}>
+                  <input className="inp" value={areaCode} onChange={e=>setAreaCode(e.target.value.replace(/\D/g,"").slice(0,3))} placeholder="512" style={{flex:1}}/>
+                  <button onClick={searchNumbers} disabled={searchingN||areaCode.length<3} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"var(--acc)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                    {searchingN?"⏳":lang==="ru"?"Найти":"Search"}
                   </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          {/* Notes */}
-          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>{lang==="ru"?"Комментарии":"Comments"}</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12,maxHeight:280,overflowY:"auto"}}>
-              {!(openC.notes?.length)&&<div style={{textAlign:"center",color:"var(--mu2)",padding:20,fontSize:12}}>{lang==="ru"?"Комментариев нет":"No comments yet"}</div>}
-              {[...(openC.notes||[])].reverse().map(n=>(
-                <div key={n.id} style={{background:"var(--s2)",borderRadius:9,padding:"9px 12px"}}>
-                  <div style={{fontSize:13}}>{n.text}</div>
-                  <div style={{fontSize:10,color:"var(--mu)",marginTop:3}}>{n.author} · {n.ts}</div>
                 </div>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <input className="inp" value={noteInputs[openC.id]||""} style={{flex:1}}
-                placeholder={lang==="ru"?"Добавить комментарий...":"Add comment..."}
-                onChange={e=>setNoteInputs(p=>({...p,[openC.id]:e.target.value}))}
-                onKeyDown={e=>{if(e.key==="Enter"&&noteInputs[openC.id]?.trim()){addNote(openC.id,noteInputs[openC.id]);setNoteInputs(p=>({...p,[openC.id]:""}))}}}/>
-              <button className="btn btn-p" onClick={()=>{if(noteInputs[openC.id]?.trim()){addNote(openC.id,noteInputs[openC.id]);setNoteInputs(p=>({...p,[openC.id]:""}))}}}>{IC.send}</button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <>
-        {/* Header */}
-        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16}}>{lang==="ru"?"HR — Картотека кандидатов":"HR — Staff Cards"}</div>
-          <button className="btn btn-p" style={{marginLeft:"auto"}} onClick={()=>{setForm({firstName:"",lastName:"",email:"",phone:"",tag:"",deptId:"",branchId:"",comment:"",status:"active"});setEditId(null);setShowForm(true);}}>
-            {IC.plus} {lang==="ru"?"Новая карточка":"New Card"}
-          </button>
-        </div>
-
-        {/* Pipeline stats */}
-        <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-          {HR_TAGS_LIST.map(ht=>{
-            const cnt=(p?.hrCards||[]).filter(c=>c.tag===ht.tag).length;
-            return cnt>0?(
-              <div key={ht.tag} onClick={()=>setTagF(ht.tag===tagF?"":ht.tag)}
-                style={{padding:"5px 10px",borderRadius:7,cursor:"pointer",border:`1px solid ${ht.tag===tagF?ht.color:"var(--bdr)"}`,background:ht.tag===tagF?ht.color+"18":"var(--s1)"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:ht.color}}>{cnt}</div>
-                <div style={{fontSize:9,color:"var(--mu)",whiteSpace:"nowrap"}}>{ht.tag}</div>
-              </div>
-            ):null;
-          })}
-        </div>
-
-        {/* Search */}
-        <div style={{display:"flex",gap:8,marginBottom:14}}>
-          <input className="inp" value={search} onChange={e=>setSearch(e.target.value)} placeholder={lang==="ru"?"Поиск по имени, телефону...":"Search name, phone..."} style={{flex:1}}/>
-          {tagF&&<button className="btn btn-g btn-sm" onClick={()=>setTagF("")}>× {tagF}</button>}
-        </div>
-
-        {/* Card form */}
-        {showForm&&(
-          <div style={{background:"var(--s1)",border:"1px solid var(--acc)30",borderRadius:14,padding:18,marginBottom:16}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>
-              {editId?(lang==="ru"?"✏️ Редактировать карточку":"✏️ Edit Card"):(lang==="ru"?"+ Новая карточка":"+ New Card")}
-            </div>
-            <div className="fr">
-              <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"First Name *"}</label><input className="inp" value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} placeholder={lang==="ru"?"Имя":"First name"}/></div>
-              <div className="fg"><label className="lbl">{lang==="ru"?"Фамилия":"Last Name"}</label><input className="inp" value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} placeholder={lang==="ru"?"Фамилия":"Last name"}/></div>
-            </div>
-            <div className="fr">
-              <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
-              <div className="fg"><label className="lbl">{lang==="ru"?"Email":"Email"}</label><input className="inp" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="name@email.com"/></div>
-            </div>
-            <div className="fr">
-              <div className="fg">
-                <label className="lbl">{lang==="ru"?"Тег (статус)":"Tag (status)"}</label>
-                <select className="inp" value={form.tag} onChange={e=>setForm(f=>({...f,tag:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Выберите —":"— Select —"}</option>
-                  {HR_TAGS_LIST.map(ht=><option key={ht.tag} value={ht.tag}>{ht.label||ht.tag}</option>)}
-                </select>
-              </div>
-              <div className="fg">
-                <label className="lbl">📍 {lang==="ru"?"Город работы":"City"}</label>
-                <select className="inp" value={form.branchId} onChange={e=>setForm(f=>({...f,branchId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Выберите город —":"— Select city —"}</option>
-                  {(p?.branches||[]).map(b=><option key={b.id} value={b.id}>🏙️ {b.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="fr">
-              <div className="fg">
-                <label className="lbl">{lang==="ru"?"Отдел":"Department"}</label>
-                <select className="inp" value={form.deptId} onChange={e=>setForm(f=>({...f,deptId:e.target.value}))}>
-                  <option value="">{lang==="ru"?"— Не назначен —":"— Unassigned —"}</option>
-                  {depts.map(d=><option key={d.id} value={d.id}>{d.icon} {d.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="fg"><label className="lbl">{lang==="ru"?"Комментарий":"Comment"}</label>
-              <input className="inp" value={form.comment} onChange={e=>setForm(f=>({...f,comment:e.target.value}))} placeholder={lang==="ru"?"Откуда узнал, особые заметки...":"How they found us, notes..."}/>
-            </div>
-            <div className="ma">
-              <button className="btn btn-g" onClick={()=>{setShowForm(false);setEditId(null);}}>{t.cancel}</button>
-              <button className="btn btn-p" onClick={saveCard}>{editId?t.save:t.create}</button>
-            </div>
-          </div>
-        )}
-
-        {/* Cards grid */}
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {!filtered.length&&<div style={{textAlign:"center",padding:48,color:"var(--mu)"}}>
-            <div style={{fontSize:32,marginBottom:8}}>👥</div>
-            <div>{lang==="ru"?"Карточек пока нет":"No cards yet"}</div>
-          </div>}
-          {filtered.map(c=>{
-            const ti=tagInfo(c.tag);
-            const hired=HIRED.includes(c.tag);
-            return (
-              <div key={c.id} style={{background:"var(--s1)",border:`1px solid ${hired?"#22c55e25":"var(--bdr)"}`,borderRadius:11,padding:"12px 16px",
-                display:"flex",alignItems:"center",gap:14,cursor:"pointer",opacity:hired?.8:1,transition:"all .15s",position:"relative"}}
-                onClick={()=>setOpenCard(c.id)}
-                onMouseEnter={e=>e.currentTarget.style.opacity="1"}
-                onMouseLeave={e=>e.currentTarget.style.opacity=hired?.8+"":"1"}>
-                {hired&&<div style={{position:"absolute",top:0,right:0,background:"#22c55e",color:"#fff",fontSize:9,padding:"2px 8px",borderRadius:"0 11px 0 8px",fontWeight:700}}>✓ {lang==="ru"?"НАНЯТ":"HIRED"}</div>}
-                <Av name={c.firstName+" "+c.lastName} color={ti?.color||"var(--acc)"}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,fontSize:14}}>{c.firstName} {c.lastName}</div>
-                  <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {c.phone&&<span>{c.phone}</span>}
-                    {c.email&&<span>{c.email}</span>}
+                {foundNums.map(n=>(
+                  <div key={n.phoneNumber} onClick={()=>setSelectedNum(n)}
+                    style={{padding:"10px 12px",borderRadius:8,border:`1px solid ${selectedNum?.phoneNumber===n.phoneNumber?"var(--acc)":"var(--bdr)"}`,background:selectedNum?.phoneNumber===n.phoneNumber?"var(--acc)10":"transparent",cursor:"pointer",marginBottom:6,fontSize:13}}>
+                    <span style={{fontWeight:600}}>{n.friendlyName}</span> <span style={{color:"var(--mu)",fontSize:11}}>{n.locality}, {n.region}</span>
+                  </div>
+                ))}
+                {foundNums.length>0&&<button onClick={()=>setPhoneStep("pay")} disabled={!selectedNum} style={{width:"100%",padding:"10px",borderRadius:8,border:"none",background:selectedNum?"var(--acc)":"var(--s2)",color:selectedNum?"#fff":"var(--mu)",fontSize:13,fontWeight:600,cursor:"pointer",marginTop:8}}>
+                  {lang==="ru"?"Далее — Оплата →":"Next — Payment →"}
+                </button>}
+              </>)}
+              {phoneStep==="pay"&&(<>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontWeight:600,marginBottom:4}}>{selectedNum?.friendlyName}</div>
+                  <div style={{fontSize:12,color:"var(--mu)"}}>${lang==="ru"?"9.00/мес — отмена в любое время":"9.00/mo — cancel anytime"}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                  <input value={cardNum} onChange={e=>setCardNum(e.target.value.replace(/\D/g,"").slice(0,16))} placeholder="Card number" className="inp"/>
+                  <div style={{display:"flex",gap:8}}>
+                    <input value={cardExp} onChange={e=>setCardExp(e.target.value.slice(0,5))} placeholder="MM/YY" className="inp" style={{flex:1}}/>
+                    <input value={cardCvc} onChange={e=>setCardCvc(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="CVC" className="inp" style={{flex:1}}/>
                   </div>
                 </div>
-                <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                  {ti&&<span style={{fontSize:11,padding:"3px 9px",borderRadius:6,background:ti.color+"20",color:ti.color,border:`1px solid ${ti.color}30`,fontWeight:600,whiteSpace:"nowrap"}}>{ti.label||ti.tag}</span>}
-                  {c.branchId&&p?.branches?.find(b=>b.id===c.branchId)&&(
-                    <span style={{fontSize:10,color:"var(--mu)",padding:"2px 6px",borderRadius:5,background:"var(--s2)",whiteSpace:"nowrap"}}>
-                      📍 {p.branches.find(b=>b.id===c.branchId)?.name}
-                    </span>
-                  )}
-                  {depts.find(d=>d.id===c.deptId)&&<span style={{fontSize:10,color:"var(--mu)",padding:"2px 6px",borderRadius:5,background:"var(--s2)"}}>{depts.find(d=>d.id===c.deptId)?.icon}</span>}
+                {payError&&<div style={{color:"var(--rd)",fontSize:12,marginBottom:10}}>{payError}</div>}
+                <button onClick={buyNumber} disabled={paying||cardNum.length<16} style={{width:"100%",padding:"11px",borderRadius:8,border:"none",background:(!paying&&cardNum.length===16)?"var(--acc)":"var(--s2)",color:(!paying&&cardNum.length===16)?"#fff":"var(--mu)",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  {paying?"Processing...":"Pay $9.00 and connect"}
+                </button>
+                <button onClick={()=>setPhoneStep("search")} style={{width:"100%",marginTop:8,padding:"8px",borderRadius:8,border:"1px solid var(--bdr)",background:"transparent",color:"var(--mu)",fontSize:12,cursor:"pointer"}}>← Back</button>
+              </>)}
+              {phoneStep==="done"&&(
+                <div style={{textAlign:"center",padding:"10px 0"}}>
+                  <div style={{fontSize:48,marginBottom:12}}>✅</div>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>{lang==="ru"?"Номер подключён!":"Number connected!"}</div>
+                  <div style={{fontSize:22,fontWeight:700,color:"var(--acc)",margin:"10px 0"}}>{selectedNum?.friendlyName}</div>
+                  <button onClick={()=>setPhoneModal(false)} style={{padding:"10px 28px",borderRadius:8,border:"none",background:"var(--acc)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Got it!</button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          </div>
+        )}
       </>
     );
   };
-
-
-  /* ══════════════════════════════════════════════════════
-     BOOKING MODULE v2 — BookingKoala-style
-  ══════════════════════════════════════════════════════ */
   const Booking = () => {
     const pid    = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
     const p      = getPartner(pid)||{};
