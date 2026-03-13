@@ -4931,7 +4931,7 @@ function AppInner() {
       const existing = document.querySelector('script[src*="twilio"]');
       if (!existing) {
         const script = document.createElement("script");
-        script.src = "https://sdk.twilio.com/js/client/releases/2.7.2/twilio.js";
+        script.src = "https://media.twiliocdn.com/sdk/js/client/releases/1.14.0/twilio.min.js";
         script.async = true;
         script.onload = () => {
           if (window.Twilio?.Device) setSdkReady(true);
