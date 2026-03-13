@@ -10,15 +10,19 @@ export default async function handler(req, res) {
 
   // ── POST: save transcript ──
   if (req.method === 'POST') {
-    const { recordingSid, transcript } = req.body || {};
-    if (!recordingSid) return res.json({ success: false });
+    // ✅ FIX: accept both recordingSid (preferred) and callSid fallback
+    const { recordingSid, callSid, transcript } = req.body || {};
+    const sid = recordingSid || callSid;
+    if (!sid) return res.json({ success: false, error: 'recordingSid required' });
     try {
-      await fetch(`${fbBase}/${recordingSid}/transcript.json${fbSuffix}`, {
+      await fetch(`${fbBase}/${sid}/transcript.json${fbSuffix}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(transcript),
       });
-    } catch(e) {}
+    } catch(e) {
+      return res.json({ success: false, error: e.message });
+    }
     return res.json({ success: true });
   }
 
@@ -34,6 +38,25 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     return res.send(Buffer.from(await r.arrayBuffer()));
+  }
+
+  // ── List ALL recordings (no params) ──
+  // ✅ FIX: App calls /api/get-recording with no params on mount to load
+  //    all recordings. Previously returned error — now returns full list.
+  if (!callSid && !recordingSid) {
+    try {
+      const fbRes = await fetch(`${fbBase}.json${fbSuffix}`);
+      const fbData = await fbRes.json();
+      if (fbData && typeof fbData === 'object' && !fbData.error) {
+        const recordings = Object.values(fbData)
+          .filter(r => r && r.recordingSid)
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        return res.json({ success: true, recordings });
+      }
+    } catch(e) {
+      console.error('List recordings error:', e.message);
+    }
+    return res.json({ success: true, recordings: [] });
   }
 
   // ── Look up recording by callSid ──
