@@ -638,6 +638,81 @@ function Telephony() {
   const [calls, setCalls] = useState(DEMO_CALLS);
   const [openCall, setOpenCall] = useState(null);
   const [classifying, setClassifying] = useState(false);
+  // Recording state
+  const [recordings, setRecordings]         = useState({}); // { callSid: recordingData }
+  const [loadingRec, setLoadingRec]          = useState({}); // { callSid: true }
+  const [audioUrls, setAudioUrls]            = useState({}); // { callSid: blob url }
+  const [playingId, setPlayingId]            = useState(null);
+  const [manualTranscript, setManualTranscript] = useState({}); // { callSid: text }
+  const [savingTranscript, setSavingTranscript] = useState(null);
+
+  // Fetch real recordings from Firebase on mount
+  useEffect(() => {
+    async function loadRecordings() {
+      try {
+        const r = await fetch('/api/get-recording');
+        const d = await r.json();
+        if (d.success && d.recordings) {
+          const map = {};
+          d.recordings.forEach(rec => { map[rec.callSid] = rec; });
+          setRecordings(map);
+          // Merge real calls with demo calls (real calls first)
+          const realCalls = d.recordings.map(rec => ({
+            id:         rec.callSid,
+            date:       rec.createdAt ? new Date(rec.createdAt._seconds * 1000).toLocaleString() : '—',
+            from:       rec.from || '—',
+            duration:   rec.duration ? `${Math.floor(rec.duration/60)}:${String(rec.duration%60).padStart(2,'0')}` : '—',
+            type:       'existing',
+            status:     rec.transcript ? 'analyzed' : 'pending',
+            transcript: rec.transcript || '',
+            recordingSid: rec.recordingSid,
+            aiAnalysis: null,
+            aiLoading:  false,
+          }));
+          if (realCalls.length > 0) {
+            setCalls(prev => [...realCalls, ...prev]);
+          }
+        }
+      } catch(e) {
+        // No recordings yet or Firebase not configured — show demo data
+      }
+    }
+    loadRecordings();
+  }, []);
+
+  async function fetchAudio(call) {
+    if (audioUrls[call.id] || loadingRec[call.id]) return;
+    const sid = call.recordingSid || recordings[call.id]?.recordingSid;
+    if (!sid) return;
+    setLoadingRec(prev => ({...prev, [call.id]: true}));
+    try {
+      const r = await fetch(`/api/get-recording?recordingSid=${sid}&audio=1`);
+      if (!r.ok) throw new Error('Audio not ready');
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      setAudioUrls(prev => ({...prev, [call.id]: url}));
+    } catch(e) {
+      console.log('Audio fetch error:', e.message);
+    }
+    setLoadingRec(prev => ({...prev, [call.id]: false}));
+  }
+
+  async function saveTranscript(callId) {
+    const text = manualTranscript[callId];
+    if (!text?.trim()) return;
+    setSavingTranscript(callId);
+    try {
+      await fetch('/api/get-recording', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ callSid: callId, transcript: text.trim() })
+      });
+      // Update local state
+      setCalls(prev => prev.map(c => c.id === callId ? {...c, transcript: text.trim()} : c));
+      setManualTranscript(prev => ({...prev, [callId]: ''}));
+    } catch(e) {}
+    setSavingTranscript(null);
+  }
 
   const visibleCalls = activeTab === "all" ? calls : calls.filter(c => c.type === activeTab);
 
@@ -812,23 +887,97 @@ function Telephony() {
             </div>
 
             {/* Expanded content */}
-            {openCall === call.id && (
+            {openCall === call.id && (() => {
+              const rec = recordings[call.id];
+              const hasSid = call.recordingSid || rec?.recordingSid;
+              const audioUrl = audioUrls[call.id];
+              return (
               <div style={{marginTop:16, borderTop:"1px solid var(--bdr)", paddingTop:16}}>
-                {/* Transcript */}
-                {call.transcript ? (
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:12, fontWeight:700, color:"var(--mu)", marginBottom:8, textTransform:"uppercase", letterSpacing:1}}>
-                      📝 {ru?"Транскрипция":"Transcript"}
+
+                {/* ── RECORDING PLAYER ── */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:12, fontWeight:700, color:"var(--mu)", marginBottom:8, textTransform:"uppercase", letterSpacing:1}}>
+                    🎙 {ru?"Запись разговора":"Call Recording"}
+                  </div>
+                  {hasSid ? (
+                    <div style={{background:"var(--s1)", borderRadius:10, padding:12}}>
+                      {audioUrl ? (
+                        <audio controls src={audioUrl} style={{width:"100%", height:36}}
+                          onPlay={()=>setPlayingId(call.id)}
+                          onPause={()=>setPlayingId(null)}/>
+                      ) : (
+                        <button onClick={()=>fetchAudio(call)}
+                          disabled={loadingRec[call.id]}
+                          style={{width:"100%", padding:"8px 0", borderRadius:8, border:"1px solid var(--bdr)",
+                            background:"var(--s2)", color:"var(--tx)", fontSize:12, cursor:"pointer", display:"flex",
+                            alignItems:"center", justifyContent:"center", gap:6}}>
+                          {loadingRec[call.id]
+                            ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span> {ru?"Загружаю...":"Loading..."}</>
+                            : <>▶ {ru?"Загрузить запись":"Load recording"} · {call.duration}</>}
+                        </button>
+                      )}
+                      {rec?.transcriptStatus === 'processing' && (
+                        <div style={{fontSize:11, color:"var(--mu)", marginTop:6, textAlign:"center"}}>
+                          ⏳ {ru?"Транскрипция в процессе (Twilio Intelligence)...":"Transcription processing (Twilio Intelligence)..."}
+                        </div>
+                      )}
                     </div>
-                    <div style={{background:"var(--s1)", borderRadius:8, padding:12, fontSize:13, lineHeight:1.7, whiteSpace:"pre-line", maxHeight:200, overflowY:"auto"}}>
+                  ) : (
+                    <div style={{padding:"10px 14px", borderRadius:8, background:"var(--s1)", fontSize:12, color:"var(--mu)"}}>
+                      {call.type === 'missed'
+                        ? (ru ? "Звонок не был принят — запись недоступна" : "Missed call — no recording available")
+                        : (ru ? "Запись появится после завершения звонка" : "Recording will appear after call ends")}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── TRANSCRIPT ── */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:12, fontWeight:700, color:"var(--mu)", marginBottom:8, textTransform:"uppercase", letterSpacing:1, display:"flex", alignItems:"center", gap:8}}>
+                    📝 {ru?"Транскрипция":"Transcript"}
+                    {call.transcript && <span style={{fontSize:10, fontWeight:400, color:"var(--gr)"}}>✓ {ru?"Готово":"Ready"}</span>}
+                  </div>
+                  {call.transcript ? (
+                    <div style={{background:"var(--s1)", borderRadius:8, padding:12, fontSize:13, lineHeight:1.7, whiteSpace:"pre-line", maxHeight:220, overflowY:"auto", color:"var(--tx)"}}>
                       {call.transcript}
                     </div>
-                  </div>
-                ) : (
-                  <div style={{padding:16, textAlign:"center", color:"var(--mu)", fontSize:13}}>
-                    {ru ? "Транскрипция недоступна (пропущенный звонок)" : "Transcript unavailable (missed call)"}
-                  </div>
-                )}
+                  ) : (
+                    <div>
+                      <div style={{fontSize:11, color:"var(--mu)", marginBottom:6}}>
+                        {ru
+                          ? "Авто-транскрипция: настрой Twilio Intelligence ($0.05/мин) или введи вручную:"
+                          : "Auto-transcription: set up Twilio Intelligence ($0.05/min) or enter manually:"}
+                      </div>
+                      <textarea
+                        value={manualTranscript[call.id] || ''}
+                        onChange={e => setManualTranscript(prev => ({...prev, [call.id]: e.target.value}))}
+                        placeholder={ru ? "Оператор: Здравствуйте...\nКлиент: Добрый день..." : "Agent: Hello...\nClient: Hi..."}
+                        style={{width:"100%", minHeight:80, padding:"8px 10px", borderRadius:8, border:"1px solid var(--bdr)",
+                          background:"var(--s2)", color:"var(--tx)", fontSize:12, lineHeight:1.6,
+                          resize:"vertical", fontFamily:"inherit", boxSizing:"border-box"}}/>
+                      <div style={{display:"flex", gap:8, marginTop:6}}>
+                        <button onClick={()=>saveTranscript(call.id)}
+                          disabled={!manualTranscript[call.id]?.trim() || savingTranscript===call.id}
+                          style={{padding:"6px 14px", borderRadius:7, border:"none",
+                            background:manualTranscript[call.id]?.trim()?"var(--acc)":"var(--s2)",
+                            color:manualTranscript[call.id]?.trim()?"#fff":"var(--mu)",
+                            fontSize:12, fontWeight:600, cursor:"pointer"}}>
+                          {savingTranscript===call.id ? "⏳" : (ru?"Сохранить":"Save")}
+                        </button>
+                        {manualTranscript[call.id]?.trim() && (
+                          <button onClick={()=>{
+                            setCalls(prev=>prev.map(c=>c.id===call.id?{...c,transcript:manualTranscript[call.id].trim()}:c));
+                            setManualTranscript(prev=>({...prev,[call.id]:''}));
+                          }}
+                          style={{padding:"6px 14px", borderRadius:7, border:"1px solid var(--bdr)",
+                            background:"transparent", color:"var(--mu)", fontSize:12, cursor:"pointer"}}>
+                          🤖 {ru?"Только AI (без сохранения)":"AI Only (no save)"}
+                        </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* AI Analysis */}
                 {call.aiAnalysis && (
@@ -895,7 +1044,8 @@ function Telephony() {
                   </button>
                 )}
               </div>
-            )}
+              );
+            })()}
           </div>
         ))}
       </div>
@@ -4933,6 +5083,15 @@ function AppInner() {
           const dur=callDuration;setCallDuration(0);
           addHistoryEntry(contact.id,`📞 Call ${formatDur(dur)}`);
           updateContact(contact.id,{lastContact:new Date().toISOString()});
+          // Fetch recording after a short delay (Twilio processes recording asynchronously)
+          setTimeout(async()=>{
+            try {
+              const callSidVal = call.parameters?.CallSid;
+              if (callSidVal) {
+                addHistoryEntry(contact.id,`🎙 Recording processing (Call SID: ${callSidVal})...`);
+              }
+            } catch(e){}
+          }, 3000);
         });
         call.on("error",err=>{setCallState("idle");setActiveCall(null);console.error("Call error:",err);});
       } catch(e){setCallState("idle");alert(`Call failed: ${e.message}`);}
