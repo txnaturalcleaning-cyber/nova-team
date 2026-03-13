@@ -1,18 +1,19 @@
-// api/send-sms.js — Vercel Serverless Function
+// api/send-sms.js — партнёрский номер передаётся из фронтенда
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { to, message } = req.body;
+  const { to, message, fromNumber } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'Missing to or message' });
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken  = process.env.TWILIO_AUTH_TOKEN;
-  const from       = process.env.TWILIO_PHONE_NUMBER;
+
+  // Используем номер партнёра если передан, иначе fallback на env
+  const from = fromNumber || process.env.TWILIO_PHONE_NUMBER;
 
   if (!accountSid || !authToken || !from) {
     return res.status(500).json({ error: 'Twilio credentials not configured' });
@@ -33,22 +34,10 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
+    if (!response.ok) return res.status(400).json({ error: data.message || 'Twilio error', code: data.code });
 
-    if (!response.ok) {
-      console.error('Twilio error:', data);
-      return res.status(400).json({ error: data.message || 'Twilio error', code: data.code });
-    }
-
-    return res.status(200).json({
-      success: true,
-      sid: data.sid,
-      status: data.status,
-      to: data.to,
-      from: data.from,
-    });
-
+    return res.status(200).json({ success: true, sid: data.sid, status: data.status, to: data.to, from: data.from });
   } catch (err) {
-    console.error('Server error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
