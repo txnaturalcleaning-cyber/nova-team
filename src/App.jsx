@@ -4942,7 +4942,7 @@ function AppInner() {
       try {
         const r = await fetch("/api/voice-token", {
           method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({identity: currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user"})
+          body: JSON.stringify({identity: currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user", partnerPhone: p?.purchasedPhone?.phoneNumber || null})
         });
         const {token} = await r.json();
         const device = new window.Twilio.Device(token, {logLevel:1, codecPreferences:["opus","pcmu"]});
@@ -5019,7 +5019,7 @@ function AppInner() {
         const r = await fetch("/api/send-sms", {
           method:"POST",
           headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({to: phone, message: text.trim()})
+          body: JSON.stringify({to: phone, message: text.trim(), fromNumber: p?.purchasedPhone?.phoneNumber || null})
         });
         const d = await r.json();
         if (d.success) {
@@ -5087,7 +5087,7 @@ function AppInner() {
               fetch("/api/send-sms", {
                 method:"POST",
                 headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({to:c.phone, body:msg})
+                body:JSON.stringify({to:c.phone, message:msg, fromNumber: p?.purchasedPhone?.phoneNumber || null})
               }).then(r=>r.json()).then(data=>{
                 const status = data.sid ? "✅ отправлено" : "❌ ошибка";
                 addHistoryEntry(contactId, `Auto SMS (${a.name||a.triggerTag}): ${msg} — ${status}`);
