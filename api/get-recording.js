@@ -1,10 +1,11 @@
-// api/recording-webhook.js
-// Twilio POSTs here when a call recording is complete
-// Saves recording metadata to Firebase + optionally triggers transcription
+// api/get-recording.js
+// Two modes:
+//   GET ?callSid=xxx         → returns recording metadata from Firebase
+//   GET ?recordingSid=xxx&audio=1  → proxies the MP3 audio from Twilio (handles auth)
+//   POST { callSid, transcript }   → saves manual transcript to Firebase
 
 import admin from 'firebase-admin';
 
-// Init Firebase Admin (reuse across invocations)
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -18,101 +19,79 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 export default async function handler(req, res) {
-  // Twilio sends POST with form-encoded body
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  try {
-    const {
-      CallSid,
-      RecordingSid,
-      RecordingUrl,
-      RecordingDuration,  // seconds
-      RecordingStatus,
-      From,
-      To,
-      Direction,
-    } = req.body;
-
-    console.log('Recording webhook:', { CallSid, RecordingSid, RecordingStatus, RecordingDuration });
-
-    if (RecordingStatus !== 'completed' || !RecordingUrl) {
-      return res.status(200).send('OK'); // ignore non-completed events
+  // ── SAVE MANUAL TRANSCRIPT ──
+  if (req.method === 'POST') {
+    const { callSid, transcript, partnerId } = req.body;
+    if (!callSid || !transcript) {
+      return res.status(400).json({ error: 'callSid and transcript required' });
     }
-
-    // Twilio recording URL format: https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Recordings/{RecordingSid}
-    // Append .mp3 for audio
-    const audioUrl = RecordingUrl + '.mp3';
-
-    // Save to Firebase callRecordings collection
-    const docRef = db.collection('callRecordings').doc(CallSid);
-    await docRef.set({
-      callSid:          CallSid,
-      recordingSid:     RecordingSid,
-      recordingUrl:     RecordingUrl,
-      audioUrl:         audioUrl,
-      duration:         parseInt(RecordingDuration) || 0,
-      from:             From || '',
-      to:               To || '',
-      direction:        Direction || 'outbound',
-      status:           'recorded',
-      transcript:       null,
-      transcriptStatus: 'pending',
-      createdAt:        admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    console.log(`Recording saved: ${CallSid} → ${RecordingSid} (${RecordingDuration}s)`);
-
-    // Respond 200 immediately to Twilio
-    res.status(200).send('OK');
-
-    // Attempt auto-transcription via Twilio's Intelligence API (optional, async)
-    // This runs after we've already responded to Twilio
     try {
-      await triggerTranscription(CallSid, RecordingSid, RecordingUrl);
-    } catch (transcriptErr) {
-      console.log('Auto-transcription not available:', transcriptErr.message);
-      // Not critical — user can manually transcribe via the UI button
+      await db.collection('callRecordings').doc(callSid).set({
+        transcript,
+        transcriptStatus: 'manual',
+        transcribedAt:    admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
-
-  } catch (err) {
-    console.error('Recording webhook error:', err);
-    res.status(200).send('OK'); // Always 200 to Twilio to avoid retries
-  }
-}
-
-async function triggerTranscription(callSid, recordingSid, recordingUrl) {
-  // Try Twilio's built-in transcription
-  // This works with Twilio Intelligence API (requires separate setup)
-  // For basic accounts: just mark as needs_manual_transcription
-  const db_ref = admin.firestore().collection('callRecordings').doc(callSid);
-
-  // Check if Twilio Intelligence is configured
-  const intelligenceServiceSid = process.env.TWILIO_INTELLIGENCE_SERVICE_SID;
-
-  if (!intelligenceServiceSid) {
-    await db_ref.update({ transcriptStatus: 'needs_manual' });
-    return;
   }
 
-  const twilio = require('twilio')(
-    process.env.TWILIO_ACCOUNT_SID,
-    process.env.TWILIO_AUTH_TOKEN
-  );
+  if (req.method !== 'GET') return res.status(405).end();
 
-  // Create an Intelligence transcript
-  const transcript = await twilio.intelligence.v2.transcripts.create({
-    serviceSid: intelligenceServiceSid,
-    channel: {
-      media_properties: {
-        media_url: recordingUrl + '.mp3',
+  const { callSid, recordingSid, audio, partnerId } = req.query;
+
+  // ── PROXY AUDIO FILE ──
+  if (audio === '1' && recordingSid) {
+    try {
+      const accountSid  = process.env.TWILIO_ACCOUNT_SID;
+      const authToken   = process.env.TWILIO_AUTH_TOKEN;
+      const audioUrl    = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${recordingSid}.mp3`;
+
+      const response = await fetch(audioUrl, {
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: 'Recording not found or not ready' });
       }
-    }
-  });
 
-  await db_ref.update({
-    transcriptSid:    transcript.sid,
-    transcriptStatus: 'processing',
-  });
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      const buffer = await response.arrayBuffer();
+      return res.send(Buffer.from(buffer));
+
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── GET RECORDING METADATA BY callSid ──
+  if (callSid) {
+    try {
+      const doc = await db.collection('callRecordings').doc(callSid).get();
+      if (!doc.exists) {
+        return res.json({ success: false, recording: null });
+      }
+      return res.json({ success: true, recording: doc.data() });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── LIST RECENT RECORDINGS ──
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const snapshot = await db.collection('callRecordings')
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const recordings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    return res.json({ success: true, recordings });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 }
