@@ -1,6 +1,6 @@
 // api/voice-twiml.js
 // Generates TwiML for outbound calls via Twilio Voice SDK
-// Now with call recording + recording status webhook
+// Call recording enabled with correct Twilio record attribute
 
 import twilio from 'twilio';
 const { VoiceResponse } = twilio.twiml;
@@ -19,15 +19,15 @@ export default function handler(req, res) {
   const baseUrl = 'https://nova-team-omega.vercel.app';
 
   // Dial with recording enabled
+  // ✅ FIX: 'record-from-answer-as-mp3' is NOT a valid Twilio value —
+  //    Twilio silently ignores it and skips recording entirely.
+  //    Valid values: 'record-from-answer' | 'record-from-ringing' | 'do-not-record'
   const dial = twiml.dial({
     callerId: From || process.env.TWILIO_PHONE_NUMBER,
-    // Record from when the other party answers
-    record: 'record-from-answer-as-mp3',
-    // Twilio will POST to this URL when recording is complete
+    record: 'record-from-answer',
     recordingStatusCallback: `${baseUrl}/api/recording-webhook`,
     recordingStatusCallbackMethod: 'POST',
-    recordingStatusCallbackEvent: ['completed'],
-    // Trim silence from beginning/end
+    recordingStatusCallbackEvent: 'completed',
     trim: 'trim-silence',
   });
 
