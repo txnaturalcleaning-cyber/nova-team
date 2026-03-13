@@ -5008,12 +5008,19 @@ function AppInner() {
 
     async function sendSMS(contactId, phone, text) {
       if (!phone||!text.trim()) return;
+      // Normalize phone number to E.164 format
+      let normalizedPhone = phone.replace(/[^\d+]/g, '');
+      if (!normalizedPhone.startsWith('+')) {
+        if (normalizedPhone.length === 10) normalizedPhone = '+1' + normalizedPhone;
+        else if (normalizedPhone.length === 11 && normalizedPhone.startsWith('1')) normalizedPhone = '+' + normalizedPhone;
+        else normalizedPhone = '+' + normalizedPhone;
+      }
       setSmsSending(true);
       try {
         const r = await fetch("/api/send-sms", {
           method:"POST",
           headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({to: phone, message: text.trim(), fromNumber: p?.purchasedPhone?.phoneNumber || null})
+          body: JSON.stringify({to: normalizedPhone, message: text.trim(), fromNumber: p?.purchasedPhone?.phoneNumber || null})
         });
         const d = await r.json();
         if (d.success) {
