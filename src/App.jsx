@@ -1209,6 +1209,8 @@ function AppInner() {
   useEffect(()=>{ if(page) localStorage.setItem("nls_page", page); }, [page]);
   // CRM open contact — lifted to parent to survive CRM re-renders
   const [crmOpenId, setCrmOpenId] = useState(null);
+  const [crmAudioUrls, setCrmAudioUrls] = useState({}); // { recordingSid: blobUrl }
+  const [crmAudioLoading, setCrmAudioLoading] = useState({}); // { recordingSid: bool }
   const [crmSmsText, setCrmSmsText] = useState("");
   // CRM contact modal — lifted to survive re-renders
   const [crmCModal, setCrmCModal] = useState(false); // false | true (new) | contactId (edit)
@@ -5126,6 +5128,26 @@ function AppInner() {
     const setRemModal = setCrmRemModal;
     const remF      = crmRemF;
     const setRemF   = setCrmRemF;
+    // Audio playback for recordings in CRM chat feed
+    const audioUrls   = crmAudioUrls;
+    const setAudioUrls = setCrmAudioUrls;
+    const audioLoading = crmAudioLoading;
+    const setAudioLoading = setCrmAudioLoading;
+
+    async function fetchCrmAudio(recordingSid) {
+      if (!recordingSid || audioUrls[recordingSid] || audioLoading[recordingSid]) return;
+      setAudioLoading(prev => ({...prev, [recordingSid]: true}));
+      try {
+        const r = await fetch(`/api/get-recording?recordingSid=${recordingSid}&audio=1`);
+        if (!r.ok) throw new Error('Not ready');
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        setAudioUrls(prev => ({...prev, [recordingSid]: url}));
+      } catch(e) {
+        console.log('CRM audio fetch error:', e.message);
+      }
+      setAudioLoading(prev => ({...prev, [recordingSid]: false}));
+    }
 
     // ── Local state ──
     const [cTab,       setCTab]       = useState("contacts");
@@ -5211,7 +5233,7 @@ function AppInner() {
                   clearInterval(pollInterval);
                   const durSec = d.recording.duration || 0;
                   const durStr = `${Math.floor(durSec/60)}:${String(durSec%60).padStart(2,'0')}`;
-                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${durStr})`);
+                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${durStr})`,{recordingSid:d.recording.recordingSid});
                   // ✅ Notify Telephony tab: recording is ready + dispatch so toast shows
                   window.dispatchEvent(new CustomEvent('corex:recording-ready', {
                     detail: {
@@ -5284,10 +5306,10 @@ function AppInner() {
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===id?{...c,...patch}:c)}:x));
     }
 
-    function addHistoryEntry(contactId,text){
+    function addHistoryEntry(contactId, text, extra={}) {
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>{
         if(c.id!==contactId) return c;
-        const note={id:"n_"+Date.now(),text,ts:new Date().toLocaleString(),author:"System"};
+        const note={id:"n_"+Date.now(), text, ts:new Date().toLocaleString(), author:"System", ...extra};
         return {...c,history:[...(c.history||[]),note]};
       })}:x));
     }
@@ -5540,16 +5562,46 @@ function AppInner() {
                 const isOut=m.dir==="out"||m.type==="note";
                 const isSmsIn=m.type==="sms"&&m.dir==="in";
                 const isNote=m.type==="note";
+                // ✅ Detect recording entries by recordingSid or text pattern
+                const isRecording = isNote && (m.recordingSid || m.text?.includes("🎙"));
+                const recSid = m.recordingSid || null;
                 return (
                   <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isSmsIn?"flex-start":"flex-end"}}>
-                    <div style={{maxWidth:"70%",padding:"10px 14px",borderRadius:isSmsIn?"4px 16px 16px 16px":"16px 4px 16px 16px",
-                      background:isSmsIn?"var(--s2)":isNote?"var(--bl)12":"var(--acc)18",
-                      border:`1px solid ${isSmsIn?"var(--bdr)":isNote?"var(--bl)25":"var(--acc)35"}`,
+                    <div style={{maxWidth:isRecording?"85%":"70%",padding:"10px 14px",borderRadius:isSmsIn?"4px 16px 16px 16px":"16px 4px 16px 16px",
+                      background:isSmsIn?"var(--s2)":isRecording?"#a855f710":isNote?"var(--bl)12":"var(--acc)18",
+                      border:`1px solid ${isSmsIn?"var(--bdr)":isRecording?"#a855f730":isNote?"var(--bl)25":"var(--acc)35"}`,
                       fontSize:13,lineHeight:1.5}}>
-                      {isNote&&<div style={{fontSize:9,color:"var(--bl)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📝 Note</div>}
+                      {isRecording&&<div style={{fontSize:9,color:"#a855f7",marginBottom:5,textTransform:"uppercase",letterSpacing:1}}>🎙 {ru?"Запись звонка":"Call Recording"}</div>}
+                      {!isRecording&&isNote&&<div style={{fontSize:9,color:"var(--bl)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📝 Note</div>}
                       {m.type==="sms"&&m.dir==="out"&&<div style={{fontSize:9,color:"var(--acc)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📤 SMS {m.status==="failed"?<span style={{color:"var(--rd)"}}>✗ failed</span>:<span style={{color:"var(--gr)"}}>✓</span>}</div>}
                       {isSmsIn&&<div style={{fontSize:9,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>📥 Incoming SMS</div>}
                       <div>{m.text}</div>
+                      {/* ── Inline audio player for recordings ── */}
+                      {isRecording && recSid && (
+                        <div style={{marginTop:8}}>
+                          {audioUrls[recSid] ? (
+                            <audio controls src={audioUrls[recSid]}
+                              style={{width:"100%",height:32,borderRadius:6}}/>
+                          ) : (
+                            <button
+                              onClick={()=>fetchCrmAudio(recSid)}
+                              disabled={audioLoading[recSid]}
+                              style={{width:"100%",padding:"6px 10px",borderRadius:8,border:"1px solid #a855f740",
+                                background:"#a855f715",color:"#a855f7",fontSize:11,fontWeight:600,
+                                cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                              {audioLoading[recSid]
+                                ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span> {ru?"Загрузка...":"Loading..."}</>
+                                : <>▶ {ru?"Прослушать запись":"Play recording"}</>}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {/* Old entries without recordingSid — show a label only */}
+                      {isRecording && !recSid && (
+                        <div style={{marginTop:6,fontSize:10,color:"var(--mu)",fontStyle:"italic"}}>
+                          {ru?"Запись сохранена в разделе Telephony":"Recording available in Telephony tab"}
+                        </div>
+                      )}
                     </div>
                     <div style={{fontSize:9,color:"var(--mu2)",marginTop:2,paddingLeft:4,paddingRight:4}}>{m.ts}</div>
                   </div>
