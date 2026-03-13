@@ -15,9 +15,8 @@ export default function handler(req, res) {
 
   const twiml = new VoiceResponse();
 
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'https://nova-team-omega.vercel.app';
+  // Always use production URL for webhooks so Twilio can reach us
+  const baseUrl = 'https://nova-team-omega.vercel.app';
 
   // Dial with recording enabled
   const dial = twiml.dial({
