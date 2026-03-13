@@ -5078,40 +5078,61 @@ function AppInner() {
         const fromNumber = p?.purchasedPhone?.phoneNumber||window._twilioPartnerPhone||'';
         const call = await device.connect({params:{To:contact.phone,From:fromNumber}});
         setActiveCall(call);
-        call.on("accept",()=>{
+        let capturedCallSid = null; // capture at accept time
+        call.on("accept", (acceptedCall)=>{
           setCallState("active");
           callDurationRef.current = 0;
           callTimerRef.current = setInterval(()=>{
             callDurationRef.current += 1;
             setCallDuration(callDurationRef.current);
           }, 1000);
+          // Capture CallSid as soon as call is accepted
+          capturedCallSid = acceptedCall?.parameters?.CallSid
+            || call.parameters?.CallSid
+            || call.outboundConnectionId
+            || null;
+          console.log("Call accepted, CallSid:", capturedCallSid, "params:", call.parameters);
         });
-        call.on("disconnect",()=>{
-          setCallState("idle");setActiveCall(null);clearInterval(callTimerRef.current);
-          const dur = callDurationRef.current; // ← read from ref, not stale state
+        call.on("disconnect", ()=>{
+          setCallState("idle"); setActiveCall(null); clearInterval(callTimerRef.current);
+          const dur = callDurationRef.current;
           callDurationRef.current = 0;
           setCallDuration(0);
-          const callSidVal = call.parameters?.CallSid || call.customParameters?.get?.('CallSid');
-          addHistoryEntry(contact.id,`📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
-          updateContact(contact.id,{lastContact:new Date().toISOString()});
-          // Poll Firebase every 5s for up to 60s waiting for Twilio recording webhook
+          // Try all possible CallSid locations
+          const callSidVal = capturedCallSid
+            || call.parameters?.CallSid
+            || call.customParameters?.get?.('CallSid')
+            || null;
+          console.log("Call disconnected, CallSid:", callSidVal, "duration:", dur);
+          addHistoryEntry(contact.id, `📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
+          updateContact(contact.id, {lastContact: new Date().toISOString()});
+          // Poll Twilio every 8s for up to 3 min (recordings take 15-60s to process)
           if (callSidVal) {
+            addHistoryEntry(contact.id, `⏳ ${lang==="ru"?"Запись обрабатывается...":"Recording processing..."}`);
             let attempts = 0;
             const pollInterval = setInterval(async()=>{
               attempts++;
               try {
                 const r = await fetch(`/api/get-recording?callSid=${callSidVal}`);
                 const d = await r.json();
+                console.log(`Recording poll #${attempts}:`, d);
                 if (d.success && d.recording?.recordingSid) {
                   clearInterval(pollInterval);
-                  addHistoryEntry(contact.id,`🎙 ${lang==="ru"?"Запись готова":"Recording ready"} (${Math.floor((d.recording.duration||0)/60)}:${String((d.recording.duration||0)%60).padStart(2,'0')})`);
+                  // Update the "processing" entry with "ready"
+                  addHistoryEntry(contact.id, `🎙 ${lang==="ru"?"Запись готова":"Recording ready"} · ${formatDur(d.recording.duration||0)} · SID: ${d.recording.recordingSid}`);
                 }
-              } catch(e){}
-              if (attempts >= 12) clearInterval(pollInterval);
-            }, 5000);
+              } catch(e){ console.log("Poll error:", e.message); }
+              if (attempts >= 22) { // stop after ~3 min
+                clearInterval(pollInterval);
+                console.log("Recording poll timed out for", callSidVal);
+              }
+            }, 8000);
+          } else {
+            console.warn("No CallSid found — cannot poll for recording. call.parameters:", call.parameters);
           }
         });
-        call.on("error",err=>{setCallState("idle");setActiveCall(null);console.error("Call error:",err);});
+        call.on("error", err=>{setCallState("idle"); setActiveCall(null); console.error("Call error:", err);});
+      } catch(e){setCallState("idle"); alert(`Call failed: ${e.message}`);}
       } catch(e){setCallState("idle");alert(`Call failed: ${e.message}`);}
     }
 
