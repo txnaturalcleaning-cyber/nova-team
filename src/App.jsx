@@ -960,6 +960,12 @@ function AppInner() {
   // CRM open contact — lifted to parent to survive CRM re-renders
   const [crmOpenId, setCrmOpenId] = useState(null);
   const [crmSmsText, setCrmSmsText] = useState("");
+  // CRM contact modal — lifted to survive re-renders
+  const [crmCModal, setCrmCModal] = useState(false); // false | true (new) | contactId (edit)
+  const [crmCF, setCrmCF] = useState({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
+  // CRM reminder modal — lifted
+  const [crmRemModal, setCrmRemModal] = useState(false);
+  const [crmRemF, setCrmRemF] = useState({text:"",dueAt:"",contactId:""});
   const [modal,       setModal]       = useState(null);
   const [chatChannel, setChatChannel] = useState("general");
   const [chatMsgs,    setChatMsgs]    = useState({});
@@ -4828,7 +4834,15 @@ function AppInner() {
         const d1 = await r1.json(); if(!d1.success) throw new Error(d1.error||"Payment init failed");
         const r2 = await fetch("/api/confirm-phone-purchase",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({intentId:d1.intentId,phoneNumber:selectedNum.phoneNumber,partnerId:pid})});
         const d2 = await r2.json(); if(!d2.success) throw new Error(d2.error||"Purchase failed");
-        setPartners(ps=>ps.map(x=>x.id===pid?{...x,purchasedPhone:d2.number}:x));
+        const purpose = window._pendingPhonePurpose;
+        window._pendingPhonePurpose = null;
+        if (purpose) {
+          // Save as additional number
+          setPartners(ps=>ps.map(x=>x.id===pid?{...x,extraPhones:[...(x.extraPhones||[]),{...d2.number,purpose,assignedDeptId:null}]}:x));
+        } else {
+          // Save as main number
+          setPartners(ps=>ps.map(x=>x.id===pid?{...x,purchasedPhone:d2.number}:x));
+        }
         setPhoneStep("done");
       } catch(e){setPayError(e.message||"Purchase failed");}
       setPaying(false);
@@ -4854,14 +4868,20 @@ function AppInner() {
     const setOpenId = setCrmOpenId;
     const smsText   = crmSmsText;
     const setSmsText= setCrmSmsText;
+    const cModal    = crmCModal;
+    const setCModal = setCrmCModal;
+    const cF        = crmCF;
+    const setCF     = setCrmCF;
+    const remModal  = crmRemModal;
+    const setRemModal = setCrmRemModal;
+    const remF      = crmRemF;
+    const setRemF   = setCrmRemF;
 
     // ── Local state ──
     const [cTab,       setCTab]       = useState("contacts");
     const [search,     setSearch]     = useState("");
     const [tagFilter,  setTagFilter]  = useState("");
     const [stageFilter,setStageFilter]= useState("all");
-    const [cF,         setCF]         = useState({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
-    const [cModal,     setCModal]     = useState(false);
     const [tagMgr,     setTagMgr]     = useState(false);
     const [newTag,     setNewTag]     = useState({name:"",color:"#f0a500"});
     const [smsModal,   setSmsModal]   = useState(null);
@@ -4872,9 +4892,6 @@ function AppInner() {
     const [campF,      setCampF]      = useState({name:"",audienceType:"stage",audienceValue:"lost",msgTemplate:"",delayDays:"0"});
     const [campModal,  setCampModal]  = useState(false);
     const [campSending,setCampSending]= useState(null);
-    // Reminders
-    const [remF,       setRemF]       = useState({text:"",dueAt:"",contactId:""});
-    const [remModal,   setRemModal]   = useState(false);
     // Twilio voice
     const [twilioDevice,setTwilioDevice] = useState(null);
     const [callState,   setCallState]    = useState("idle");
@@ -5015,9 +5032,16 @@ function AppInner() {
     function saveReminder(){
       if(!remF.text.trim()||!remF.dueAt) return;
       const item={...remF,id:"rem_"+Date.now(),done:false,createdAt:new Date().toISOString()};
+      // Save reminder + notify Sales/Ops departments via shared reminders
       setPartners(ps=>ps.map(x=>x.id===pid?{...x,reminders:[...(x.reminders||[]),item]}:x));
-      setRemF({text:"",dueAt:"",contactId:""});
-      setRemModal(false);
+      // Add notification to chat as system message for Sales/Ops visibility
+      const c=remF.contactId?contacts.find(x=>x.id===remF.contactId):null;
+      const notifText=`🔔 Reminder set: "${remF.text}"${c?` for ${c.name}`:""}  — Due: ${new Date(remF.dueAt).toLocaleString()}`;
+      // Add to partner-level notifications so Sales + Ops see it
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,notifications:[...(x.notifications||[]),{id:"notif_"+Date.now(),text:notifText,ts:new Date().toISOString(),type:"reminder",read:false}]}:x));
+      setCrmRemF({text:"",dueAt:"",contactId:""});
+      setCrmRemModal(false);
+      alert(lang==="ru"?`✅ Напоминание сохранено и отправлено в отделы Sales и Ops`:`✅ Reminder saved and sent to Sales & Ops departments`);
     }
     function toggleReminder(id){setPartners(ps=>ps.map(x=>x.id===pid?{...x,reminders:(x.reminders||[]).map(r=>r.id===id?{...r,done:!r.done}:r)}:x));}
     function deleteReminder(id){setPartners(ps=>ps.map(x=>x.id===pid?{...x,reminders:(x.reminders||[]).filter(r=>r.id!==id)}:x));}
@@ -5262,15 +5286,6 @@ function AppInner() {
                       {smsSending?"⏳":<>{IC.sms} SMS</>}
                     </button>
                   ):<div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>No phone</div>}
-                  <button onClick={()=>{
-                    if(!smsText.trim()) return;
-                    const note={id:"n_"+Date.now(),text:smsText.trim(),ts:new Date().toLocaleString(),author:currentUser?.name||"Me"};
-                    const c=contacts.find(x=>x.id===openContact.id);
-                    updateContact(openContact.id,{history:[...(c?.history||[]),note]});
-                    setSmsText("");
-                  }} disabled={!smsText.trim()} style={{padding:"6px 10px",borderRadius:10,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--mu)",cursor:"pointer",fontSize:11}}>
-                    📝
-                  </button>
                 </div>
               </div>
               <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length}/160 · Enter = SMS · 📝 = Note</div>
@@ -5319,6 +5334,7 @@ function AppInner() {
             {id:"pipeline",label:lang==="ru"?"📊 Воронка":"📊 Pipeline"},
             {id:"campaigns",label:lang==="ru"?"📣 Кампании":"📣 Campaigns"},
             {id:"reminders",label:lang==="ru"?"🔔 Напоминания":"🔔 Reminders"},
+            {id:"numbers",label:lang==="ru"?"📞 Номера":"📞 Numbers"},
             {id:"tags",label:lang==="ru"?"🏷 Теги":"🏷 Tags"},
           ].map(tb=>(
             <button key={tb.id} onClick={()=>setCTab(tb.id)}
@@ -5333,7 +5349,9 @@ function AppInner() {
               <button onClick={()=>{setImportTarget("crm");setImportStep(1);setImportRows([]);setImportHeaders([]);setImportMap({});setImportDone(null);setShowImport(true);}} style={{padding:"6px 10px",borderRadius:7,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",fontSize:11,cursor:"pointer"}}>📥 {lang==="ru"?"Импорт":"Import"}</button>
               <button onClick={()=>{setCF({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});setCModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Контакт":"Contact"}</button>
             </>}
+            {cTab==="numbers"&&<button onClick={()=>{setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Купить номер":"Buy Number"}</button>}
             {cTab==="campaigns"&&<button onClick={()=>setCampModal(true)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Кампания":"Campaign"}</button>}
+            {cTab==="reminders"&&<button onClick={()=>{setCrmRemF({text:"",dueAt:"",contactId:""});setCrmRemModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Напоминание":"Reminder"}</button>}
             {cTab==="reminders"&&<button onClick={()=>{setRemF({text:"",dueAt:"",contactId:""});setRemModal(true);}} style={{padding:"6px 12px",borderRadius:7,border:"none",background:"var(--acc)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ {lang==="ru"?"Напоминание":"Reminder"}</button>}
           </div>
         </div>
@@ -5535,6 +5553,123 @@ function AppInner() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB: NUMBERS ── */}
+        {cTab==="numbers"&&(
+          <div style={{maxWidth:700}}>
+            {/* Current numbers */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:13,fontWeight:700,marginBottom:10,color:"var(--tx)"}}>
+                {lang==="ru"?"Купленные номера":"Purchased Numbers"}
+              </div>
+              {/* Main number */}
+              {myPhone?(
+                <div style={{background:"var(--s1)",border:"1px solid var(--gr)30",borderRadius:12,padding:16,marginBottom:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:"var(--gr)15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📞</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:15,color:"var(--gr)"}}>{myPhone.friendlyName||myPhone.phoneNumber}</div>
+                      <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>
+                        {lang==="ru"?"Основной номер · SMS и голос · $9/мес":"Main number · SMS & Voice · $9/mo"}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                      <div style={{fontSize:11}}>
+                        <label style={{color:"var(--mu)",marginRight:6}}>{lang==="ru"?"Назначить отделу:":"Assign to dept:"}</label>
+                        <select onChange={e=>{
+                          const deptId=e.target.value;
+                          setPartners(ps=>ps.map(x=>x.id===pid?{...x,purchasedPhone:{...x.purchasedPhone,assignedDeptId:deptId||null}}:x));
+                        }} value={myPhone.assignedDeptId||""}
+                          style={{padding:"4px 8px",borderRadius:6,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:11,cursor:"pointer"}}>
+                          <option value="">{lang==="ru"?"— Общий —":"— General —"}</option>
+                          {(p?.departments||[]).map(d=><option key={d.id} value={d.id}>{d.icon||"🏢"} {d.name}</option>)}
+                        </select>
+                      </div>
+                      <span style={{padding:"3px 10px",borderRadius:20,background:"var(--gr)15",color:"var(--gr)",fontSize:11,fontWeight:600}}>✓ Active</span>
+                    </div>
+                  </div>
+                </div>
+              ):(
+                <div style={{background:"var(--s1)",border:"1px dashed var(--bdr)",borderRadius:12,padding:20,textAlign:"center",marginBottom:10}}>
+                  <div style={{fontSize:32,marginBottom:8}}>📞</div>
+                  <div style={{fontSize:13,color:"var(--mu)",marginBottom:12}}>{lang==="ru"?"Нет купленных номеров":"No purchased numbers"}</div>
+                  <button onClick={()=>{setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");}}
+                    style={{padding:"8px 20px",borderRadius:8,border:"none",background:"var(--acc)",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                    + {lang==="ru"?"Купить первый номер":"Buy first number"}
+                  </button>
+                </div>
+              )}
+
+              {/* Extra numbers */}
+              {(p?.extraPhones||[]).map((ph,i)=>(
+                <div key={i} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:14,marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{width:36,height:36,borderRadius:"50%",background:"var(--acc)15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>📱</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:14}}>{ph.friendlyName||ph.phoneNumber}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{ph.purpose||"General"} · $9/mo</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                      <div style={{fontSize:11}}>
+                        <label style={{color:"var(--mu)",marginRight:6}}>{lang==="ru"?"Назначить:":"Assign:"}</label>
+                        <select onChange={e=>{
+                          const deptId=e.target.value;
+                          setPartners(ps=>ps.map(x=>x.id===pid?{...x,extraPhones:(x.extraPhones||[]).map((ep,idx)=>idx===i?{...ep,assignedDeptId:deptId||null}:ep)}:x));
+                        }} value={ph.assignedDeptId||""}
+                          style={{padding:"4px 8px",borderRadius:6,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:11}}>
+                          <option value="">{lang==="ru"?"— Общий —":"— General —"}</option>
+                          {(p?.departments||[]).map(d=><option key={d.id} value={d.id}>{d.icon||"🏢"} {d.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Purpose label */}
+                  <div style={{marginTop:8,display:"flex",gap:6,alignItems:"center"}}>
+                    <span style={{fontSize:10,color:"var(--mu)"}}>📍 {lang==="ru"?"Источник:":"Source tracking:"}</span>
+                    {["Google Ads","Facebook Ads","Website","Referral","Other"].map(src=>(
+                      <button key={src} onClick={()=>setPartners(ps=>ps.map(x=>x.id===pid?{...x,extraPhones:(x.extraPhones||[]).map((ep,idx)=>idx===i?{...ep,purpose:src}:ep)}:x))}
+                        style={{fontSize:10,padding:"2px 8px",borderRadius:4,border:`1px solid ${ph.purpose===src?"var(--acc)":"var(--bdr)"}`,background:ph.purpose===src?"var(--acc)15":"transparent",color:ph.purpose===src?"var(--acc)":"var(--mu)",cursor:"pointer"}}>
+                        {src}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Buy another number */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>➕ {lang==="ru"?"Добавить ещё номер":"Add Another Number"}</div>
+              <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>
+                {lang==="ru"?"Назначай отдельные номера для разных отделов или источников лидов (Google Ads, Facebook и т.д.)":"Assign separate numbers to departments or lead sources (Google Ads, Facebook, etc.)"}
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["Sales Dept","Ops Dept","Google Ads","Facebook Ads","Website"].map(purpose=>(
+                  <button key={purpose} onClick={()=>{
+                    setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");
+                    window._pendingPhonePurpose=purpose;
+                  }} style={{padding:"7px 14px",borderRadius:8,border:"1px solid var(--bdr)",background:"var(--s2)",color:"var(--tx)",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    📞 {purpose}
+                  </button>
+                ))}
+                <button onClick={()=>{setPhoneModal(true);setPhoneStep("search");setFoundNums([]);setSelectedNum(null);setPayError("");}}
+                  style={{padding:"7px 14px",borderRadius:8,border:"1px solid var(--acc)",background:"var(--acc)10",color:"var(--acc)",fontSize:12,cursor:"pointer",fontWeight:600}}>
+                  + {lang==="ru"?"Другой номер":"Custom"}
+                </button>
+              </div>
+            </div>
+
+            {/* Department workspaces info */}
+            <div style={{marginTop:16,padding:14,borderRadius:10,background:"var(--bl)08",border:"1px solid var(--bl)20"}}>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--bl)",marginBottom:4}}>💡 {lang==="ru"?"Рабочие пространства отделов":"Department Workspaces"}</div>
+              <div style={{fontSize:11,color:"var(--mu)",lineHeight:1.6}}>
+                {lang==="ru"
+                  ?"Когда номер назначен отделу — сотрудники этого отдела видят только свои контакты, их воронку и историю звонков на этом номере. Скоро: отдельные теги и воронки для каждого отдела."
+                  :"When a number is assigned to a department — employees of that dept see only their contacts, pipeline and call history on that number. Coming soon: separate tags and pipelines per department."}
+              </div>
             </div>
           </div>
         )}
