@@ -1,4 +1,4 @@
-// api/confirm-phone-purchase.js — After Stripe payment confirmed, buy Twilio number
+// api/buy-phone-number.js — Create AND confirm Stripe PaymentIntent
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,67 +6,58 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { intentId, phoneNumber, partnerId } = req.body || {};
-  if (!intentId || !phoneNumber || !partnerId) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  const { phoneNumber, partnerId } = req.body || {};
+  if (!phoneNumber || !partnerId) {
+    return res.status(400).json({ error: 'Missing phoneNumber or partnerId' });
   }
 
-  const stripeSecret  = process.env.STRIPE_SECRET_KEY;
-  const accountSid    = process.env.TWILIO_ACCOUNT_SID;
-  const authToken     = process.env.TWILIO_AUTH_TOKEN;
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecret) return res.status(500).json({ error: 'Stripe not configured' });
 
-  if (!stripeSecret || !accountSid || !authToken) {
-    return res.status(500).json({ error: 'Credentials not configured' });
-  }
+  const isTest = stripeSecret.startsWith('sk_test_');
 
   try {
-    // 1. Verify Stripe payment was successful
-    const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents/${intentId}`, {
-      headers: { 'Authorization': `Bearer ${stripeSecret}` }
+    // Step 1: Create PaymentIntent
+    const createRes = await fetch('https://api.stripe.com/v1/payment_intents', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${stripeSecret}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        amount: '900',
+        currency: 'usd',
+        description: `Phone number ${phoneNumber} - 1 month`,
+        'metadata[phoneNumber]': phoneNumber,
+        'metadata[partnerId]': partnerId,
+      }).toString(),
     });
-    const intent = await stripeRes.json();
 
-    if (intent.status !== 'succeeded') {
-      return res.status(400).json({ error: `Payment not completed. Status: ${intent.status}` });
-    }
+    const intent = await createRes.json();
+    if (!createRes.ok) return res.status(400).json({ error: intent.error?.message || 'Stripe error' });
 
-    // 2. Purchase the Twilio number on main account
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-    const twilioRes = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/IncomingPhoneNumbers.json`,
-      {
+    // Step 2: In test mode — confirm with test card automatically
+    if (isTest) {
+      const confirmRes = await fetch(`https://api.stripe.com/v1/payment_intents/${intent.id}/confirm`, {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${auth}`,
+          'Authorization': `Bearer ${stripeSecret}`,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams({
-          PhoneNumber:  phoneNumber,
-          FriendlyName: `Partner_${partnerId}`,
-          // Webhooks for SMS and Voice
-          SmsUrl:    `${process.env.VERCEL_URL ? 'https://'+process.env.VERCEL_URL : ''}/api/sms-webhook`,
-          VoiceUrl:  `${process.env.VERCEL_URL ? 'https://'+process.env.VERCEL_URL : ''}/api/voice-twiml`,
+          payment_method: 'pm_card_visa',
         }).toString(),
-      }
-    );
+      });
 
-    const twilioData = await twilioRes.json();
+      const confirmed = await confirmRes.json();
+      if (!confirmRes.ok) return res.status(400).json({ error: confirmed.error?.message || 'Confirmation failed' });
 
-    if (!twilioRes.ok) {
-      return res.status(400).json({ error: twilioData.message || 'Twilio purchase failed' });
+      return res.status(200).json({ success: true, intentId: confirmed.id, status: confirmed.status });
     }
 
-    return res.status(200).json({
-      success: true,
-      number: {
-        phoneNumber:  twilioData.phone_number,
-        friendlyName: twilioData.friendly_name,
-        sid:          twilioData.sid,
-        purchasedAt:  new Date().toISOString(),
-        paidAmount:   900, // cents
-        partnerId,
-      }
-    });
+    // Production: return clientSecret for Stripe.js frontend confirmation
+    return res.status(200).json({ success: true, clientSecret: intent.client_secret, intentId: intent.id });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
