@@ -21,11 +21,9 @@ export default async function handler(req, res) {
 
     const { identity, partnerPhone } = req.body || {};
 
-    // ✅ FIX: replace ALL non-alphanumeric chars with underscore (no dots/dashes)
-    // This ensures identity is unambiguous: contact@naturalcleaning4u.com → contact_naturalcleaning4u_com
-    const clientIdentity = (identity || 'nova_user')
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .slice(0, 121);
+    // Use fixed simple identity — no confusion with dots/underscores/email chars
+    // Must match TWILIO_CLIENT_IDENTITY env var exactly
+    const clientIdentity = process.env.TWILIO_CLIENT_IDENTITY || 'nce_agent';
 
     const token = new AccessToken(accountSid, apiKeySid, apiKeySecret, {
       identity: clientIdentity,
