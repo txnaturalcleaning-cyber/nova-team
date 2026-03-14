@@ -5125,12 +5125,17 @@ function AppInner() {
     const setSmsText= setCrmSmsText;
     const cModal    = crmCModal;
     const setCModal = setCrmCModal;
-    const cF        = crmCF;
-    const setCF     = setCrmCF;
     const remModal  = crmRemModal;
     const setRemModal = setCrmRemModal;
     const remF      = crmRemF;
     const setRemF   = setCrmRemF;
+
+    // ✅ FIX: keep contact form state LOCAL to CRM so typing doesn't
+    // cause AppInner to re-render and kill input focus
+    // ✅ FIX: cF uses parent state so modal survives CRM remounts
+    const cF    = crmCF;
+    const setCF = setCrmCF;
+
     // Audio playback + transcription for recordings in CRM chat feed
     const audioUrls      = crmAudioUrls;
     const setAudioUrls   = setCrmAudioUrls;
@@ -5188,6 +5193,8 @@ function AppInner() {
 
     // ── Local state ──
     const [cTab,       setCTab]       = useState("contacts");
+    const [callLog,    setCallLog]    = useState([]); // {id, type, from, to, name, dur, ts}
+    const [dialNumber, setDialNumber] = useState(""); // manual dial input
     const [search,     setSearch]     = useState("");
     const [tagFilter,  setTagFilter]  = useState("");
     const [stageFilter,setStageFilter]= useState("all");
@@ -5282,14 +5289,23 @@ function AppInner() {
         setCallDuration(callDurationRef.current);
       }, 1000);
       activeCall.on("disconnect", () => {
+        const dur = callDurationRef.current;
         setCallState("idle"); setActiveCall(null); setIncomingCaller(null);
         clearInterval(callTimerRef.current);
         callDurationRef.current = 0; setCallDuration(0);
+        // ✅ Log inbound answered call
+        setCallLog(prev=>[{id:"cl_"+Date.now(),type:"inbound",
+          from:incomingCaller?.from||"",to:p?.purchasedPhone?.phoneNumber||"",
+          name:incomingCaller?.name||incomingCaller?.from||"",dur,ts:new Date().toLocaleString()},...prev.slice(0,99)]);
       });
     }
 
     function declineCall() {
       if (activeCall) activeCall.reject();
+      // ✅ Log missed/declined call
+      setCallLog(prev=>[{id:"cl_"+Date.now(),type:"missed",
+        from:incomingCaller?.from||"",to:p?.purchasedPhone?.phoneNumber||"",
+        name:incomingCaller?.name||incomingCaller?.from||"",dur:0,ts:new Date().toLocaleString()},...prev.slice(0,99)]);
       setCallState("idle"); setActiveCall(null); setIncomingCaller(null);
     }
 
@@ -5322,6 +5338,10 @@ function AppInner() {
           const callSidVal = call.parameters?.CallSid || call.customParameters?.get?.('CallSid');
           addHistoryEntry(contact.id,`📞 ${lang==="ru"?"Звонок":"Call"} ${formatDur(dur)}`);
           updateContact(contact.id,{lastContact:new Date().toISOString()});
+          // ✅ Log call
+          setCallLog(prev=>[{id:"cl_"+Date.now(),type:dur>0?"outbound":"missed",
+            from:p?.purchasedPhone?.phoneNumber||"",to:contact.phone,
+            name:contact.name,dur,ts:new Date().toLocaleString()},...prev.slice(0,99)]);
           // Poll Firebase every 5s for up to 90s waiting for Twilio recording webhook
           if (callSidVal) {
             let attempts = 0;
@@ -5883,6 +5903,7 @@ function AppInner() {
             {id:"campaigns",label:lang==="ru"?"📣 Кампании":"📣 Campaigns"},
             {id:"reminders",label:lang==="ru"?"🔔 Напоминания":"🔔 Reminders"},
             {id:"numbers",label:lang==="ru"?"📞 Номера":"📞 Numbers"},
+            {id:"calls",label:lang==="ru"?"📋 Звонки":"📋 Calls"},
             {id:"tags",label:lang==="ru"?"🏷 Теги":"🏷 Tags"},
           ].map(tb=>(
             <button key={tb.id} onClick={()=>setCTab(tb.id)}
@@ -5976,6 +5997,77 @@ function AppInner() {
         )}
 
         {/* ── TAB: PIPELINE ── */}
+        {/* ── TAB: CALLS ── */}
+        {cTab==="calls"&&(
+          <div>
+            {/* Dial pad */}
+            <div style={{background:"var(--s1)",borderRadius:12,padding:14,marginBottom:16,border:"1px solid var(--bdr)"}}>
+              <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>
+                📞 {ru?"Набрать номер":"Dial Number"}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <input value={dialNumber} onChange={e=>setDialNumber(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"&&dialNumber.trim()){
+                    const phone=dialNumber.trim();
+                    const fake={id:"dial_"+Date.now(),name:phone,phone};
+                    startCall(fake);
+                  }}}
+                  placeholder="+1 (512) 000-0000"
+                  style={{flex:1,padding:"8px 12px",borderRadius:8,border:"1px solid var(--bdr)",
+                    background:"var(--bg)",color:"var(--tx)",fontSize:14,fontFamily:"monospace"}}/>
+                <button onClick={()=>{if(dialNumber.trim()){const phone=dialNumber.trim();startCall({id:"dial_"+Date.now(),name:phone,phone});}}}
+                  disabled={!dialNumber.trim()||callState!=="idle"}
+                  style={{padding:"8px 18px",borderRadius:8,border:"none",
+                    background:dialNumber.trim()&&callState==="idle"?"var(--gr)":"var(--s2)",
+                    color:dialNumber.trim()&&callState==="idle"?"#fff":"var(--mu)",
+                    fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                  📞
+                </button>
+              </div>
+            </div>
+
+            {/* Call log */}
+            <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>
+              {ru?"История звонков":"Call History"}
+            </div>
+            {callLog.length===0&&(
+              <div style={{textAlign:"center",padding:32,color:"var(--mu)",fontSize:13}}>
+                {ru?"Звонков пока нет":"No calls yet"}
+              </div>
+            )}
+            {callLog.map(c=>{
+              const ico = c.type==="inbound"?"📥":c.type==="outbound"?"📤":"📵";
+              const clr = c.type==="inbound"?"var(--gr)":c.type==="outbound"?"var(--acc)":"var(--rd)";
+              const durStr = c.dur>0?`${Math.floor(c.dur/60)}:${String(c.dur%60).padStart(2,"0")}`:(ru?"Нет ответа":"No answer");
+              return (
+                <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+                  borderRadius:10,background:"var(--s1)",marginBottom:6,border:"1px solid var(--bdr)"}}>
+                  <div style={{fontSize:18}}>{ico}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {c.name||c.from||c.to}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--mu)"}}>
+                      {c.type==="inbound"?(ru?"Входящий":"Inbound"):c.type==="outbound"?(ru?"Исходящий":"Outbound"):(ru?"Пропущен":"Missed")}
+                      {" · "}{c.ts}
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:clr,minWidth:50,textAlign:"right"}}>
+                    {durStr}
+                  </div>
+                  {(c.type==="missed"||c.type==="inbound")&&(
+                    <button onClick={()=>{const phone=c.from||c.to;if(phone)startCall({id:"cb_"+Date.now(),name:c.name,phone});}}
+                      style={{padding:"4px 10px",borderRadius:6,border:"none",
+                        background:"var(--acc)15",color:"var(--acc)",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                      {ru?"Перезвонить":"Call back"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {cTab==="pipeline"&&(
           <div style={{display:"flex",gap:10,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:8}}>
             {STAGES.map(stage=>{
