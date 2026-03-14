@@ -1,0 +1,29 @@
+// api/voice-inbound.js
+// INBOUND ONLY — set this as webhook in Twilio Phone Number settings
+// Connects incoming call to browser client
+
+import twilio from 'twilio';
+const { VoiceResponse } = twilio.twiml;
+
+export default function handler(req, res) {
+  const { From } = req.body || {};
+  const twiml    = new VoiceResponse();
+  const baseUrl  = 'https://nova-team-omega.vercel.app';
+  const identity = process.env.TWILIO_CLIENT_IDENTITY || 'nova_user';
+
+  console.log(`Inbound call from ${From} → client:${identity}`);
+
+  const dial = twiml.dial({
+    callerId:                      From,
+    record:                        'record-from-answer',
+    recordingStatusCallback:       `${baseUrl}/api/recording-webhook`,
+    recordingStatusCallbackMethod: 'POST',
+    recordingStatusCallbackEvent:  'completed',
+    trim:                          'trim-silence',
+    timeout:                       30,
+  });
+  dial.client(identity);
+
+  res.setHeader('Content-Type', 'text/xml');
+  res.send(twiml.toString());
+}
