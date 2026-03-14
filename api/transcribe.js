@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         audio_url:          audioUrl,
-        speech_models:      ['universal-3-pro'], // plural array — required with speaker_labels
+        speech_models:      ['universal-3-pro', 'universal-2'], // plural array — required with speaker_labels
         speaker_labels:     true,          // Agent vs Client diarization
         language_detection: true,          // Auto-detect RU/EN/ES/etc
         speakers_expected:  2,             // Usually agent + client
