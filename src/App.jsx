@@ -5212,12 +5212,16 @@ function AppInner() {
     const callTimerRef    = useRef(null);
     const callDurationRef = useRef(0); // tracks live duration, avoids stale closure
 
-    // ── Register Twilio Device on first user click (AudioContext requires gesture) ──
+    // ── Auto-register Device on mount + resume AudioContext on first click ──
     useEffect(() => {
       setSdkReady(true);
-      // Must wait for user gesture — attach to first click anywhere on page
+      // Init device immediately so inbound calls work right away
+      initTwilioDevice().catch(e => console.log('Auto-init error:', e.message));
+      // AudioContext needs user gesture to resume — do it silently on first click
       const onFirstClick = () => {
-        initTwilioDevice().catch(e => console.log('Auto-init skipped:', e.message));
+        if (window._twilioAudioCtx) {
+          window._twilioAudioCtx.resume().catch(()=>{});
+        }
         document.removeEventListener('click', onFirstClick);
       };
       document.addEventListener('click', onFirstClick);
@@ -5246,6 +5250,7 @@ function AppInner() {
         const device = new TwilioDevice(token,{logLevel:1,codecPreferences:["opus","pcmu"]});
 
         device.on("incoming", call => {
+          console.log("🔔 INCOMING CALL:", call.parameters);
           const from = call.parameters?.From || call.customParameters?.get?.("From") || "Unknown";
           // Try to match caller to a CRM contact
           const matchedContact = contacts.find(c =>
@@ -5768,7 +5773,35 @@ function AppInner() {
           </div>
         </div>
 
-        {/* ── INCOMING CALL MODAL ── */}
+              {/* Reminder modal — also rendered here so it works from inside contact detail */}
+        {remModal&&(
+          <div className="ovl" onClick={()=>setRemModal(false)}>
+            <div className="modal" onClick={e=>e.stopPropagation()}>
+              <div className="modal-t">🔔 {lang==="ru"?"Новое напоминание":"New Reminder"}</div>
+              <div className="fg"><label className="lbl">{lang==="ru"?"Текст напоминания":"Reminder text"}</label>
+                <input className="inp" value={remF.text} onChange={e=>setRemF(f=>({...f,text:e.target.value}))} placeholder="Call back in 30 min, Follow up next week..." autoFocus/>
+              </div>
+              <div className="fr">
+                <div className="fg"><label className="lbl">{lang==="ru"?"Дата и время":"Date & Time"}</label>
+                  <input type="datetime-local" className="inp" value={remF.dueAt} onChange={e=>setRemF(f=>({...f,dueAt:e.target.value}))}/>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:"var(--bl)",padding:"6px 0"}}>📣 {lang==="ru"?"Уведомление автоматически улетит в отдел Sales и Ops":"Notification will be sent to Sales & Ops departments"}</div>
+              <div className="ma">
+                <button className="btn btn-g" onClick={()=>setRemModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
+                <button className="btn btn-p" onClick={saveReminder}>{lang==="ru"?"Сохранить":"Save"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+      );
+    }
+
+    // ── MAIN VIEW ──
+    return (
+      <>
+      {/* ── INCOMING CALL MODAL — always visible regardless of which view is open ── */}
       {callState === "incoming" && incomingCaller && (
         <div style={{
           position:"fixed", top:24, left:"50%", transform:"translateX(-50%)",
@@ -5813,34 +5846,6 @@ function AppInner() {
         </div>
       )}
 
-      {/* Reminder modal — also rendered here so it works from inside contact detail */}
-        {remModal&&(
-          <div className="ovl" onClick={()=>setRemModal(false)}>
-            <div className="modal" onClick={e=>e.stopPropagation()}>
-              <div className="modal-t">🔔 {lang==="ru"?"Новое напоминание":"New Reminder"}</div>
-              <div className="fg"><label className="lbl">{lang==="ru"?"Текст напоминания":"Reminder text"}</label>
-                <input className="inp" value={remF.text} onChange={e=>setRemF(f=>({...f,text:e.target.value}))} placeholder="Call back in 30 min, Follow up next week..." autoFocus/>
-              </div>
-              <div className="fr">
-                <div className="fg"><label className="lbl">{lang==="ru"?"Дата и время":"Date & Time"}</label>
-                  <input type="datetime-local" className="inp" value={remF.dueAt} onChange={e=>setRemF(f=>({...f,dueAt:e.target.value}))}/>
-                </div>
-              </div>
-              <div style={{fontSize:11,color:"var(--bl)",padding:"6px 0"}}>📣 {lang==="ru"?"Уведомление автоматически улетит в отдел Sales и Ops":"Notification will be sent to Sales & Ops departments"}</div>
-              <div className="ma">
-                <button className="btn btn-g" onClick={()=>setRemModal(false)}>{lang==="ru"?"Отмена":"Cancel"}</button>
-                <button className="btn btn-p" onClick={saveReminder}>{lang==="ru"?"Сохранить":"Save"}</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
-      );
-    }
-
-    // ── MAIN VIEW ──
-    return (
-      <>
         {/* Phone number banner */}
         {!myPhone&&(isSA||isPartner)&&(
           <div style={{marginBottom:16,padding:"12px 16px",borderRadius:12,background:"linear-gradient(135deg,rgba(99,102,241,0.12),rgba(99,102,241,0.04))",border:"1px solid rgba(99,102,241,0.3)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
