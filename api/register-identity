@@ -1,0 +1,29 @@
+// api/register-identity.js
+// Called when CRM user initializes Twilio Device
+// Saves identity → phone mapping to Firebase so inbound calls route to the right browser client
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { identity, phone } = req.body || {};
+  if (!identity || !phone) return res.json({ success: false, error: 'identity and phone required' });
+
+  const fbBase   = 'https://nova-launch-system-default-rtdb.firebaseio.com/active_identities';
+  const fbAuth   = process.env.FIREBASE_DB_SECRET;
+  const fbSuffix = fbAuth ? `?auth=${fbAuth}` : '';
+
+  try {
+    await fetch(`${fbBase}/${identity}.json${fbSuffix}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone,
+        identity,
+        registeredAt: new Date().toISOString(),
+      }),
+    });
+    return res.json({ success: true });
+  } catch(e) {
+    return res.json({ success: false, error: e.message });
+  }
+}
