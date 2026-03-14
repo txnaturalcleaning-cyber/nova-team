@@ -1,16 +1,14 @@
 // api/voice-inbound.js
-// Set this URL in Twilio Phone Number → Voice Configuration → A call comes in
-
 export default function handler(req, res) {
-  try {
-    const From     = req.body?.From || '';
-    const identity = process.env.TWILIO_CLIENT_IDENTITY || 'nova_user';
-    const baseUrl  = 'https://nova-team-omega.vercel.app';
+  // Log everything Twilio sends
+  console.log('INBOUND BODY:', JSON.stringify(req.body));
+  console.log('IDENTITY ENV:', process.env.TWILIO_CLIENT_IDENTITY);
 
-    console.log('Inbound call from:', From, '→ identity:', identity);
+  const From     = req.body?.From || '';
+  const identity = process.env.TWILIO_CLIENT_IDENTITY || 'nova_user';
+  const baseUrl  = 'https://nova-team-omega.vercel.app';
 
-    // Build TwiML manually — no package dependency, can't crash
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${From}"
         record="record-from-answer"
@@ -21,16 +19,6 @@ export default function handler(req, res) {
   </Dial>
 </Response>`;
 
-    res.setHeader('Content-Type', 'text/xml');
-    return res.send(xml);
-
-  } catch(e) {
-    console.error('voice-inbound error:', e.message);
-    // Always return valid TwiML — never let Twilio get empty response
-    res.setHeader('Content-Type', 'text/xml');
-    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="alice">We are unable to take your call right now. Please try again later.</Say>
-</Response>`);
-  }
+  res.setHeader('Content-Type', 'text/xml');
+  res.send(xml);
 }
