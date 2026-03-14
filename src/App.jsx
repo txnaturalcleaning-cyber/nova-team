@@ -1211,6 +1211,8 @@ function AppInner() {
   const [crmOpenId, setCrmOpenId] = useState(null);
   const [crmAudioUrls, setCrmAudioUrls] = useState({}); // { recordingSid: blobUrl }
   const [crmAudioLoading, setCrmAudioLoading] = useState({}); // { recordingSid: bool }
+  const [crmTranscripts, setCrmTranscripts] = useState({}); // { recordingSid: {lines, language, text} }
+  const [crmTranscribing, setCrmTranscribing] = useState({}); // { recordingSid: bool }
   const [crmSmsText, setCrmSmsText] = useState("");
   // CRM contact modal — lifted to survive re-renders
   const [crmCModal, setCrmCModal] = useState(false); // false | true (new) | contactId (edit)
@@ -5129,11 +5131,45 @@ function AppInner() {
     const setRemModal = setCrmRemModal;
     const remF      = crmRemF;
     const setRemF   = setCrmRemF;
-    // Audio playback for recordings in CRM chat feed
-    const audioUrls   = crmAudioUrls;
-    const setAudioUrls = setCrmAudioUrls;
-    const audioLoading = crmAudioLoading;
-    const setAudioLoading = setCrmAudioLoading;
+    // Audio playback + transcription for recordings in CRM chat feed
+    const audioUrls      = crmAudioUrls;
+    const setAudioUrls   = setCrmAudioUrls;
+    const audioLoading   = crmAudioLoading;
+    const setAudioLoading= setCrmAudioLoading;
+    const transcripts    = crmTranscripts;
+    const setTranscripts = setCrmTranscripts;
+    const transcribing   = crmTranscribing;
+    const setTranscribing= setCrmTranscribing;
+
+    async function runTranscription(recordingSid, contactName) {
+      if (transcribing[recordingSid] || transcripts[recordingSid]) return;
+      setTranscribing(prev => ({...prev, [recordingSid]: true}));
+      try {
+        const r = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ recordingSid, contactName }),
+        });
+        const d = await r.json();
+        if (d.success && d.transcriptLines) {
+          setTranscripts(prev => ({...prev, [recordingSid]: {
+            lines: d.transcriptLines,
+            language: d.language,
+            text: d.transcript,
+          }}));
+          // Also save to the history note so it persists on reload
+          addHistoryEntry(openContact.id,
+            `📝 ${ru ? 'Транскрипция готова' : 'Transcript ready'} · ${(d.language||'').toUpperCase()}`,
+            { recordingSid, transcriptReady: true }
+          );
+        } else {
+          alert(d.error || (ru ? 'Ошибка транскрипции' : 'Transcription failed'));
+        }
+      } catch(e) {
+        alert(ru ? 'Ошибка сети' : 'Network error');
+      }
+      setTranscribing(prev => ({...prev, [recordingSid]: false}));
+    }
 
     async function fetchCrmAudio(recordingSid) {
       if (!recordingSid || audioUrls[recordingSid] || audioLoading[recordingSid]) return;
@@ -5579,14 +5615,13 @@ function AppInner() {
                       <div>{m.text}</div>
                       {/* ── Inline audio player for recordings ── */}
                       {isRecording && recSid && (
-                        <div style={{marginTop:8}}>
+                        <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
+                          {/* Audio player or load button */}
                           {audioUrls[recSid] ? (
                             <audio controls src={audioUrls[recSid]}
                               style={{width:"100%",height:32,borderRadius:6}}/>
                           ) : (
-                            <button
-                              onClick={()=>fetchCrmAudio(recSid)}
-                              disabled={audioLoading[recSid]}
+                            <button onClick={()=>fetchCrmAudio(recSid)} disabled={audioLoading[recSid]}
                               style={{width:"100%",padding:"6px 10px",borderRadius:8,border:"1px solid #a855f740",
                                 background:"#a855f715",color:"#a855f7",fontSize:11,fontWeight:600,
                                 cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
@@ -5595,9 +5630,43 @@ function AppInner() {
                                 : <>▶ {ru?"Прослушать запись":"Play recording"}</>}
                             </button>
                           )}
+                          {/* Transcribe button — only if no transcript yet */}
+                          {!transcripts[recSid] && (
+                            <button onClick={()=>runTranscription(recSid, openContact?.name)}
+                              disabled={transcribing[recSid]}
+                              style={{width:"100%",padding:"6px 10px",borderRadius:8,
+                                border:"1px solid #22c55e40",background:"#22c55e12",
+                                color:"#22c55e",fontSize:11,fontWeight:600,
+                                cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                              {transcribing[recSid]
+                                ? <><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span> {ru?"Транскрибирую (до 2 мин)...":"Transcribing (up to 2 min)..."}</>
+                                : <>🤖 {ru?"Транскрибировать (RU/EN/ES)":"Transcribe (RU/EN/ES)"}</>}
+                            </button>
+                          )}
+                          {/* Transcript lines — speaker diarization */}
+                          {transcripts[recSid] && (
+                            <div style={{background:"var(--s1)",borderRadius:8,padding:"8px 10px",
+                              maxHeight:220,overflowY:"auto",fontSize:11,lineHeight:1.7}}>
+                              <div style={{fontSize:9,fontWeight:600,letterSpacing:1,
+                                color:"var(--mu)",marginBottom:6,textTransform:"uppercase"}}>
+                                📝 {ru?"Транскрипция":"Transcript"} · {(transcripts[recSid].language||"").toUpperCase()}
+                              </div>
+                              {(transcripts[recSid].lines||[]).map((line,i)=>(
+                                <div key={i} style={{display:"flex",gap:6,marginBottom:3,
+                                  alignItems:"flex-start"}}>
+                                  <span style={{color:"var(--mu2)",minWidth:30,fontSize:10,
+                                    paddingTop:1,flexShrink:0}}>{line.ts}</span>
+                                  <span style={{color:line.speaker==="Agent"?"var(--acc)":"var(--tx)",
+                                    fontWeight:line.speaker==="Agent"?600:400,minWidth:38,
+                                    flexShrink:0}}>{line.speaker}:</span>
+                                  <span style={{color:"var(--tx)"}}>{line.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
-                      {/* Old entries without recordingSid — show a label only */}
+                      {/* Old entries without recordingSid */}
                       {isRecording && !recSid && (
                         <div style={{marginTop:6,fontSize:10,color:"var(--mu)",fontStyle:"italic"}}>
                           {ru?"Запись сохранена в разделе Telephony":"Recording available in Telephony tab"}
