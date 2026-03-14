@@ -1,6 +1,7 @@
 // api/voice-inbound.js
+// Set this URL in Twilio Phone Number → Voice Configuration → A call comes in
+
 export default function handler(req, res) {
-  // Log everything Twilio sends
   console.log('INBOUND BODY:', JSON.stringify(req.body));
   console.log('IDENTITY ENV:', process.env.TWILIO_CLIENT_IDENTITY);
 
