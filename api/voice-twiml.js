@@ -1,6 +1,6 @@
 // api/voice-twiml.js
-// Inbound:  Twilio sends Direction=inbound → connect to browser client
-// Outbound: Twilio SDK sends To=+1... (no Direction) → dial that number
+// Inbound:  Direction=inbound → connect to browser client (with fallback message)
+// Outbound: SDK sends To=+1... → dial that number
 
 import twilio from 'twilio';
 const { VoiceResponse } = twilio.twiml;
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
   const twiml = new VoiceResponse();
 
-  // ── INBOUND: someone called our Twilio number ──
+  // ── INBOUND ──
   if (Direction === 'inbound') {
     let identity = 'nova_user';
 
@@ -32,8 +32,9 @@ export default async function handler(req, res) {
       console.log('Identity lookup failed, using fallback:', e.message);
     }
 
-    console.log(`Inbound from ${From} to ${Called || To} → client:${identity}`);
+    console.log(`Inbound from ${From} → client:${identity}`);
 
+    // Ring browser client for 25s, then play a message if no answer
     const dial = twiml.dial({
       callerId:                      From,
       record:                        'record-from-answer',
@@ -41,7 +42,9 @@ export default async function handler(req, res) {
       recordingStatusCallbackMethod: 'POST',
       recordingStatusCallbackEvent:  'completed',
       trim:                          'trim-silence',
-      timeout:                       30,
+      timeout:                       25,
+      action:                        `${baseUrl}/api/voice-twiml-fallback`,
+      method:                        'POST',
     });
     dial.client(identity);
 
@@ -49,7 +52,7 @@ export default async function handler(req, res) {
     return res.send(twiml.toString());
   }
 
-  // ── OUTBOUND: Twilio SDK dialing an external number ──
+  // ── OUTBOUND ──
   if (!To) {
     res.status(400).json({ error: 'Missing To parameter' });
     return;
