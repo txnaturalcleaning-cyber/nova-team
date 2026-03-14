@@ -17,11 +17,15 @@ export default async function handler(req, res) {
   try {
     const twilio = await import('twilio');
     const AccessToken = twilio.default.jwt.AccessToken;
-    const VoiceGrant = AccessToken.VoiceGrant;
+    const VoiceGrant  = AccessToken.VoiceGrant;
 
     const { identity, partnerPhone } = req.body || {};
+
+    // ✅ FIX: replace ALL non-alphanumeric chars with underscore (no dots/dashes)
+    // This ensures identity is unambiguous: contact@naturalcleaning4u.com → contact_naturalcleaning4u_com
     const clientIdentity = (identity || 'nova_user')
-      .replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 121);
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .slice(0, 121);
 
     const token = new AccessToken(accountSid, apiKeySid, apiKeySecret, {
       identity: clientIdentity,
@@ -30,15 +34,16 @@ export default async function handler(req, res) {
 
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: twimlAppSid,
-      incomingAllow: true
+      incomingAllow: true,
     });
     token.addGrant(voiceGrant);
 
     return res.status(200).json({
-      token: token.toJwt(),
-      identity: clientIdentity,
-      partnerPhone: partnerPhone || process.env.TWILIO_PHONE_NUMBER || null
+      token:        token.toJwt(),
+      identity:     clientIdentity,
+      partnerPhone: partnerPhone || process.env.TWILIO_PHONE_NUMBER || null,
     });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
