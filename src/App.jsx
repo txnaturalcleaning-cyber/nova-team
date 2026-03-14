@@ -5212,7 +5212,15 @@ function AppInner() {
     const callTimerRef    = useRef(null);
     const callDurationRef = useRef(0); // tracks live duration, avoids stale closure
 
-    useEffect(()=>{ setSdkReady(true); },[]);
+    // ── Auto-register Twilio Device when CorexPhone opens ──
+    useEffect(() => {
+      setSdkReady(true);
+      // Auto-init so inbound calls work without user clicking "Call" first
+      const timer = setTimeout(() => {
+        initTwilioDevice().catch(e => console.log('Auto-init skipped:', e.message));
+      }, 1500); // slight delay to let component fully mount
+      return () => clearTimeout(timer);
+    }, []); // eslint-disable-line
 
     // ── Twilio voice functions ──
     async function initTwilioDevice() {
