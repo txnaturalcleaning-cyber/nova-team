@@ -5203,11 +5203,12 @@ function AppInner() {
     const [campSending,setCampSending]= useState(null);
     // Twilio voice
     const [twilioDevice,setTwilioDevice] = useState(null);
-    const [callState,   setCallState]    = useState("idle");
-    const [activeCall,  setActiveCall]   = useState(null);
-    const [callContact, setCallContact]  = useState(null);
-    const [callDuration,setCallDuration] = useState(0);
-    const [sdkReady,    setSdkReady]     = useState(false);
+    const [callState,    setCallState]    = useState("idle");
+    const [activeCall,   setActiveCall]   = useState(null);
+    const [callContact,  setCallContact]  = useState(null);
+    const [callDuration, setCallDuration] = useState(0);
+    const [sdkReady,     setSdkReady]     = useState(false);
+    const [incomingCaller, setIncomingCaller] = useState(null); // { from, name }
     const callTimerRef    = useRef(null);
     const callDurationRef = useRef(0); // tracks live duration, avoids stale closure
 
@@ -5217,16 +5218,64 @@ function AppInner() {
     async function initTwilioDevice() {
       if (twilioDevice) return twilioDevice;
       try {
-        const r = await fetch("/api/voice-token",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identity:currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_")||"nova_user",partnerPhone:p?.purchasedPhone?.phoneNumber||null})});
+        const identity = currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_") || "nova_user";
+        const partnerPhone = p?.purchasedPhone?.phoneNumber || null;
+        const r = await fetch("/api/voice-token",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identity, partnerPhone})});
         const {token, partnerPhone:phoneFromToken} = await r.json();
         if (phoneFromToken) window._twilioPartnerPhone = phoneFromToken;
+
+        // Register this identity → phone mapping so inbound calls route here
+        if (partnerPhone || phoneFromToken) {
+          fetch("/api/register-identity", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ identity, phone: partnerPhone || phoneFromToken }),
+          }).catch(()=>{});
+        }
+
         const device = new TwilioDevice(token,{logLevel:1,codecPreferences:["opus","pcmu"]});
-        device.on("incoming",call=>{setCallState("incoming");setActiveCall(call);});
-        device.on("error",err=>{console.error("Twilio Device error:",err);setCallState("idle");});
+
+        device.on("incoming", call => {
+          const from = call.parameters?.From || call.customParameters?.get?.("From") || "Unknown";
+          // Try to match caller to a CRM contact
+          const matchedContact = contacts.find(c =>
+            c.phone && (c.phone.replace(/\D/g,"").endsWith(from.replace(/\D/g,"").slice(-10)))
+          );
+          setIncomingCaller({
+            from,
+            name: matchedContact?.name || from,
+            contactId: matchedContact?.id || null,
+          });
+          setActiveCall(call);
+          setCallState("incoming");
+        });
+
+        device.on("error", err => { console.error("Twilio Device error:", err); setCallState("idle"); });
         await device.register();
         setTwilioDevice(device);
         return device;
-      } catch(e){ console.error("Init device error:",e); alert(`Init error: ${e.message}`); return null; }
+      } catch(e){ console.error("Init device error:", e); alert(`Init error: ${e.message}`); return null; }
+    }
+
+    function answerCall() {
+      if (!activeCall) return;
+      activeCall.accept();
+      setCallState("active");
+      callDurationRef.current = 0;
+      callTimerRef.current = setInterval(() => {
+        callDurationRef.current += 1;
+        setCallDuration(callDurationRef.current);
+      }, 1000);
+      activeCall.on("disconnect", () => {
+        setCallState("idle"); setActiveCall(null); setIncomingCaller(null);
+        clearInterval(callTimerRef.current);
+        callDurationRef.current = 0; setCallDuration(0);
+      });
+    }
+
+    function declineCall() {
+      if (activeCall) activeCall.reject();
+      setCallState("idle"); setActiveCall(null); setIncomingCaller(null);
     }
 
     async function startCall(contact) {
@@ -5709,7 +5758,52 @@ function AppInner() {
           </div>
         </div>
 
-        {/* Reminder modal — also rendered here so it works from inside contact detail */}
+        {/* ── INCOMING CALL MODAL ── */}
+      {callState === "incoming" && incomingCaller && (
+        <div style={{
+          position:"fixed", top:24, left:"50%", transform:"translateX(-50%)",
+          zIndex:10000, background:"var(--s2)",
+          border:"2px solid var(--gr)", borderRadius:20,
+          padding:"20px 28px", boxShadow:"0 12px 48px rgba(0,0,0,0.3)",
+          display:"flex", flexDirection:"column", alignItems:"center", gap:12,
+          minWidth:280, textAlign:"center",
+        }}>
+          <div style={{
+            width:56, height:56, borderRadius:"50%",
+            background:"var(--gr)20", border:"2px solid var(--gr)40",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:24, animation:"pulse 1s infinite",
+          }}>📞</div>
+          <div>
+            <div style={{fontSize:11, color:"var(--mu)", marginBottom:2, textTransform:"uppercase", letterSpacing:1}}>
+              {ru ? "Входящий звонок" : "Incoming Call"}
+            </div>
+            <div style={{fontWeight:700, fontSize:16}}>{incomingCaller.name}</div>
+            {incomingCaller.name !== incomingCaller.from && (
+              <div style={{fontSize:11, color:"var(--mu)", marginTop:2}}>{incomingCaller.from}</div>
+            )}
+          </div>
+          <div style={{display:"flex", gap:12, marginTop:4}}>
+            <button onClick={declineCall} style={{
+              width:52, height:52, borderRadius:"50%", border:"none",
+              background:"var(--rd)20", color:"var(--rd)",
+              fontSize:22, cursor:"pointer", display:"flex",
+              alignItems:"center", justifyContent:"center",
+            }}>📵</button>
+            <button onClick={answerCall} style={{
+              width:52, height:52, borderRadius:"50%", border:"none",
+              background:"var(--gr)", color:"#fff",
+              fontSize:22, cursor:"pointer", display:"flex",
+              alignItems:"center", justifyContent:"center",
+            }}>📞</button>
+          </div>
+          <div style={{fontSize:10, color:"var(--mu2)"}}>
+            {ru ? "Нажмите чтобы ответить" : "Tap to answer"}
+          </div>
+        </div>
+      )}
+
+      {/* Reminder modal — also rendered here so it works from inside contact detail */}
         {remModal&&(
           <div className="ovl" onClick={()=>setRemModal(false)}>
             <div className="modal" onClick={e=>e.stopPropagation()}>
