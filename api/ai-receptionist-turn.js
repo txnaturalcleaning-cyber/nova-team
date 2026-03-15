@@ -126,7 +126,7 @@ COLLECTED SO FAR: ${JSON.stringify(session.collectedInfo)}`;
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5',
         max_tokens: 250,
         system: systemPrompt,
         messages: session.history.map(m => ({ role: m.role, content: m.content })),
