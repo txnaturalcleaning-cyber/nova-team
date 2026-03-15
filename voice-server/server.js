@@ -139,14 +139,17 @@ fastify.get('/media-stream', { websocket: true }, (twilioWs, req) => {
           };
 
           // Connect to ElevenLabs
+          console.log('EL_API_KEY present:', !!EL_API_KEY, '| AGENT_ID:', AGENT_ID?.slice(0,20));
           const elUrl = EL_API_KEY
             ? await getSignedUrl()
             : `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+          console.log('ElevenLabs URL:', elUrl.slice(0, 80));
 
+          console.log('Connecting to ElevenLabs:', elUrl.slice(0, 80));
           elevenWs = new WebSocket(elUrl);
 
           elevenWs.on('open', () => {
-            console.log('ElevenLabs connected');
+            console.log('ElevenLabs connected ✅');
             // Send conversation init with dynamic variables
             elevenWs.send(JSON.stringify({
               type: 'conversation_initiation_client_data',
