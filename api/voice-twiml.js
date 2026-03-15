@@ -27,7 +27,7 @@ export default function handler(req, res) {
         recordingStatusCallbackEvent:  'completed',
         trim:                          'trim-silence',
         timeout:                       20, // ring for 20s then AI takes over
-        action:                        `${baseUrl}/api/ai-receptionist`, // ← AI fallback
+        action:                        `${baseUrl}/api/elevenlabs-inbound`, // ← ElevenLabs AI fallback
         method:                        'POST',
       });
       dial.client(identity);
