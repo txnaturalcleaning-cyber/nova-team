@@ -115,8 +115,11 @@ fastify.get('/media-stream', { websocket: true }, (twilioWs, req) => {
   let callSid   = null;
   let callCfg   = null;
 
+  console.log('WebSocket readyState after connect:', twilioWs.readyState);
+  
   twilioWs.on('message', async (data) => {
     try {
+      console.log('RAW message received, length:', data?.length);
       const msg = JSON.parse(data);
       console.log('Twilio msg event:', msg.event, '| keys:', Object.keys(msg).join(','));
 
