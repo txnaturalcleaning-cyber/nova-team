@@ -1,7 +1,6 @@
 // api/voice-twiml.js
-// Handles BOTH inbound and outbound calls
-// Inbound: Direction=inbound (from Twilio Phone Number webhook)
-// Outbound: no Direction, has To= (from TwiML App / SDK)
+// Inbound:  Direction=inbound → ring browser client → fallback to AI receptionist
+// Outbound: SDK dials external number
 
 import twilio from 'twilio';
 const VoiceResponse = twilio.twiml.VoiceResponse;
@@ -14,11 +13,12 @@ export default function handler(req, res) {
     const baseUrl  = 'https://nova-team-omega.vercel.app';
     const identity = process.env.TWILIO_CLIENT_IDENTITY || 'nce_agent';
 
-    console.log('voice-twiml called:', { To, From, Direction, identity });
+    console.log('voice-twiml:', { Direction, To, From, identity });
 
-    // INBOUND: Twilio sends Direction=inbound when someone calls our number
+    // ── INBOUND: ring browser, fallback to AI receptionist ──
     if (Direction === 'inbound') {
-      console.log(`Inbound from ${From} → client:${identity}`);
+      console.log(`Inbound from ${From} → trying client:${identity}, fallback to AI`);
+
       const dial = twiml.dial({
         callerId:                      From,
         record:                        'record-from-answer',
@@ -26,14 +26,17 @@ export default function handler(req, res) {
         recordingStatusCallbackMethod: 'POST',
         recordingStatusCallbackEvent:  'completed',
         trim:                          'trim-silence',
-        timeout:                       30,
+        timeout:                       20, // ring for 20s then AI takes over
+        action:                        `${baseUrl}/api/ai-receptionist`, // ← AI fallback
+        method:                        'POST',
       });
       dial.client(identity);
+
       res.setHeader('Content-Type', 'text/xml');
       return res.send(twiml.toString());
     }
 
-    // OUTBOUND: SDK dials an external number
+    // ── OUTBOUND: SDK dialing external number ──
     if (!To) {
       res.status(400).json({ error: 'Missing To parameter' });
       return;
@@ -55,7 +58,7 @@ export default function handler(req, res) {
 
   } catch(e) {
     console.error('voice-twiml error:', e.message);
-    twiml.say({ voice: 'alice' }, 'We are unable to take your call. Please try again later.');
+    twiml.say({ voice: 'Polly.Joanna' }, 'We are unable to take your call right now. Please try again later.');
     res.setHeader('Content-Type', 'text/xml');
     res.send(twiml.toString());
   }
