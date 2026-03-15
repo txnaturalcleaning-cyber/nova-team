@@ -79,9 +79,7 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
   }
 
   // Build server URL for WebSocket
-  const serverUrl = process.env.RAILWAY_PUBLIC_DOMAIN
-    ? `wss://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-    : `wss://localhost:${PORT}`;
+  const serverUrl = `wss://noble-charisma-production-50bd.up.railway.app`;
 
   // Store config for this call (WebSocket handler will read it)
   global._callConfigs = global._callConfigs || {};
@@ -218,6 +216,22 @@ fastify.get('/media-stream', { websocket: true }, (twilioWs, req) => {
 
 // ── ElevenLabs post-call webhook ──────────────────────────────
 fastify.post('/elevenlabs-webhook', async (req, res) => {
+  // Verify webhook signature
+  const secret = process.env.ELEVENLABS_WEBHOOK_SECRET;
+  if (secret) {
+    try {
+      const { createHmac } = await import('crypto');
+      const signature = req.headers['elevenlabs-signature'] || '';
+      const timestamp = req.headers['elevenlabs-timestamp'] || '';
+      const body      = JSON.stringify(req.body);
+      const expected  = createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
+      if (!signature.includes(expected)) {
+        fastify.log.warn('Invalid ElevenLabs webhook signature');
+        return res.status(401).send({ error: 'Invalid signature' });
+      }
+    } catch(e) { fastify.log.error('Signature error:', e.message); }
+  }
+
   const { conversation_id, call_duration_secs, transcript, data_collection, metadata } = req.body || {};
 
   console.log('Post-call webhook:', { conversation_id, duration: call_duration_secs });
