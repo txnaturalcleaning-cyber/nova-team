@@ -1,0 +1,19 @@
+{
+  "name": "corex-voice-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "@fastify/websocket": "^8.3.0",
+    "@fastify/formbody": "^7.4.0",
+    "ws": "^8.18.0",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
