@@ -118,6 +118,7 @@ fastify.get('/media-stream', { websocket: true }, (twilioWs, req) => {
   twilioWs.on('message', async (data) => {
     try {
       const msg = JSON.parse(data);
+      console.log('Twilio msg event:', msg.event, '| keys:', Object.keys(msg).join(','));
 
       switch (msg.event) {
         case 'start': {
@@ -212,8 +213,8 @@ fastify.get('/media-stream', { websocket: true }, (twilioWs, req) => {
     } catch(e) { console.error('Message error:', e.message); }
   });
 
-  twilioWs.on('close', () => {
-    console.log('Twilio WS closed');
+  twilioWs.on('close', (code, reason) => {
+    console.log('Twilio WS closed:', code, reason?.toString());
     if (elevenWs?.readyState === WebSocket.OPEN) elevenWs.close();
   });
 
