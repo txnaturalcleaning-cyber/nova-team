@@ -26,8 +26,11 @@ fastify.get('/', async (req, res) => {
 // ── Twilio inbound webhook ────────────────────────────────────
 // Called when browser doesn't answer (action from voice-twiml.js)
 fastify.post('/elevenlabs-inbound', async (req, res) => {
+  console.log('=== INBOUND REQUEST ===');
+  console.log('Headers:', JSON.stringify(req.headers).slice(0,200));
+  console.log('Body:', JSON.stringify(req.body).slice(0,300));
+  
   const { To, From, CallSid, DialCallStatus } = req.body || {};
-
   console.log('Inbound call:', { CallSid, From, To, DialCallStatus });
 
   if (DialCallStatus === 'completed') {
@@ -330,6 +333,14 @@ function defaultCfg() {
 function escXml(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Process error handlers (prevent crashes) ─────────────────
+process.on('uncaughtException', (e) => {
+  console.error('Uncaught exception:', e.message);
+});
+process.on('unhandledRejection', (e) => {
+  console.error('Unhandled rejection:', e?.message || e);
+});
 
 // ── Start server ──────────────────────────────────────────────
 try {
