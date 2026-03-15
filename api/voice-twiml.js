@@ -27,7 +27,7 @@ export default function handler(req, res) {
         recordingStatusCallbackEvent:  'completed',
         trim:                          'trim-silence',
         timeout:                       20, // ring for 20s then AI takes over
-        action: `https://api.us.elevenlabs.io/twilio/inbound_call?agent_id=${process.env.ELEVENLABS_AGENT_ID||'agent_2201kksb8516fgmvbecpydj82qcr'}`, // ← ElevenLabs native
+        action: `${baseUrl}/api/elevenlabs-inbound`, // ← our redirect to ElevenLabs
         method:                        'POST',
       });
       dial.client(identity);
