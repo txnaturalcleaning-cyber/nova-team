@@ -125,6 +125,10 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
       console.log('Twilio msg event:', msg.event, '| keys:', Object.keys(msg).join(','));
 
       switch (msg.event) {
+        case 'connected': {
+          console.log('Twilio stream connected, protocol:', msg.protocol);
+          break;
+        }
         case 'start': {
           streamSid = msg.start.streamSid;
           callSid   = msg.start.customParameters?.call_sid || msg.start.callSid;
@@ -198,6 +202,52 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         }
 
         case 'media': {
+          // If start was missed, init ElevenLabs now
+          if (!elevenWs && !streamSid) {
+            streamSid = msg.streamSid;
+            console.log('Start missed! Initializing ElevenLabs on first media packet');
+            const elUrl = EL_API_KEY
+              ? await getSignedUrl()
+              : `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+            console.log('ElevenLabs URL:', elUrl.slice(0,80));
+            elevenWs = new WebSocket(elUrl);
+            const cfgData = global._callConfigs?.[callSid] || {};
+            elevenWs.on('open', () => {
+              console.log('ElevenLabs connected (fallback) ✅');
+              elevenWs.send(JSON.stringify({
+                type: 'conversation_initiation_client_data',
+                dynamic_variables: {
+                  company_name:    cfgData?.cfg?.companyName    || 'Natural Cleaning Experts',
+                  services:        cfgData?.cfg?.services        || 'Standard cleaning, Deep cleaning',
+                  min_price:       cfgData?.cfg?.minPrice        || '120',
+                  service_area:    cfgData?.cfg?.serviceArea     || 'Austin TX and Miami FL',
+                  business_hours:  cfgData?.cfg?.businessHours   || 'Mon-Fri 8am-6pm',
+                  available_slots: cfgData?.slots                || 'Contact us for availability',
+                  custom_notes:    cfgData?.cfg?.customPrompt    || '',
+                },
+              }));
+            });
+            elevenWs.on('message', (elData) => {
+              try {
+                const elMsg = JSON.parse(elData);
+                if (elMsg.type === 'audio') {
+                  if (twilioWs.readyState === WebSocket.OPEN) {
+                    twilioWs.send(JSON.stringify({
+                      event: 'media', streamSid,
+                      media: { payload: elMsg.audio?.chunk || elMsg.audio },
+                    }));
+                  }
+                } else if (elMsg.type === 'interruption') {
+                  if (twilioWs.readyState === WebSocket.OPEN) {
+                    twilioWs.send(JSON.stringify({ event: 'clear', streamSid }));
+                  }
+                }
+                console.log('EL msg type:', elMsg.type);
+              } catch(e) {}
+            });
+            elevenWs.on('error', (e) => console.error('ElevenLabs error:', e.message));
+            elevenWs.on('close', (c) => console.log('ElevenLabs closed:', c));
+          }
           // Forward caller audio to ElevenLabs
           if (elevenWs?.readyState === WebSocket.OPEN) {
             elevenWs.send(JSON.stringify({
