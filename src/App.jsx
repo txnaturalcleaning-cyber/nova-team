@@ -5218,7 +5218,7 @@ function AppInner() {
                   {lead.address&&<span style={{marginRight:12}}>📍 {lead.address}</span>}
                   {lead.preferredDate&&<span>📅 {lead.preferredDate}{lead.preferredTime?' '+lead.preferredTime:''}</span>}
                 </div>
-                <div style={{fontSize:10,color:'var(--mu2)',marginTop:4}}>{new Date(lead.createdAt).toLocaleString()}</div>
+                <div style={{fontSize:10,color:'var(--mu2)',marginTop:4}}>{lead.createdAt?new Date(lead.createdAt).toLocaleString():'—'}</div>
               </div>
               <button style={{padding:'6px 14px',borderRadius:8,border:'none',background:'var(--acc)',color:'#fff',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0}}>
                 {ru?'В CRM':'Add to CRM'}
@@ -5233,7 +5233,7 @@ function AppInner() {
               <div key={call.callSid} style={{background:'var(--s1)',borderRadius:10,padding:14,marginBottom:8,border:'1px solid var(--bdr)'}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
                   <span style={{fontWeight:600,fontSize:13}}>{call.from}</span>
-                  <span style={{fontSize:11,color:'var(--mu)'}}>{new Date(call.startedAt).toLocaleString()}</span>
+                  <span style={{fontSize:11,color:'var(--mu)'}}>{call.startedAt?new Date(call.startedAt).toLocaleString():'—'}</span>
                 </div>
                 {(call.history||[]).map((h,i)=>(
                   <div key={i} style={{fontSize:11,lineHeight:1.6,marginBottom:3,display:'flex',gap:6}}>
