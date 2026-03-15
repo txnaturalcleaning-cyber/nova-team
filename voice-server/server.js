@@ -82,7 +82,7 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
   }
 
   // Build server URL for WebSocket
-  const serverUrl = `wss://noble-charisma-production-50bd.up.railway.app`;
+  const serverUrl = `wss://nova-team-9gbc.onrender.com`;
 
   // Store config for this call (WebSocket handler will read it)
   global._callConfigs = global._callConfigs || {};
