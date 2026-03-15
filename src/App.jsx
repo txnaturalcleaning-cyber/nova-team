@@ -837,7 +837,7 @@ function Telephony() {
       } else if (tr.includes("подумаю") || tr.includes("think about") || tr.includes("конкурент") || tr.includes("competitor") || tr.includes("дешевле") || tr.includes("cheaper")) {
         analysis = { result:"no_sale", score:35, category:"new",
           failMoment: ru?"Клиент сравнил с конкурентами":"Client mentioned competitors",
-          failReason: ru?"Оператор не защитил цену — критическая ошибка":"Agent didn't defend price — critical mistake",
+          failReason: ru?"Оператор не защитил цену — критическая ошибка":"Agent did not defend price — critical mistake",
           goodMoments:[ru?"Цена была названа":"Price was quoted"],
           improvements:[ru?"Говорить о ценности: гарантия, страховка, проверенные клинеры":"Highlight value: guarantee, insurance, vetted cleaners", ru?"Предложить скидку 10% на первую уборку":"Offer 10% off first cleaning"],
           autoSuggestion: ru?"📲 SMS через 2ч: «Скидка 10% на первую уборку — до пятницы!»":"📲 SMS in 2h: '10% off your first cleaning — valid until Friday!'" };
@@ -1208,7 +1208,94 @@ function AppInner() {
   const [page,        setPage]        = useState(()=>localStorage.getItem("nls_page")||"dashboard");
   useEffect(()=>{ if(page) localStorage.setItem("nls_page", page); }, [page]);
   // CRM open contact — lifted to parent to survive CRM re-renders
+  // ── Global phone state (lifted so Device persists across page navigation) ──
+  const [globalCallState,    setGlobalCallState]    = useState("idle");
+  const [globalActiveCall,   setGlobalActiveCall]   = useState(null);
+  const [globalCallContact,  setGlobalCallContact]  = useState(null);
+  const [globalCallDuration, setGlobalCallDuration] = useState(0);
+  const [globalIncomingCaller,setGlobalIncomingCaller] = useState(null);
+  const [globalCallLog,      setGlobalCallLog]      = useState([]);
+  const [globalTwilioDevice, setGlobalTwilioDevice] = useState(null);
+  const [globalSdkReady,     setGlobalSdkReady]     = useState(false);
+
   const [crmOpenId, setCrmOpenId] = useState(null);
+
+  // ── Global Twilio Device (persists across page navigation) ──
+  const globalCallTimerRef    = useRef(null);
+  const globalCallDurationRef = useRef(0);
+
+  useEffect(() => {
+    // Expose init function globally so CRM can call it
+    window._initTwilioDevice = initGlobalTwilioDevice;
+    // Auto-init when user logs in
+    if (currentUser && !globalTwilioDevice) {
+      initGlobalTwilioDevice().catch(e => console.log('Auto-init error:', e.message));
+    }
+    // Resume AudioContext on first click
+    const onFirstClick = () => {
+      if (window._twilioAudioCtx) window._twilioAudioCtx.resume().catch(()=>{});
+      document.removeEventListener('click', onFirstClick);
+    };
+    document.addEventListener('click', onFirstClick);
+    return () => document.removeEventListener('click', onFirstClick);
+  }, [currentUser?.email]); // eslint-disable-line
+
+  async function initGlobalTwilioDevice() {
+    if (globalTwilioDevice) return globalTwilioDevice;
+    try {
+      const pid = currentUser?.id || "nce_main";
+      const p   = partners.find(x => x.id === pid) || {};
+      const partnerPhone = p?.purchasedPhone?.phoneNumber || null;
+      const r = await fetch("/api/voice-token", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ partnerPhone }),
+      });
+      const { token, partnerPhone: phoneFromToken } = await r.json();
+      if (phoneFromToken) window._twilioPartnerPhone = phoneFromToken;
+
+      const device = new TwilioDevice(token, { logLevel:1, codecPreferences:["opus","pcmu"] });
+
+      device.on("incoming", call => {
+        console.log("🔔 GLOBAL INCOMING CALL:", call.parameters);
+        const from = call.parameters?.From || call.customParameters?.get?.("From") || "Unknown";
+        // Try to find contact in any partner's contacts
+        let matchedName = from;
+        for (const partner of partners) {
+          const found = (partner.contacts||[]).find(c =>
+            c.phone && c.phone.replace(/\D/g,"").endsWith(from.replace(/\D/g,"").slice(-10))
+          );
+          if (found) { matchedName = found.name; break; }
+        }
+        setGlobalIncomingCaller({ from, name: matchedName });
+        setGlobalActiveCall(call);
+        setGlobalCallState("incoming");
+        setGlobalSdkReady(true);
+
+        call.on("cancel", () => {
+          setGlobalCallState("idle"); setGlobalActiveCall(null); setGlobalIncomingCaller(null);
+          setGlobalCallLog(prev=>[{id:"cl_"+Date.now(),type:"missed",
+            from, to:partnerPhone||"", name:matchedName, dur:0, ts:new Date().toLocaleString()
+          },...prev.slice(0,99)]);
+        });
+        call.on("disconnect", () => {
+          setGlobalCallState("idle"); setGlobalActiveCall(null); setGlobalIncomingCaller(null);
+        });
+        call.on("reject", () => {
+          setGlobalCallState("idle"); setGlobalActiveCall(null); setGlobalIncomingCaller(null);
+        });
+      });
+
+      device.on("error", err => { console.error("Twilio Device error:", err); setGlobalCallState("idle"); });
+      await device.register();
+      setGlobalTwilioDevice(device);
+      setGlobalSdkReady(true);
+      console.log("✅ Global Twilio Device registered");
+      return device;
+    } catch(e) {
+      console.error("Global init device error:", e);
+      return null;
+    }
+  }
   const [crmAudioUrls, setCrmAudioUrls] = useState({}); // { recordingSid: blobUrl }
   const [crmAudioLoading, setCrmAudioLoading] = useState({}); // { recordingSid: bool }
   const [crmTranscripts, setCrmTranscripts] = useState({}); // { recordingSid: {lines, language, text} }
@@ -4710,7 +4797,7 @@ function AppInner() {
       const unconfirmed = bookings.filter(b=>b.status==="pending"&&b.date>=today);
       if (unconfirmed.length) found.push({ id:++id, cat:"booking", level:"warning",
         title: ru?`${unconfirmed.length} бронирований без подтверждения`:`${unconfirmed.length} unconfirmed bookings`,
-        desc: ru?"Клиенты не получили подтверждение":"Clients haven't received confirmation",
+        desc: ru?"Клиенты не получили подтверждение":"Clients have not received confirmation",
         action:{ label:ru?"Бронирования":"Bookings", fn:()=>setPage("booking") }
       });
 
@@ -5315,7 +5402,7 @@ function AppInner() {
           <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>{ru?'Дополнительные инструкции для AI':'Additional AI Instructions'}</div>
           <div style={{fontSize:11,color:'var(--mu)',marginBottom:8}}>{ru?'Особые правила, акции, информация которую AI должен знать':'Special rules, promotions, or info the AI should know'}</div>
           <textarea value={form.customPrompt} onChange={e=>set('customPrompt',e.target.value)}
-            placeholder={ru?"Например: Не работаем по воскресеньям. Скидка 15% для первых клиентов. Минимальный заказ от 2 часов.":"E.g.: We don't work Sundays. 15% discount for first-time clients. 2-hour minimum."}
+            placeholder={ru?"Например: Не работаем по воскресеньям. Скидка 15% для первых клиентов. Минимальный заказ от 2 часов.":"E.g.: We do not work Sundays. 15% discount for first-time clients. 2-hour minimum."}
             style={{width:'100%',minHeight:80,padding:'8px 10px',borderRadius:8,border:'1px solid var(--bdr)',background:'var(--bg)',color:'var(--tx)',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',resize:'vertical'}}/>
         </div>
 
@@ -5489,8 +5576,24 @@ function AppInner() {
 
     // ── Local state ──
     const [cTab,       setCTab]       = useState("contacts");
-    const [callLog,    setCallLog]    = useState([]); // {id, type, from, to, name, dur, ts}
     const [dialNumber, setDialNumber] = useState(""); // manual dial input
+    // ── Phone state wired from AppInner (global, persists across navigation) ──
+    const callState     = globalCallState;
+    const setCallState  = setGlobalCallState;
+    const activeCall    = globalActiveCall;
+    const setActiveCall = setGlobalActiveCall;
+    const callContact   = globalCallContact;
+    const setCallContact= setGlobalCallContact;
+    const callDuration  = globalCallDuration;
+    const setCallDuration=setGlobalCallDuration;
+    const incomingCaller= globalIncomingCaller;
+    const setIncomingCaller=setGlobalIncomingCaller;
+    const callLog       = globalCallLog;
+    const setCallLog    = setGlobalCallLog;
+    const twilioDevice  = globalTwilioDevice;
+    const setTwilioDevice=setGlobalTwilioDevice;
+    const sdkReady      = globalSdkReady;
+    const setSdkReady   = setGlobalSdkReady;
     const [search,     setSearch]     = useState("");
     const [tagFilter,  setTagFilter]  = useState("");
     const [stageFilter,setStageFilter]= useState("all");
@@ -5505,95 +5608,15 @@ function AppInner() {
     const [campModal,  setCampModal]  = useState(false);
     const [campSending,setCampSending]= useState(null);
     // Twilio voice
-    const [twilioDevice,setTwilioDevice] = useState(null);
-    const [callState,    setCallState]    = useState("idle");
-    const [activeCall,   setActiveCall]   = useState(null);
-    const [callContact,  setCallContact]  = useState(null);
-    const [callDuration, setCallDuration] = useState(0);
-    const [sdkReady,     setSdkReady]     = useState(false);
-    const [incomingCaller, setIncomingCaller] = useState(null); // { from, name }
-    const callTimerRef    = useRef(null);
-    const callDurationRef = useRef(0); // tracks live duration, avoids stale closure
+    // twilioDevice is wired from AppInner global state
+    // (callState, activeCall, etc. are now wired from AppInner global state above)
+    // ── Phone refs & functions are at AppInner level (global) ──
+    const callTimerRef    = window._callTimerRef    || (window._callTimerRef    = {current:null});
+    const callDurationRef = window._callDurationRef || (window._callDurationRef = {current:0});
 
-    // ── Auto-register Device on mount + resume AudioContext on first click ──
-    useEffect(() => {
-      setSdkReady(true);
-      // Init device immediately so inbound calls work right away
-      initTwilioDevice().catch(e => console.log('Auto-init error:', e.message));
-      // AudioContext needs user gesture to resume — do it silently on first click
-      const onFirstClick = () => {
-        if (window._twilioAudioCtx) {
-          window._twilioAudioCtx.resume().catch(()=>{});
-        }
-        document.removeEventListener('click', onFirstClick);
-      };
-      document.addEventListener('click', onFirstClick);
-      return () => document.removeEventListener('click', onFirstClick);
-    }, []); // eslint-disable-line
-
-    // ── Twilio voice functions ──
+    // ── Twilio voice functions (initTwilioDevice is at AppInner level) ──
     async function initTwilioDevice() {
-      if (twilioDevice) return twilioDevice;
-      try {
-        const identity = currentUser?.email?.replace(/[^a-zA-Z0-9]/g,"_") || "nova_user";
-        const partnerPhone = p?.purchasedPhone?.phoneNumber || null;
-        const r = await fetch("/api/voice-token",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identity, partnerPhone})});
-        const {token, partnerPhone:phoneFromToken} = await r.json();
-        if (phoneFromToken) window._twilioPartnerPhone = phoneFromToken;
-
-        // Register this identity → phone mapping so inbound calls route here
-        if (partnerPhone || phoneFromToken) {
-          fetch("/api/register-identity", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ identity, phone: partnerPhone || phoneFromToken }),
-          }).catch(()=>{});
-        }
-
-        const device = new TwilioDevice(token,{logLevel:1,codecPreferences:["opus","pcmu"]});
-
-        device.on("incoming", call => {
-          console.log("🔔 INCOMING CALL:", call.parameters);
-          const from = call.parameters?.From || call.customParameters?.get?.("From") || "Unknown";
-          const matchedContact = contacts.find(c =>
-            c.phone && (c.phone.replace(/\D/g,"").endsWith(from.replace(/\D/g,"").slice(-10)))
-          );
-          setIncomingCaller({
-            from,
-            name: matchedContact?.name || from,
-            contactId: matchedContact?.id || null,
-          });
-          setActiveCall(call);
-          setCallState("incoming");
-
-          // ✅ Auto-dismiss modal when caller hangs up or call times out
-          call.on("cancel", () => {
-            setCallState("idle");
-            setActiveCall(null);
-            setIncomingCaller(null);
-            // Log as missed
-            setCallLog(prev=>[{id:"cl_"+Date.now(),type:"missed",
-              from, to:p?.purchasedPhone?.phoneNumber||"",
-              name:matchedContact?.name||from, dur:0, ts:new Date().toLocaleString()
-            },...prev.slice(0,99)]);
-          });
-          call.on("disconnect", () => {
-            setCallState("idle");
-            setActiveCall(null);
-            setIncomingCaller(null);
-          });
-          call.on("reject", () => {
-            setCallState("idle");
-            setActiveCall(null);
-            setIncomingCaller(null);
-          });
-        });
-
-        device.on("error", err => { console.error("Twilio Device error:", err); setCallState("idle"); });
-        await device.register();
-        setTwilioDevice(device);
-        return device;
-      } catch(e){ console.error("Init device error:", e); alert(`Init error: ${e.message}`); return null; }
+      return window._initTwilioDevice ? window._initTwilioDevice() : null;
     }
 
     function answerCall() {
@@ -10535,6 +10558,60 @@ function AppInner() {
         </div>
 
         {/* ══ MODALS ══ */}
+
+        {/* ── GLOBAL INCOMING CALL MODAL — shows on ANY page ── */}
+        {globalCallState === "incoming" && globalIncomingCaller && (
+          <div style={{
+            position:"fixed", top:24, left:"50%", transform:"translateX(-50%)",
+            zIndex:99999, background:"var(--s2)",
+            border:"2px solid var(--gr)", borderRadius:20,
+            padding:"20px 28px", boxShadow:"0 12px 48px rgba(0,0,0,0.35)",
+            display:"flex", flexDirection:"column", alignItems:"center", gap:12,
+            minWidth:300, textAlign:"center",
+          }}>
+            <div style={{
+              width:60, height:60, borderRadius:"50%",
+              background:"var(--gr)25", border:"2px solid var(--gr)",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:26, animation:"pulse 1s infinite",
+            }}>📞</div>
+            <div>
+              <div style={{fontSize:11, color:"var(--mu)", marginBottom:4, textTransform:"uppercase", letterSpacing:1}}>
+                {lang==="ru" ? "Входящий звонок" : "Incoming Call"}
+              </div>
+              <div style={{fontWeight:700, fontSize:17}}>{globalIncomingCaller.name}</div>
+              {globalIncomingCaller.name !== globalIncomingCaller.from && (
+                <div style={{fontSize:12, color:"var(--mu)", marginTop:2}}>{globalIncomingCaller.from}</div>
+              )}
+            </div>
+            <div style={{display:"flex", gap:16, marginTop:4}}>
+              <button onClick={()=>{
+                if(globalActiveCall) globalActiveCall.reject();
+                setGlobalCallLog(prev=>[{id:"cl_"+Date.now(),type:"missed",
+                  from:globalIncomingCaller?.from||"",to:"",
+                  name:globalIncomingCaller?.name||globalIncomingCaller?.from||"",
+                  dur:0,ts:new Date().toLocaleString()},...prev.slice(0,99)]);
+                setGlobalCallState("idle");setGlobalActiveCall(null);setGlobalIncomingCaller(null);
+              }} style={{
+                width:56, height:56, borderRadius:"50%", border:"none",
+                background:"var(--rd)20", color:"var(--rd)",
+                fontSize:24, cursor:"pointer",
+              }}>📵</button>
+              <button onClick={()=>{
+                if(!globalActiveCall) return;
+                globalActiveCall.accept();
+                setGlobalCallState("active");
+              }} style={{
+                width:56, height:56, borderRadius:"50%", border:"none",
+                background:"var(--gr)", color:"#fff",
+                fontSize:24, cursor:"pointer",
+              }}>📞</button>
+            </div>
+            <div style={{fontSize:11, color:"var(--mu2)"}}>
+              {lang==="ru" ? "Ответить или сбросить" : "Answer or decline"}
+            </div>
+          </div>
+        )}
 
         {showImport&&<CSVImportModal/>}
 
