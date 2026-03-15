@@ -1,4 +1,4 @@
-// api/ai-receptionist-turn.js — полностью переписан
+// api/ai-receptionist-turn.js
 export default async function handler(req, res) {
   const { SpeechResult, CallSid, From } = req.body || {};
   const baseUrl  = 'https://nova-team-omega.vercel.app';
@@ -8,218 +8,209 @@ export default async function handler(req, res) {
   const apiKey   = process.env.ANTHROPIC_API_KEY;
   const turnUrl  = `${baseUrl}/api/ai-receptionist-turn`;
 
-  console.log('Turn:', { CallSid, speech: SpeechResult?.slice(0,60) });
-
-  const v  = 'Polly.Joanna';
-  const lc = 'en-US';
+  console.log('Turn:', { CallSid, speech: SpeechResult?.slice(0, 70) });
 
   // No speech
   if (!SpeechResult?.trim()) {
     res.setHeader('Content-Type', 'text/xml');
     return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${turnUrl}" method="POST" speechTimeout="auto" language="en-US" timeout="10" enhanced="true" speechModel="phone_call">
-    <Say voice="${v}">I did not catch that. Could you say that again?</Say>
+  <Gather input="speech" action="${turnUrl}" method="POST"
+    speechTimeout="auto" language="en-US" timeout="10" enhanced="true" speechModel="phone_call">
+    <Say voice="Polly.Joanna">Sorry, could you repeat that?</Say>
   </Gather><Hangup/>
 </Response>`);
   }
 
-  // Load session from Firebase
-  let session = { history:[], collectedInfo:{}, config:{}, from:From };
+  // Load session
+  let session = { history: [], collectedInfo: {}, config: {}, from: From, to: '' };
   try {
     const r = await fetch(`${fbBase}/ai_calls/${CallSid}.json${fbSuffix}`);
     const d = await r.json();
     if (d && d.callSid) session = { ...session, ...d };
   } catch(e) { console.log('Session load error:', e.message); }
 
-  // Re-load fresh config from Firebase (in case it changed)
-  let cfg = session.config || {};
-  if (cfg.companyName && cfg.companyName !== 'Natural Cleaning Experts') {
-    // already have real config
-  } else {
-    try {
-      const phoneKey = (session.to || '').replace(/[^0-9]/g,'');
-      if (phoneKey) {
-        const r = await fetch(`${fbBase}/ai_receptionist_config/${phoneKey}.json${fbSuffix}`);
-        const d = await r.json();
-        if (d && d.companyName) { cfg = d; session.config = cfg; }
-      }
-    } catch(e) {}
-  }
-
+  const cfg  = session.config || {};
   const isRu = (cfg.language || 'en') === 'ru';
-  const voice = isRu ? 'Polly.Tatyana' : 'Polly.Joanna';
-  const lang  = isRu ? 'ru-RU' : 'en-US';
+  const v    = isRu ? 'Polly.Tatyana' : 'Polly.Joanna';
+  const lang = isRu ? 'ru-RU' : 'en-US';
 
-  // Load real booking availability
-  let slotsInfo = 'No availability data';
-  if (cfg.partnerId) {
+  // Load booking slots
+  let slotsText = '';
+  if (cfg.partnerId && cfg.collectBooking !== false) {
     try {
-      const r = await fetch(`${fbBase}/partners/${cfg.partnerId}/workspace.json${fbSuffix}`);
+      const r  = await fetch(`${fbBase}/partners/${cfg.partnerId}/workspace.json${fbSuffix}`);
       const ws = await r.json();
       if (ws) {
         const today    = new Date();
         const bookings = ws.bookings || [];
-        const emps     = (ws.employees||[]).filter(e=>['cleaner','Cleaner'].includes(e.role));
+        const emps     = (ws.employees || []).filter(e => ['cleaner','Cleaner'].includes(e.role));
         const slots    = [];
-        for (let i=1; i<=7; i++) {
-          const d = new Date(today); d.setDate(today.getDate()+i);
-          const ds   = d.toISOString().split('T')[0];
-          const busy = bookings.filter(b=>b.date===ds&&b.status!=='cancelled').length;
+        for (let i = 1; i <= 7; i++) {
+          const d  = new Date(today); d.setDate(today.getDate() + i);
+          const ds = d.toISOString().split('T')[0];
+          const busy = bookings.filter(b => b.date === ds && b.status !== 'cancelled').length;
           const free = Math.max(0, emps.length - busy);
-          if (free>0) slots.push(`${d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}: ${free} cleaner${free>1?'s':''} available`);
+          if (free > 0) slots.push(
+            `${d.toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'})}: ${free} open`
+          );
         }
-        slotsInfo = slots.length ? slots.join('\n') : 'Fully booked this week';
+        slotsText = slots.length
+          ? '\n\nAVAILABLE THIS WEEK:\n' + slots.join('\n')
+          : '\n\nSchedule: Fully booked this week, offer next week';
       }
-    } catch(e) { slotsInfo = 'Unable to load schedule'; }
+    } catch(e) { console.log('Slots error:', e.message); }
   }
 
-  // What we already know
-  const info = session.collectedInfo || {};
-  const known = [];
-  if (info.name)        known.push(`name: "${info.name}"`);
-  if (info.address)     known.push(`address: "${info.address}"`);
-  if (info.serviceType) known.push(`service: "${info.serviceType}"`);
-  if (info.date)        known.push(`date: "${info.date}"`);
+  // Build what we know / still need
+  const info     = session.collectedInfo || {};
+  const known    = Object.entries({
+    'name':    info.name,
+    'address': info.address,
+    'service': info.serviceType,
+    'date':    info.date,
+  }).filter(([,v]) => v).map(([k,v]) => `${k}="${v}"`).join(', ');
+  const stillNeed = [
+    !info.name        && 'name',
+    !info.address     && 'address or zip',
+    !info.serviceType && 'service type',
+    !info.date        && 'preferred date',
+  ].filter(Boolean);
 
-  // What we still need
-  const stillNeed = [];
-  if (!info.name)        stillNeed.push('their name');
-  if (!info.address)     stillNeed.push('their address or zip code');
-  if (!info.serviceType) stillNeed.push('which type of cleaning they want');
-  if (!info.date)        stillNeed.push('their preferred date');
+  // System prompt
+  const systemPrompt = `You are Clara, a warm receptionist at ${cfg.companyName || 'Natural Cleaning Experts'}.
+This is a real phone call. Be natural, friendly, concise — like a real human.
 
-  const systemPrompt = `You are Clara, a warm and friendly receptionist at ${cfg.companyName||'Natural Cleaning Experts'}.
-You are on a real phone call. Sound like a real human — natural, conversational, never robotic.
+COMPANY:
+- Services: ${cfg.services || 'Standard, Deep cleaning, Move-in/out, Recurring'}
+- Price from: $${cfg.minPrice || '120'}
+- Service area: ${cfg.serviceArea || 'Austin TX and Miami FL'}
+- Hours: ${cfg.businessHours || 'Mon-Fri 8am-6pm, Sat 9am-3pm'}
+${cfg.customPrompt ? '- Note: ' + cfg.customPrompt : ''}${slotsText}
 
-COMPANY INFO:
-- Services offered: ${cfg.services||'Standard cleaning, Deep cleaning, Move-in/out, Recurring'}
-- Starting price: $${cfg.minPrice||'120'}
-- Service area: ${cfg.serviceArea||'Austin TX'}
-- Hours: ${cfg.businessHours||'Mon-Fri 8am-6pm'}
-${cfg.customPrompt ? '- Special notes: '+cfg.customPrompt : ''}
+ALREADY COLLECTED: ${known || 'nothing yet'}
+STILL NEED: ${stillNeed.length ? stillNeed.join(', ') : '✅ All info collected — confirm and create booking!'}
 
-REAL SCHEDULE THIS WEEK:
-${slotsInfo}
+RULES:
+- MAX 1 short sentence per response (10-15 words)
+- NEVER re-greet, NEVER say "Hello" or "Hi" again — you already greeted them
+- NEVER re-ask what you already know (see ALREADY COLLECTED above)
+- Ask ONLY the next missing piece from STILL NEED
+- Use real schedule above when suggesting dates
+- Sound warm and human — contractions, casual
+- ${isRu ? 'Speak Russian' : 'Speak English'}
 
-WHAT YOU KNOW SO FAR: ${known.length ? known.join(', ') : 'nothing yet'}
-WHAT YOU STILL NEED: ${stillNeed.length ? stillNeed.join(', ') : 'everything — ready to confirm!'}
+When you have ALL 4 pieces → confirm warmly in one sentence, then on a NEW LINE add:
+[BOOKING:{"name":"X","address":"X","serviceType":"X","date":"X"}]`;
 
-INSTRUCTIONS:
-- Speak naturally, like a real person — contractions, casual warmth
-- ONE question per response, max 2 short sentences
-- Do NOT re-ask anything already collected above
-- Use the real schedule above when suggesting dates
-- When you have name + address + service + date → confirm it warmly, then output on its own line: [BOOKING:{"name":"X","address":"X","serviceType":"X","date":"X"}]
-- If they ask price → give the starting price and mention final depends on home size
-- Language: ${isRu ? 'Russian only' : 'English'}`;
+  // Add user turn — keep last 12 messages
+  const history = [...(session.history || []).slice(-12), { role: 'user', content: SpeechResult }];
 
-  // Build message history - keep last 10 turns only
-  session.history = (session.history||[]).slice(-10);
-  session.history.push({ role:'user', content:SpeechResult });
+  // Update collectedInfo from user speech
+  extractInfo(info, SpeechResult);
 
   let aiText = '';
   let bookingData = null;
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version':'2023-06-01',
+      method: 'POST',
+      headers: {
+        'Content-Type':    'application/json',
+        'x-api-key':       apiKey,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 120,
-        system: systemPrompt,
-        messages: session.history.map(m=>({role:m.role, content:m.content})),
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 150,
+        system:     systemPrompt,
+        messages:   history.map(m => ({ role: m.role, content: m.content })),
       }),
     });
     const data = await r.json();
-    console.log('Claude:', r.status, data?.error?.message||'ok');
+    console.log('Claude:', r.status, data?.error?.message || 'ok');
 
-    if (data.error) {
-      console.error('Claude error:', JSON.stringify(data.error));
-      aiText = isRu ? 'Одну секунду.' : 'One moment, please.';
-    } else {
-      aiText = data.content?.[0]?.text || '';
-    }
+    aiText = data.error
+      ? (isRu ? 'Одну секунду.' : 'One moment.')
+      : (data.content?.[0]?.text || '');
 
     // Extract booking marker
     const bm = aiText.match(/\[BOOKING:([\s\S]*?)\]/);
     if (bm) {
-      try { bookingData = JSON.parse(bm[1]); } catch(e){}
+      try { bookingData = JSON.parse(bm[1]); } catch(e) {}
       aiText = aiText.replace(/\[BOOKING:[\s\S]*?\]/, '').trim();
     }
-
-    // Extract collected info from Claude's response using simple heuristics
-    // Also try to update collectedInfo from conversation
-    extractAndUpdateInfo(session, SpeechResult, aiText);
-
   } catch(e) {
-    console.error('Fetch error:', e.message);
+    console.error('Claude error:', e.message);
     aiText = isRu ? 'Секунду.' : 'One moment.';
   }
 
-  session.history.push({ role:'assistant', content:aiText });
+  // Update history
+  history.push({ role: 'assistant', content: aiText });
+  if (bookingData) {
+    session.collectedInfo = { ...info, ...bookingData };
+    session.status = 'booked';
+  } else {
+    session.collectedInfo = info;
+  }
 
   // Save lead if booking complete
   if (bookingData) {
-    session.collectedInfo = { ...(session.collectedInfo||{}), ...bookingData };
-    session.status = 'booked';
     try {
       const leadId = 'ai_' + Date.now();
       await fetch(`${fbBase}/ai_leads/${leadId}.json${fbSuffix}`, {
-        method:'PUT', headers:{'Content-Type':'application/json'},
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id:leadId, callSid:CallSid, phone:From,
-          partnerId:cfg.partnerId||null,
-          source:'AI Receptionist',
-          name:bookingData.name||'',
-          address:bookingData.address||'',
-          serviceType:bookingData.serviceType||'',
-          preferredDate:bookingData.date||'',
+          id: leadId, callSid: CallSid, phone: From,
+          partnerId: cfg.partnerId || null,
+          source: 'AI Receptionist',
+          name:        bookingData.name || '',
+          address:     bookingData.address || '',
+          serviceType: bookingData.serviceType || '',
+          preferredDate: bookingData.date || '',
           createdAt: new Date().toISOString(),
-          status:'new_lead',
+          status: 'new_lead',
         }),
       });
-      // SMS to caller
-      if (cfg.confirmSms!==false && From && bookingData.name) {
+      // SMS confirmation
+      if (cfg.confirmSms !== false && From && bookingData.name) {
         const msg = isRu
-          ? `${bookingData.name}, ваша заявка принята! Перезвоним в течение часа. — ${cfg.companyName}`
-          : `Hi ${bookingData.name}! Got your booking request for ${bookingData.serviceType||'cleaning'} at ${bookingData.address}. We will confirm within 1 hour! — ${cfg.companyName||'Natural Cleaning Experts'}`;
-        fetch(`${baseUrl}/api/send-sms`,{
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({to:From, message:msg, fromNumber:session.to}),
-        }).catch(()=>{});
+          ? `${bookingData.name}, заявка принята! Перезвоним в течение часа. — ${cfg.companyName}`
+          : `Hi ${bookingData.name}! Your request for ${bookingData.serviceType || 'cleaning'} at ${bookingData.address || 'your location'} is received. We will confirm within 1 hour! — ${cfg.companyName || 'Natural Cleaning Experts'}`;
+        fetch(`${baseUrl}/api/send-sms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: From, message: msg, fromNumber: session.to }),
+        }).catch(() => {});
       }
-    } catch(e){ console.log('Lead error:', e.message); }
+    } catch(e) { console.log('Lead error:', e.message); }
   }
 
   // Save session
   try {
     await fetch(`${fbBase}/ai_calls/${CallSid}.json${fbSuffix}`, {
-      method:'PATCH', headers:{'Content-Type':'application/json'},
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        history: session.history.slice(-12),
+        history: history.slice(-14),
         collectedInfo: session.collectedInfo,
-        status: session.status||'active',
+        status: session.status || 'active',
         config: cfg,
       }),
     });
   } catch(e) {}
 
   const spoken    = x(aiText);
-  const shouldEnd = !!bookingData || session.history.length > 18;
+  const shouldEnd = !!bookingData || history.length > 20;
 
   if (shouldEnd) {
     res.setHeader('Content-Type', 'text/xml');
     return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="${lang}">${spoken}</Say>
+  <Say voice="${v}" language="${lang}">${spoken}</Say>
   <Pause length="1"/>
-  <Say voice="${voice}">${isRu?'Хорошего дня!':'Have a great day! Goodbye!'}</Say>
+  <Say voice="${v}">${x(isRu ? 'Хорошего дня!' : 'Have a great day! Goodbye!')}</Say>
   <Hangup/>
 </Response>`);
   }
@@ -230,42 +221,35 @@ INSTRUCTIONS:
   <Gather input="speech" action="${turnUrl}" method="POST"
     speechTimeout="auto" language="${lang}" timeout="12"
     enhanced="true" speechModel="phone_call">
-    <Say voice="${voice}" language="${lang}">${spoken}</Say>
+    <Say voice="${v}" language="${lang}">${spoken}</Say>
   </Gather>
-  <Say voice="${voice}">${isRu?'Спасибо за звонок! До свидания.':'Thanks for calling! Goodbye.'}</Say>
+  <Say voice="${v}">${x(isRu ? 'Спасибо за звонок! До свидания.' : 'Thanks for calling! Goodbye.')}</Say>
   <Hangup/>
 </Response>`);
 }
 
-// Simple info extractor — updates collectedInfo from conversation
-function extractAndUpdateInfo(session, userSpeech, aiText) {
-  const info = session.collectedInfo = session.collectedInfo || {};
-  const u = userSpeech.toLowerCase();
-
-  // Service type keywords
+// Extract info from user speech automatically
+function extractInfo(info, speech) {
+  const u = (speech || '').toLowerCase();
   if (!info.serviceType) {
-    if (u.includes('deep clean') || u.includes('deep')) info.serviceType = 'Deep cleaning';
+    if (u.includes('deep'))                              info.serviceType = 'Deep cleaning';
     else if (u.includes('move') || u.includes('moving')) info.serviceType = 'Move-in/out';
-    else if (u.includes('recurring') || u.includes('weekly') || u.includes('regular')) info.serviceType = 'Recurring';
-    else if (u.includes('standard') || u.includes('regular clean')) info.serviceType = 'Standard cleaning';
+    else if (u.includes('recurring') || u.includes('weekly') || u.includes('every week')) info.serviceType = 'Recurring';
+    else if (u.includes('standard') || u.includes('regular')) info.serviceType = 'Standard cleaning';
   }
-
-  // Date keywords
   if (!info.date) {
-    const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-    const tomorrow = u.includes('tomorrow');
-    const today_ = u.includes('today');
-    if (tomorrow) info.date = 'Tomorrow';
-    else if (today_) info.date = 'Today';
-    else {
-      const day = days.find(d => u.includes(d));
-      if (day) info.date = day.charAt(0).toUpperCase()+day.slice(1);
-    }
-    // Next week
-    if (u.includes('next week')) info.date = 'Next week';
+    if (u.includes('tomorrow'))       info.date = 'Tomorrow';
+    else if (u.includes('today'))     info.date = 'Today';
+    else if (u.includes('monday'))    info.date = 'Monday';
+    else if (u.includes('tuesday'))   info.date = 'Tuesday';
+    else if (u.includes('wednesday')) info.date = 'Wednesday';
+    else if (u.includes('thursday'))  info.date = 'Thursday';
+    else if (u.includes('friday'))    info.date = 'Friday';
+    else if (u.includes('saturday'))  info.date = 'Saturday';
+    else if (u.includes('next week')) info.date = 'Next week';
   }
 }
 
 function x(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
