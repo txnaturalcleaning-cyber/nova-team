@@ -5577,6 +5577,7 @@ function AppInner() {
     // ── Local state ──
     const [cTab,       setCTab]       = useState("contacts");
     const [dialNumber, setDialNumber] = useState(""); // manual dial input
+    const [callFilter, setCallFilter]   = useState("all"); // all | inbound | outbound | missed
     // ── Phone state wired from AppInner (global, persists across navigation) ──
     const callState     = globalCallState;
     const setCallState  = setGlobalCallState;
@@ -6347,64 +6348,109 @@ function AppInner() {
               </div>
               <div style={{display:"flex",gap:8}}>
                 <input value={dialNumber} onChange={e=>setDialNumber(e.target.value)}
-                  onKeyDown={e=>{if(e.key==="Enter"&&dialNumber.trim()){
-                    const phone=dialNumber.trim();
-                    const fake={id:"dial_"+Date.now(),name:phone,phone};
-                    startCall(fake);
-                  }}}
+                  onKeyDown={e=>{if(e.key==="Enter"&&dialNumber.trim()){startCall({id:"dial_"+Date.now(),name:dialNumber.trim(),phone:dialNumber.trim()});}}}
                   placeholder="+1 (512) 000-0000"
-                  style={{flex:1,padding:"8px 12px",borderRadius:8,border:"1px solid var(--bdr)",
-                    background:"var(--bg)",color:"var(--tx)",fontSize:14,fontFamily:"monospace"}}/>
-                <button onClick={()=>{if(dialNumber.trim()){const phone=dialNumber.trim();startCall({id:"dial_"+Date.now(),name:phone,phone});}}}
+                  style={{flex:1,padding:"8px 12px",borderRadius:8,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",fontSize:14,fontFamily:"monospace"}}/>
+                <button onClick={()=>{if(dialNumber.trim())startCall({id:"dial_"+Date.now(),name:dialNumber.trim(),phone:dialNumber.trim()});}}
                   disabled={!dialNumber.trim()||callState!=="idle"}
                   style={{padding:"8px 18px",borderRadius:8,border:"none",
-                    background:dialNumber.trim()&&callState==="idle"?"var(--gr)":"var(--s2)",
+                    background:dialNumber.trim()&&callState==="idle"?"#22c55e":"var(--s2)",
                     color:dialNumber.trim()&&callState==="idle"?"#fff":"var(--mu)",
-                    fontWeight:700,fontSize:13,cursor:"pointer"}}>
-                  📞
+                    fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 9.91 19.79 19.79 0 0 1 1.19 1.28 2 2 0 0 1 3.22-.72h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.2 7.41a16 16 0 0 0 6.37 6.37l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/></svg>
                 </button>
               </div>
             </div>
 
-            {/* Call log */}
-            <div style={{fontSize:11,fontWeight:600,color:"var(--mu)",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>
-              {ru?"История звонков":"Call History"}
-            </div>
-            {callLog.length===0&&(
-              <div style={{textAlign:"center",padding:32,color:"var(--mu)",fontSize:13}}>
-                {ru?"Звонков пока нет":"No calls yet"}
-              </div>
-            )}
-            {callLog.map(c=>{
-              const ico = c.type==="inbound"?"📥":c.type==="outbound"?"📤":"📵";
-              const clr = c.type==="inbound"?"var(--gr)":c.type==="outbound"?"var(--acc)":"var(--rd)";
-              const durStr = c.dur>0?`${Math.floor(c.dur/60)}:${String(c.dur%60).padStart(2,"0")}`:(ru?"Нет ответа":"No answer");
+            {/* 3 sub-tabs: Inbound / Outbound / Missed */}
+            {(()=>{
+              // callFilter state is defined at CRM level above
+              const counts = {
+                all: callLog.length,
+                inbound: callLog.filter(c=>c.type==="inbound").length,
+                outbound: callLog.filter(c=>c.type==="outbound").length,
+                missed: callLog.filter(c=>c.type==="missed").length,
+              };
+              const filtered = callFilter==="all"?callLog:callLog.filter(c=>c.type===callFilter);
+              const tabs = [
+                {id:"all",    label:ru?"Все":"All"},
+                {id:"inbound", label:ru?"Входящие":"Inbound",  color:"#22c55e"},
+                {id:"outbound",label:ru?"Исходящие":"Outbound", color:"#3b82f6"},
+                {id:"missed",  label:ru?"Пропущенные":"Missed",  color:"#ef4444"},
+              ];
               return (
-                <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
-                  borderRadius:10,background:"var(--s1)",marginBottom:6,border:"1px solid var(--bdr)"}}>
-                  <div style={{fontSize:18}}>{ico}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {c.name||c.from||c.to}
-                    </div>
-                    <div style={{fontSize:11,color:"var(--mu)"}}>
-                      {c.type==="inbound"?(ru?"Входящий":"Inbound"):c.type==="outbound"?(ru?"Исходящий":"Outbound"):(ru?"Пропущен":"Missed")}
-                      {" · "}{c.ts}
-                    </div>
+                <div>
+                  <div style={{display:"flex",gap:6,marginBottom:14}}>
+                    {tabs.map(t=>(
+                      <button key={t.id} onClick={()=>setCallFilter(t.id)}
+                        style={{padding:"5px 12px",borderRadius:8,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",
+                          background:callFilter===t.id?(t.color||"var(--acc)"):"var(--s1)",
+                          color:callFilter===t.id?"#fff":"var(--mu)"}}>
+                        {t.label}
+                        {counts[t.id]>0&&<span style={{marginLeft:5,background:"rgba(0,0,0,0.15)",borderRadius:8,padding:"0 5px",fontSize:10}}>{counts[t.id]}</span>}
+                      </button>
+                    ))}
                   </div>
-                  <div style={{fontSize:12,fontWeight:600,color:clr,minWidth:50,textAlign:"right"}}>
-                    {durStr}
-                  </div>
-                  {(c.type==="missed"||c.type==="inbound")&&(
-                    <button onClick={()=>{const phone=c.from||c.to;if(phone)startCall({id:"cb_"+Date.now(),name:c.name,phone});}}
-                      style={{padding:"4px 10px",borderRadius:6,border:"none",
-                        background:"var(--acc)15",color:"var(--acc)",fontSize:11,fontWeight:600,cursor:"pointer"}}>
-                      {ru?"Перезвонить":"Call back"}
-                    </button>
+                  {filtered.length===0&&(
+                    <div style={{textAlign:"center",padding:32,color:"var(--mu)",fontSize:13}}>
+                      {ru?"Звонков пока нет":"No calls yet"}
+                    </div>
                   )}
+                  {filtered.map(c=>{
+                    const clr = c.type==="inbound"?"#22c55e":c.type==="outbound"?"#3b82f6":"#ef4444";
+                    const ico = c.type==="inbound"?"↙":"outbound"?"↗":"↗";
+                    const durStr = c.dur>0?`${Math.floor(c.dur/60)}:${String(c.dur%60).padStart(2,"0")}`:(ru?"Нет ответа":"No answer");
+                    return (
+                      <div key={c.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+                        borderRadius:10,background:"var(--s1)",marginBottom:6,border:"1px solid var(--bdr)"}}>
+                        <div style={{width:36,height:36,borderRadius:"50%",background:clr+"18",
+                          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            {c.type==="missed"
+                              ?<><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 9.91 19.79 19.79 0 0 1 1.19 1.28 2 2 0 0 1 3.22-.72h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.2 7.41a16 16 0 0 0 6.37 6.37l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                              :<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 9.91 19.79 19.79 0 0 1 1.19 1.28 2 2 0 0 1 3.22-.72h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.2 7.41a16 16 0 0 0 6.37 6.37l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/>
+                            }
+                          </svg>
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {c.name||c.from||c.to}
+                          </div>
+                          <div style={{fontSize:11,color:"var(--mu)"}}>
+                            {c.type==="inbound"?(ru?"Входящий":"Inbound"):c.type==="outbound"?(ru?"Исходящий":"Outbound"):(ru?"Пропущен":"Missed")}
+                            {" · "}{c.ts}
+                          </div>
+                        </div>
+                        <div style={{fontSize:12,fontWeight:600,color:clr,minWidth:52,textAlign:"right"}}>{durStr}</div>
+                        <button onClick={()=>{
+                          const phone=c.from||c.to;
+                          if(phone) startCall({id:"cb_"+Date.now(),name:c.name||phone,phone});
+                        }} style={{padding:"4px 10px",borderRadius:6,border:"none",
+                          background:clr+"18",color:clr,fontSize:11,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+                          {ru?"Перезв.":"Call back"}
+                        </button>
+                        {!contacts.find(ct=>ct.phone&&ct.phone.replace(/\D/g,"").endsWith((c.from||"").replace(/\D/g,"").slice(-10)))&&(c.from||c.to)&&(
+                          <button onClick={()=>{
+                            const phone=c.from||c.to;
+                            const name=c.name||phone;
+                            const newContact={id:"c_"+Date.now(),name,phone,stage:"new_lead",
+                              source:c.type==="inbound"?"Inbound call":c.type==="missed"?"Missed call":"Outbound call",
+                              createdAt:new Date().toISOString(),tags:[],notes:"",history:[
+                                {id:"h_"+Date.now(),text:(c.type==="missed"?(ru?"Пропущен звонок":"Missed call"):(ru?"Входящий звонок":"Inbound call")),ts:c.ts,author:"System"}
+                              ]};
+                            setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),newContact]}:x));
+                            alert(ru?`${name} добавлен в CRM как новый лид`:`${name} added to CRM as new lead`);
+                          }} style={{padding:"4px 10px",borderRadius:6,border:"none",
+                            background:"var(--acc)18",color:"var(--acc)",fontSize:11,fontWeight:600,cursor:"pointer",flexShrink:0}}>
+                          {ru?"В лиды":"Add lead"}
+                        </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            })}
+            })()}
           </div>
         )}
 
@@ -10584,7 +10630,7 @@ function AppInner() {
                 <div style={{fontSize:12, color:"var(--mu)", marginTop:2}}>{globalIncomingCaller.from}</div>
               )}
             </div>
-            <div style={{display:"flex", gap:16, marginTop:4}}>
+            <div style={{display:"flex", gap:20, marginTop:4}}>
               <button onClick={()=>{
                 if(globalActiveCall) globalActiveCall.reject();
                 setGlobalCallLog(prev=>[{id:"cl_"+Date.now(),type:"missed",
@@ -10592,20 +10638,30 @@ function AppInner() {
                   name:globalIncomingCaller?.name||globalIncomingCaller?.from||"",
                   dur:0,ts:new Date().toLocaleString()},...prev.slice(0,99)]);
                 setGlobalCallState("idle");setGlobalActiveCall(null);setGlobalIncomingCaller(null);
-              }} style={{
-                width:56, height:56, borderRadius:"50%", border:"none",
-                background:"var(--rd)20", color:"var(--rd)",
-                fontSize:24, cursor:"pointer",
-              }}>📵</button>
+              }} style={{width:60,height:60,borderRadius:"50%",border:"none",background:"#ef4444",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 9.91 19.79 19.79 0 0 1 1.19 1.28 2 2 0 0 1 3.22-.72h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.2 7.41a16 16 0 0 0 6.37 6.37l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
               <button onClick={()=>{
                 if(!globalActiveCall) return;
                 globalActiveCall.accept();
                 setGlobalCallState("active");
-              }} style={{
-                width:56, height:56, borderRadius:"50%", border:"none",
-                background:"var(--gr)", color:"#fff",
-                fontSize:24, cursor:"pointer",
-              }}>📞</button>
+                window._gcdRef = window._gcdRef||{current:0};
+                window._gctRef = window._gctRef||{current:null};
+                window._gcdRef.current = 0;
+                clearInterval(window._gctRef.current);
+                window._gctRef.current = setInterval(()=>{window._gcdRef.current+=1;setGlobalCallDuration(window._gcdRef.current);},1000);
+                globalActiveCall.on("disconnect",()=>{
+                  clearInterval(window._gctRef.current);
+                  const dur=window._gcdRef.current; window._gcdRef.current=0; setGlobalCallDuration(0);
+                  setGlobalCallState("idle");setGlobalActiveCall(null);setGlobalIncomingCaller(null);
+                  setGlobalCallLog(prev=>[{id:"cl_"+Date.now(),type:"inbound",
+                    from:globalIncomingCaller?.from||"",to:"",
+                    name:globalIncomingCaller?.name||globalIncomingCaller?.from||"",
+                    dur,ts:new Date().toLocaleString()},...prev.slice(0,99)]);
+                });
+              }} style={{width:60,height:60,borderRadius:"50%",border:"none",background:"#22c55e",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.26 9.91 19.79 19.79 0 0 1 1.19 1.28 2 2 0 0 1 3.22-.72h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.2 7.41a16 16 0 0 0 6.37 6.37l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 14.92z"/></svg>
+              </button>
             </div>
             <div style={{fontSize:11, color:"var(--mu2)"}}>
               {lang==="ru" ? "Ответить или сбросить" : "Answer or decline"}
