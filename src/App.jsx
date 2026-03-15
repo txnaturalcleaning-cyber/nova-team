@@ -5275,22 +5275,25 @@ function AppInner() {
 
     async function save() {
       setSaving(true);
-      // Save to partner state
+      // Save to partner state (local)
       setPartners(ps => ps.map(x => x.id === pid ? {...x, aiReceptionist: {...form}} : x));
-      // Also save to Firebase so API endpoints can read it
-      const fbBase = 'https://nova-launch-system-default-rtdb.firebaseio.com/partners';
-      const fbAuth = process.env?.FIREBASE_DB_SECRET || '';
+      // Save to Firebase via API endpoint (server has the secret key)
       try {
         const phoneNum = p?.purchasedPhone?.phoneNumber;
         if (phoneNum) {
-          const key = phoneNum.replace(/[^0-9]/g, '');
-          await fetch(`https://nova-launch-system-default-rtdb.firebaseio.com/ai_receptionist_config/${key}.json`, {
-            method: 'PUT',
+          await fetch('/api/save-ai-config', {
+            method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({...form, partnerId: pid, phone: phoneNum, updatedAt: new Date().toISOString()}),
+            body: JSON.stringify({
+              phoneNumber: phoneNum,
+              config: {...form, partnerId: pid},
+            }),
           });
+          console.log('AI config saved for:', phoneNum);
+        } else {
+          console.warn('No phone number — buy a number in CorexPhone first');
         }
-      } catch(e) {}
+      } catch(e) { console.error('Save error:', e.message); }
       setSaving(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
