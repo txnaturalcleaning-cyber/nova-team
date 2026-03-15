@@ -107,8 +107,9 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
 });
 
 // ── WebSocket media stream ────────────────────────────────────
-fastify.get('/media-stream', { websocket: true }, (twilioWs, req) => {
-  console.log('Twilio WebSocket connected');
+fastify.get('/media-stream', { websocket: true }, (connection, req) => {
+  const twilioWs = connection.socket;
+  console.log('Twilio WebSocket connected, readyState:', twilioWs.readyState);
 
   let elevenWs = null;
   let streamSid = null;
