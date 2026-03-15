@@ -5256,12 +5256,12 @@ function AppInner() {
     const cfg = p?.aiReceptionist || {};
     const [form, setForm] = useState({
       enabled:       cfg.enabled ?? true,
-      companyName:   cfg.companyName   || p?.companyName || 'Natural Cleaning Experts',
+      companyName:   cfg.companyName   || p?.companyName || '',
       greeting:      cfg.greeting      || '',
       language:      cfg.language      || 'en',
       minPrice:      cfg.minPrice      || '120',
       services:      cfg.services      || 'Standard cleaning, Deep cleaning, Move-in/out, Recurring',
-      serviceArea:   cfg.serviceArea   || 'Austin TX, Miami FL',
+      serviceArea:   cfg.serviceArea   || (p?.branches?.map(b=>b.city).join(', ') || 'Austin TX, Miami FL'),
       transferPhone: cfg.transferPhone || '',
       businessHours: cfg.businessHours || 'Monday-Friday 8am-6pm, Saturday 9am-3pm',
       collectBooking:cfg.collectBooking ?? true,
