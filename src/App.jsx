@@ -4793,6 +4793,7 @@ function AppInner() {
       {id:"chat",    label:ru?"AI Чат":"AI Chat"},
       {id:"memory",  label:ru?"Память":"Memory"},
       {id:"ai_leads",label:ru?"🤖 AI Заявки":"🤖 AI Leads"},
+      {id:"receptionist",label:ru?"⚙️ AI Ресепшн":"⚙️ AI Receptionist"},
     ];
 
     const QUICK_PROMPTS = ru ? [
@@ -5042,6 +5043,300 @@ function AppInner() {
           </div>
         )}
 
+        {/* ── TAB: AI LEADS ── */}
+        {tab==="ai_leads"&&(
+          <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+            <AILeadsPanel ru={ru}/>
+          </div>
+        )}
+
+        {/* ── TAB: AI RECEPTIONIST SETTINGS ── */}
+        {tab==="receptionist"&&(
+          <div style={{flex:1,overflowY:"auto",padding:"20px 28px"}}>
+            <AIReceptionistSettings ru={ru} pid={pid} p={p} setPartners={setPartners} lang={lang}/>
+          </div>
+        )}
+
+      </div>
+    );
+  };
+
+  /* ── AI LEADS PANEL ── */
+  const AILeadsPanel = ({ru}) => {
+    const [leads, setLeads] = useState([]);
+    const [calls, setCalls] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const fbBase = 'https://nova-launch-system-default-rtdb.firebaseio.com';
+
+    useEffect(() => {
+      async function load() {
+        setLoading(true);
+        try {
+          const r1 = await fetch(`${fbBase}/ai_leads.json`);
+          const d1 = await r1.json();
+          if (d1 && typeof d1 === 'object')
+            setLeads(Object.values(d1).filter(Boolean).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)));
+          const r2 = await fetch(`${fbBase}/ai_calls.json`);
+          const d2 = await r2.json();
+          if (d2 && typeof d2 === 'object')
+            setCalls(Object.values(d2).filter(Boolean).sort((a,b)=>new Date(b.startedAt)-new Date(a.startedAt)).slice(0,10));
+        } catch(e) {}
+        setLoading(false);
+      }
+      load();
+      const t = setInterval(load, 20000);
+      return () => clearInterval(t);
+    }, []);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    return (
+      <div style={{maxWidth:760}}>
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>{ru?'🤖 AI Ресепшн — Заявки':'🤖 AI Receptionist Leads'}</div>
+          <div style={{fontSize:13,color:'var(--mu)'}}>{ru?'Заявки собранные AI когда менеджер не берёт трубку':'Leads collected by AI when you miss a call'}</div>
+        </div>
+        <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap'}}>
+          {[
+            {l:ru?'Всего заявок':'Total Leads',v:leads.length,c:'var(--acc)'},
+            {l:ru?'Сегодня':'Today',v:leads.filter(x=>x.createdAt?.startsWith(todayStr)).length,c:'var(--gr)'},
+            {l:ru?'AI разговоров':'AI Calls',v:calls.length,c:'#a855f7'},
+          ].map((s,i)=>(
+            <div key={i} style={{flex:1,minWidth:110,background:'var(--s1)',borderRadius:12,padding:'14px 16px',border:'1px solid var(--bdr)'}}>
+              <div style={{fontSize:24,fontWeight:700,color:s.c}}>{s.v}</div>
+              <div style={{fontSize:11,color:'var(--mu)',marginTop:2}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        {loading&&<div style={{textAlign:'center',padding:32,color:'var(--mu)'}}>⟳ {ru?'Загрузка...':'Loading...'}</div>}
+        {!loading&&leads.length===0&&(
+          <div style={{textAlign:'center',padding:40,background:'var(--s1)',borderRadius:12,border:'1px dashed var(--bdr)',color:'var(--mu)'}}>
+            <div style={{fontSize:36,marginBottom:10}}>📞</div>
+            <div style={{fontWeight:600,marginBottom:6}}>{ru?'Заявок пока нет':'No leads yet'}</div>
+            <div style={{fontSize:12}}>{ru?'Пропусти входящий звонок — AI ответит и соберёт данные':'Miss an incoming call — AI will answer and collect info'}</div>
+          </div>
+        )}
+        {leads.map(lead=>(
+          <div key={lead.id} style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:8,border:'1px solid var(--bdr)'}}>
+            <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+              <div style={{fontSize:22}}>{lead.type==='voicemail'?'📬':'🤖'}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginBottom:6}}>
+                  <span style={{fontWeight:700,fontSize:14}}>{lead.name||lead.phone}</span>
+                  {lead.serviceType&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:'var(--gr)18',color:'var(--gr)',fontWeight:600}}>{lead.serviceType}</span>}
+                  {lead.type==='voicemail'&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:'var(--acc)18',color:'var(--acc)',fontWeight:600}}>VOICEMAIL</span>}
+                </div>
+                <div style={{fontSize:12,color:'var(--mu)',lineHeight:1.8}}>
+                  {lead.phone&&<span style={{marginRight:12}}>📞 {lead.phone}</span>}
+                  {lead.address&&<span style={{marginRight:12}}>📍 {lead.address}</span>}
+                  {lead.preferredDate&&<span>📅 {lead.preferredDate}{lead.preferredTime?' '+lead.preferredTime:''}</span>}
+                </div>
+                <div style={{fontSize:10,color:'var(--mu2)',marginTop:4}}>{new Date(lead.createdAt).toLocaleString()}</div>
+              </div>
+              <button style={{padding:'6px 14px',borderRadius:8,border:'none',background:'var(--acc)',color:'#fff',fontSize:11,fontWeight:600,cursor:'pointer',flexShrink:0}}>
+                {ru?'В CRM':'Add to CRM'}
+              </button>
+            </div>
+          </div>
+        ))}
+        {calls.length>0&&(
+          <div style={{marginTop:28}}>
+            <div style={{fontSize:14,fontWeight:600,marginBottom:12}}>{ru?'Транскрипты AI разговоров':'AI Conversation Transcripts'}</div>
+            {calls.map(call=>(
+              <div key={call.callSid} style={{background:'var(--s1)',borderRadius:10,padding:14,marginBottom:8,border:'1px solid var(--bdr)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+                  <span style={{fontWeight:600,fontSize:13}}>{call.from}</span>
+                  <span style={{fontSize:11,color:'var(--mu)'}}>{new Date(call.startedAt).toLocaleString()}</span>
+                </div>
+                {(call.history||[]).map((h,i)=>(
+                  <div key={i} style={{fontSize:11,lineHeight:1.6,marginBottom:3,display:'flex',gap:6}}>
+                    <span style={{fontWeight:700,color:h.role==='user'?'var(--acc)':'var(--gr)',minWidth:44,flexShrink:0}}>
+                      {h.role==='user'?(ru?'Клиент:':'Client:'):'AI:'}
+                    </span>
+                    <span style={{color:'var(--tx)'}}>{h.content}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ── AI RECEPTIONIST SETTINGS ── */
+  const AIReceptionistSettings = ({ru, pid, p, setPartners, lang}) => {
+    const cfg = p?.aiReceptionist || {};
+    const [form, setForm] = useState({
+      enabled:       cfg.enabled ?? true,
+      companyName:   cfg.companyName   || p?.companyName || 'Natural Cleaning Experts',
+      greeting:      cfg.greeting      || '',
+      language:      cfg.language      || 'en',
+      minPrice:      cfg.minPrice      || '120',
+      services:      cfg.services      || 'Standard cleaning, Deep cleaning, Move-in/out, Recurring',
+      serviceArea:   cfg.serviceArea   || 'Austin TX, Miami FL',
+      transferPhone: cfg.transferPhone || '',
+      businessHours: cfg.businessHours || 'Monday-Friday 8am-6pm, Saturday 9am-3pm',
+      collectBooking:cfg.collectBooking ?? true,
+      confirmSms:    cfg.confirmSms    ?? true,
+      customPrompt:  cfg.customPrompt  || '',
+    });
+    const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    const set = (k, v) => setForm(f => ({...f, [k]: v}));
+
+    async function save() {
+      setSaving(true);
+      // Save to partner state
+      setPartners(ps => ps.map(x => x.id === pid ? {...x, aiReceptionist: {...form}} : x));
+      // Also save to Firebase so API endpoints can read it
+      const fbBase = 'https://nova-launch-system-default-rtdb.firebaseio.com/partners';
+      const fbAuth = process.env?.FIREBASE_DB_SECRET || '';
+      try {
+        const phoneNum = p?.purchasedPhone?.phoneNumber;
+        if (phoneNum) {
+          const key = phoneNum.replace(/[^0-9]/g, '');
+          await fetch(`https://nova-launch-system-default-rtdb.firebaseio.com/ai_receptionist_config/${key}.json`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({...form, partnerId: pid, phone: phoneNum, updatedAt: new Date().toISOString()}),
+          });
+        }
+      } catch(e) {}
+      setSaving(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
+
+    const inp = {className:"inp", style:{width:"100%",boxSizing:"border-box"}};
+
+    return (
+      <div style={{maxWidth:680}}>
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>{ru?'⚙️ Настройки AI Ресепшн':'⚙️ AI Receptionist Settings'}</div>
+          <div style={{fontSize:13,color:'var(--mu)',lineHeight:1.6}}>{ru?'Настройте AI-менеджера для своей компании. Он будет отвечать на звонки когда вы недоступны, собирать данные клиентов и записывать на уборку.':'Configure your AI receptionist. It will answer calls when you're unavailable, collect client info and book cleanings.'}</div>
+        </div>
+
+        {/* Enable toggle */}
+        <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid var(--bdr)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:600,fontSize:14}}>{ru?'AI Ресепшн активен':'AI Receptionist Active'}</div>
+            <div style={{fontSize:12,color:'var(--mu)',marginTop:2}}>{ru?'Отвечает на звонки если не берёте трубку 20 секунд':'Answers calls if you don't pick up within 20 seconds'}</div>
+          </div>
+          <div onClick={()=>set('enabled',!form.enabled)}
+            style={{width:48,height:26,borderRadius:13,background:form.enabled?'var(--gr)':'var(--s2)',border:'1px solid var(--bdr)',cursor:'pointer',position:'relative',transition:'background .2s'}}>
+            <div style={{width:20,height:20,borderRadius:'50%',background:'#fff',position:'absolute',top:2,left:form.enabled?24:2,transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,0.2)'}}/>
+          </div>
+        </div>
+
+        {/* Company info */}
+        <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid var(--bdr)'}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:12,color:'var(--tx)'}}>{ru?'Информация о компании':'Company Information'}</div>
+          <div className="fr" style={{gap:10,marginBottom:10}}>
+            <div className="fg">
+              <label className="lbl">{ru?'Название компании':'Company Name'}</label>
+              <input {...inp} value={form.companyName} onChange={e=>set('companyName',e.target.value)}/>
+            </div>
+            <div className="fg">
+              <label className="lbl">{ru?'Язык':'Language'}</label>
+              <select {...inp} value={form.language} onChange={e=>set('language',e.target.value)}>
+                <option value="en">English</option>
+                <option value="ru">Русский</option>
+                <option value="es">Español</option>
+                <option value="auto">{ru?'Авто-определение':'Auto-detect'}</option>
+              </select>
+            </div>
+          </div>
+          <div className="fr" style={{gap:10,marginBottom:10}}>
+            <div className="fg">
+              <label className="lbl">{ru?'Зона обслуживания':'Service Area'}</label>
+              <input {...inp} value={form.serviceArea} onChange={e=>set('serviceArea',e.target.value)} placeholder="Austin TX, Miami FL"/>
+            </div>
+            <div className="fg">
+              <label className="lbl">{ru?'Часы работы':'Business Hours'}</label>
+              <input {...inp} value={form.businessHours} onChange={e=>set('businessHours',e.target.value)}/>
+            </div>
+          </div>
+        </div>
+
+        {/* Pricing & Services */}
+        <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid var(--bdr)'}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>{ru?'Услуги и цены':'Services & Pricing'}</div>
+          <div className="fr" style={{gap:10,marginBottom:10}}>
+            <div className="fg">
+              <label className="lbl">{ru?'Минимальная цена ($)':'Minimum Price ($)'}</label>
+              <input {...inp} value={form.minPrice} onChange={e=>set('minPrice',e.target.value)} placeholder="120" type="number"/>
+            </div>
+            <div className="fg">
+              <label className="lbl">{ru?'Номер для перевода':'Transfer to Phone (if needed)'}</label>
+              <input {...inp} value={form.transferPhone} onChange={e=>set('transferPhone',e.target.value)} placeholder="+1 (512) 872-3212"/>
+            </div>
+          </div>
+          <div className="fg" style={{marginBottom:0}}>
+            <label className="lbl">{ru?'Список услуг (через запятую)':'Services List (comma separated)'}</label>
+            <input {...inp} value={form.services} onChange={e=>set('services',e.target.value)}
+              placeholder="Standard cleaning, Deep cleaning, Move-in/out, Recurring weekly"/>
+          </div>
+        </div>
+
+        {/* Booking integration */}
+        <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid var(--bdr)'}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>{ru?'Интеграция с бронированиями':'Booking Integration'}</div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',fontSize:13}}>
+              <input type="checkbox" checked={form.collectBooking} onChange={e=>set('collectBooking',e.target.checked)}/>
+              <div>
+                <div style={{fontWeight:600}}>{ru?'Собирать данные для бронирования':'Collect booking information'}</div>
+                <div style={{fontSize:11,color:'var(--mu)'}}>{ru?'AI спрашивает адрес, тип уборки, дату и записывает заявку':'AI asks for address, service type, date and creates a booking request'}</div>
+              </div>
+            </label>
+            <label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',fontSize:13}}>
+              <input type="checkbox" checked={form.confirmSms} onChange={e=>set('confirmSms',e.target.checked)}/>
+              <div>
+                <div style={{fontWeight:600}}>{ru?'SMS-подтверждение клиенту':'Send SMS confirmation to client'}</div>
+                <div style={{fontSize:11,color:'var(--mu)'}}>{ru?'После сбора данных клиент получает SMS с подтверждением заявки':'Client receives SMS confirmation after booking request is created'}</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Custom greeting */}
+        <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid var(--bdr)'}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>{ru?'Приветствие (необязательно)':'Custom Greeting (optional)'}</div>
+          <div style={{fontSize:11,color:'var(--mu)',marginBottom:8}}>{ru?'Если пусто — AI сам составит приветствие на основе названия компании':'If empty, AI will generate a greeting based on your company name'}</div>
+          <textarea value={form.greeting} onChange={e=>set('greeting',e.target.value)}
+            placeholder={ru?"Здравствуйте! Вы позвонили в [название]. Чем могу помочь?":"Hello! Thank you for calling [company]. How can I help you today?"}
+            style={{width:'100%',minHeight:70,padding:'8px 10px',borderRadius:8,border:'1px solid var(--bdr)',background:'var(--bg)',color:'var(--tx)',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',resize:'vertical'}}/>
+        </div>
+
+        {/* Extra instructions */}
+        <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:16,border:'1px solid var(--bdr)'}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>{ru?'Дополнительные инструкции для AI':'Additional AI Instructions'}</div>
+          <div style={{fontSize:11,color:'var(--mu)',marginBottom:8}}>{ru?'Особые правила, акции, информация которую AI должен знать':'Special rules, promotions, or info the AI should know'}</div>
+          <textarea value={form.customPrompt} onChange={e=>set('customPrompt',e.target.value)}
+            placeholder={ru?"Например: Не работаем по воскресеньям. Скидка 15% для первых клиентов. Минимальный заказ от 2 часов.":"E.g.: We don't work Sundays. 15% discount for first-time clients. 2-hour minimum."}
+            style={{width:'100%',minHeight:80,padding:'8px 10px',borderRadius:8,border:'1px solid var(--bdr)',background:'var(--bg)',color:'var(--tx)',fontSize:12,fontFamily:'inherit',boxSizing:'border-box',resize:'vertical'}}/>
+        </div>
+
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          <button onClick={save} disabled={saving}
+            style={{padding:'10px 28px',borderRadius:10,border:'none',background:'var(--acc)',color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>
+            {saving?'⏳...':(ru?'Сохранить настройки':'Save Settings')}
+          </button>
+          {saved&&<span style={{color:'var(--gr)',fontWeight:600,fontSize:13}}>✓ {ru?'Сохранено!':'Saved!'}</span>}
+        </div>
+
+        {/* Phone mapping info */}
+        {p?.purchasedPhone?.phoneNumber ? (
+          <div style={{marginTop:16,padding:'10px 14px',borderRadius:8,background:'var(--gr)12',border:'1px solid var(--gr)30',fontSize:12,color:'var(--gr)'}}>
+            ✅ {ru?`AI ресепшн привязан к номеру ${p.purchasedPhone.phoneNumber}`:`AI receptionist linked to ${p.purchasedPhone.phoneNumber}`}
+          </div>
+        ) : (
+          <div style={{marginTop:16,padding:'10px 14px',borderRadius:8,background:'var(--acc)12',border:'1px solid var(--acc)30',fontSize:12,color:'var(--acc)'}}>
+            ⚠️ {ru?'Купите номер телефона в разделе CorexPhone → Номера чтобы активировать AI ресепшн':'Buy a phone number in CorexPhone → Numbers to activate AI receptionist'}
+          </div>
+        )}
       </div>
     );
   };
