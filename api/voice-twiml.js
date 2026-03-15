@@ -27,7 +27,7 @@ export default function handler(req, res) {
         recordingStatusCallbackEvent:  'completed',
         trim:                          'trim-silence',
         timeout:                       20, // ring for 20s then AI takes over
-        action: `${baseUrl}/api/elevenlabs-inbound`, // ← our redirect to ElevenLabs
+        action: 'https://noble-charisma-production-50bd.up.railway.app/elevenlabs-inbound',
         method:                        'POST',
       });
       dial.client(identity);
