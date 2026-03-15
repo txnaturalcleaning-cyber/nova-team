@@ -4792,6 +4792,7 @@ function AppInner() {
       {id:"monitor", label:ru?"Мониторинг":"Monitor"},
       {id:"chat",    label:ru?"AI Чат":"AI Chat"},
       {id:"memory",  label:ru?"Память":"Memory"},
+      {id:"ai_leads",label:ru?"🤖 AI Заявки":"🤖 AI Leads"},
     ];
 
     const QUICK_PROMPTS = ru ? [
@@ -5259,7 +5260,6 @@ function AppInner() {
         device.on("incoming", call => {
           console.log("🔔 INCOMING CALL:", call.parameters);
           const from = call.parameters?.From || call.customParameters?.get?.("From") || "Unknown";
-          // Try to match caller to a CRM contact
           const matchedContact = contacts.find(c =>
             c.phone && (c.phone.replace(/\D/g,"").endsWith(from.replace(/\D/g,"").slice(-10)))
           );
@@ -5270,6 +5270,28 @@ function AppInner() {
           });
           setActiveCall(call);
           setCallState("incoming");
+
+          // ✅ Auto-dismiss modal when caller hangs up or call times out
+          call.on("cancel", () => {
+            setCallState("idle");
+            setActiveCall(null);
+            setIncomingCaller(null);
+            // Log as missed
+            setCallLog(prev=>[{id:"cl_"+Date.now(),type:"missed",
+              from, to:p?.purchasedPhone?.phoneNumber||"",
+              name:matchedContact?.name||from, dur:0, ts:new Date().toLocaleString()
+            },...prev.slice(0,99)]);
+          });
+          call.on("disconnect", () => {
+            setCallState("idle");
+            setActiveCall(null);
+            setIncomingCaller(null);
+          });
+          call.on("reject", () => {
+            setCallState("idle");
+            setActiveCall(null);
+            setIncomingCaller(null);
+          });
         });
 
         device.on("error", err => { console.error("Twilio Device error:", err); setCallState("idle"); });
