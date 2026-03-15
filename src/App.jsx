@@ -5215,14 +5215,14 @@ function AppInner() {
       <div style={{maxWidth:680}}>
         <div style={{marginBottom:20}}>
           <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>{ru?'⚙️ Настройки AI Ресепшн':'⚙️ AI Receptionist Settings'}</div>
-          <div style={{fontSize:13,color:'var(--mu)',lineHeight:1.6}}>{ru?'Настройте AI-менеджера для своей компании. Он будет отвечать на звонки когда вы недоступны, собирать данные клиентов и записывать на уборку.':'Configure your AI receptionist. It will answer calls when you're unavailable, collect client info and book cleanings.'}</div>
+          <div style={{fontSize:13,color:'var(--mu)',lineHeight:1.6}}>{ru?'Настройте AI-менеджера для своей компании. Он будет отвечать на звонки когда вы недоступны, собирать данные клиентов и записывать на уборку.':'Configure your AI receptionist. It will answer calls when you are unavailable, collect info and book cleanings.'}</div>
         </div>
 
         {/* Enable toggle */}
         <div style={{background:'var(--s1)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid var(--bdr)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
             <div style={{fontWeight:600,fontSize:14}}>{ru?'AI Ресепшн активен':'AI Receptionist Active'}</div>
-            <div style={{fontSize:12,color:'var(--mu)',marginTop:2}}>{ru?'Отвечает на звонки если не берёте трубку 20 секунд':'Answers calls if you don't pick up within 20 seconds'}</div>
+            <div style={{fontSize:12,color:'var(--mu)',marginTop:2}}>{ru?'Отвечает на звонки если не берёте трубку 20 секунд':'Answers calls if you do not pick up within 20 seconds'}</div>
           </div>
           <div onClick={()=>set('enabled',!form.enabled)}
             style={{width:48,height:26,borderRadius:13,background:form.enabled?'var(--gr)':'var(--s2)',border:'1px solid var(--bdr)',cursor:'pointer',position:'relative',transition:'background .2s'}}>
@@ -6082,7 +6082,7 @@ function AppInner() {
 
             {/* Quick templates */}
             <div style={{padding:"8px 16px 0",display:"flex",gap:5,overflowX:"auto",flexShrink:0}}>
-              {["Thanks for your interest!","Cleaning scheduled ✓","Can we help you?","We'll be in touch soon!"].map((tmpl,i)=>(
+              {["Thanks for your interest!","Cleaning scheduled ✓","Can we help you?","We will be in touch soon!"].map((tmpl,i)=>(
                 <button key={i} onClick={()=>setSmsText(tmpl)} style={{fontSize:10,padding:"3px 10px",borderRadius:20,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",whiteSpace:"nowrap",cursor:"pointer",flexShrink:0}}>{tmpl}</button>
               ))}
             </div>
