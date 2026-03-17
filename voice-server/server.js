@@ -16,7 +16,7 @@ const FB_AUTH    = process.env.FIREBASE_DB_SECRET;
 const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
 
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '3.1'
+  status: 'ok', service: 'Corex Voice Server', version: '3.2'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -34,9 +34,9 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
     if (key) {
       const r = await fetch(`${FB_BASE}/ai_receptionist_config/${key}.json${FB_SUFFIX}`);
       const d = await r.json();
-      if (d?.companyName) { cfg = { ...cfg, ...d }; console.log('Config:', cfg.companyName); }
+      if (d?.companyName) { cfg = { ...cfg, ...d }; console.log('Config loaded:', cfg.companyName); }
     }
-  } catch(e) {}
+  } catch(e) { console.log('Config error:', e.message); }
 
   global._calls = global._calls || {};
   global._calls[CallSid] = { cfg, From, To };
@@ -58,49 +58,49 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
   const ws = connection.socket;
   console.log('=== NEW TWILIO CONNECTION ===');
 
-  let elWs       = null;
-  let started    = false;
-  let streamSid  = null;
-  let callSid    = null;
+  let elWs         = null;
+  let started      = false;
+  let streamSid    = null;
+  let callSid      = null;
   let pendingAudio = [];
 
   function connectElevenLabs(callData) {
     if (elWs) return;
-    console.log('Connecting to ElevenLabs...');
+    console.log('Connecting to ElevenLabs... API key:', EL_API_KEY ? '✅ set' : '❌ MISSING');
 
-    // Pass API key in URL if available
-    const url = EL_API_KEY
-      ? `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}&xi-api-key=${EL_API_KEY}`
-      : `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+    const url = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
 
-    elWs = new WebSocket(url);
+    // ✅ FIX: API key in WebSocket header, not URL
+    const wsOptions = EL_API_KEY
+      ? { headers: { 'xi-api-key': EL_API_KEY } }
+      : {};
+
+    elWs = new WebSocket(url, wsOptions);
 
     elWs.on('open', () => {
       console.log('ElevenLabs OPEN ✅');
       const cfg = callData?.cfg || {};
 
-      // ✅ FIX: Tell ElevenLabs we're receiving mulaw 8kHz from Twilio
-      // Without this, ElevenLabs defaults to PCM 16kHz and closes with 1002
+      // ✅ FIX: Tell ElevenLabs to use mulaw 8kHz — Twilio's format
       elWs.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
         conversation_config_override: {
           audio: {
-            input_audio_format: 'ulaw_8000',
+            input_audio_format:  'ulaw_8000',
             output_audio_format: 'ulaw_8000',
           },
         },
         dynamic_variables: {
-          company_name:    cfg.companyName    || 'Natural Cleaning Experts',
-          services:        cfg.services        || 'Standard cleaning, Deep cleaning',
-          min_price:       cfg.minPrice        || '120',
-          service_area:    cfg.serviceArea     || 'Austin TX and Miami FL',
-          business_hours:  cfg.businessHours   || 'Mon-Fri 8am-6pm',
+          company_name:    cfg.companyName   || 'Natural Cleaning Experts',
+          services:        cfg.services       || 'Standard cleaning, Deep cleaning',
+          min_price:       cfg.minPrice       || '120',
+          service_area:    cfg.serviceArea    || 'Austin TX and Miami FL',
+          business_hours:  cfg.businessHours  || 'Mon-Fri 8am-6pm',
           available_slots: 'Contact us for availability',
-          custom_notes:    cfg.customPrompt    || '',
+          custom_notes:    cfg.customPrompt   || '',
         },
       }));
 
-      // Send any buffered audio
       console.log('Sending', pendingAudio.length, 'buffered audio packets');
       for (const chunk of pendingAudio) {
         elWs.send(JSON.stringify({ user_audio_chunk: chunk }));
@@ -112,24 +112,31 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
       try {
         const msg = JSON.parse(data);
         console.log('EL:', msg.type);
+
         if (msg.type === 'ping') {
           elWs.send(JSON.stringify({ type: 'pong', event_id: msg.ping_event?.event_id }));
+
         } else if (msg.type === 'audio') {
           const chunk = msg.audio?.chunk || msg.audio;
           if (chunk && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: chunk } }));
           }
+
         } else if (msg.type === 'interruption') {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ event: 'clear', streamSid }));
           }
+
+        } else if (msg.type === 'conversation_initiation_metadata') {
+          console.log('EL conversation started ✅ id:', msg.conversation_initiation_metadata_event?.conversation_id);
         }
+
       } catch(e) { console.error('EL parse error:', e.message); }
     });
 
     elWs.on('error', (e) => console.error('EL error:', e.message));
     elWs.on('close', (code, reason) => {
-      console.log('EL closed:', code, reason?.toString());
+      console.log(`EL closed: ${code} ${reason?.toString() || ''}`);
       elWs = null;
     });
   }
@@ -140,6 +147,7 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
 
       if (msg.event === 'connected') {
         console.log('Twilio connected');
+
       } else if (msg.event === 'start') {
         console.log('Twilio START:', JSON.stringify(msg.start).slice(0, 200));
         streamSid = msg.start?.streamSid;
@@ -148,6 +156,7 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         const callData = global._calls?.[callSid];
         console.log('callSid:', callSid, '| callData:', !!callData);
         connectElevenLabs(callData);
+
       } else if (msg.event === 'media') {
         if (!streamSid) streamSid = msg.streamSid;
         if (!started) {
@@ -165,6 +174,7 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
             if (pendingAudio.length > 100) pendingAudio.shift();
           }
         }
+
       } else if (msg.event === 'stop') {
         console.log('Twilio STOP');
         if (elWs?.readyState === WebSocket.OPEN) elWs.close();
@@ -182,19 +192,22 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
 
 function defaultCfg() {
   return {
-    companyName: 'Natural Cleaning Experts',
-    services: 'Standard cleaning, Deep cleaning, Move-in/out, Recurring',
-    minPrice: '120', serviceArea: 'Austin TX and Miami FL',
-    businessHours: 'Monday-Friday 8am-6pm', customPrompt: '', partnerId: null,
+    companyName:   'Natural Cleaning Experts',
+    services:      'Standard cleaning, Deep cleaning, Move-in/out, Recurring',
+    minPrice:      '120',
+    serviceArea:   'Austin TX and Miami FL',
+    businessHours: 'Monday-Friday 8am-6pm',
+    customPrompt:  '',
+    partnerId:     null,
   };
 }
 
-process.on('uncaughtException', (e) => console.error('Uncaught:', e.message));
+process.on('uncaughtException',  (e) => console.error('Uncaught:', e.message));
 process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message || e));
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v3.1 running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v3.2 running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
