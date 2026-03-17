@@ -115,6 +115,7 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
   let streamSid = null;
   let callSid   = null;
   let callCfg   = null;
+  let initializingElevenLabs = false;
 
   console.log('WebSocket readyState after connect:', twilioWs.readyState);
   
@@ -202,8 +203,9 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         }
 
         case 'media': {
-          // If start was missed, init ElevenLabs now
-          if (!elevenWs) {
+          // If start was missed, init ElevenLabs now — but only ONCE
+          if (!elevenWs && !initializingElevenLabs) {
+            initializingElevenLabs = true;
             streamSid = msg.streamSid || streamSid;
             callSid = callSid || msg.streamSid;
             console.log('Start missed! Initializing ElevenLabs on first media packet');
@@ -211,9 +213,7 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
           const baseElUrl = EL_API_KEY
               ? await getSignedUrl()
               : `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
-          const elUrl = baseElUrl.includes('?')
-              ? baseElUrl + '&input_format=mulaw_8000&output_format=mulaw_8000'
-              : baseElUrl + '?input_format=mulaw_8000&output_format=mulaw_8000';
+          const elUrl = baseElUrl;
             console.log('ElevenLabs URL:', elUrl.slice(0,100));
             elevenWs = new WebSocket(elUrl);
             const cfgData = global._callConfigs?.[callSid] || {};
