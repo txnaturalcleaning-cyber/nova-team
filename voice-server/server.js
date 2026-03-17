@@ -61,19 +61,17 @@ function pcm16ToMulaw(base64Pcm) {
 }
 
 // ─── Business hours check ────────────────────────────────────────────────────
-// Parses "Monday-Friday 8am-6pm, Saturday 9am-3pm" style strings
 
 function isWithinBusinessHours(businessHoursStr) {
-  if (!businessHoursStr) return true; // no config = always open
+  if (!businessHoursStr) return true;
   try {
-    const now     = new Date();
-    const dayIdx  = now.getDay(); // 0=Sun,1=Mon,...,6=Sat
-    const curMins = now.getHours() * 60 + now.getMinutes();
-
+    const now      = new Date();
+    const dayIdx   = now.getDay();
+    const curMins  = now.getHours() * 60 + now.getMinutes();
     const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
     const curDay   = dayNames[dayIdx];
+    const parts    = businessHoursStr.toLowerCase().split(',');
 
-    const parts = businessHoursStr.toLowerCase().split(',');
     for (const part of parts) {
       const m = part.trim().match(/([a-z]+)(?:-([a-z]+))?\s+(\d+(?::\d+)?)(am|pm)?-(\d+(?::\d+)?)(am|pm)?/);
       if (!m) continue;
@@ -81,14 +79,8 @@ function isWithinBusinessHours(businessHoursStr) {
       const i1 = dayNames.indexOf(d1);
       const i2 = d2 ? dayNames.indexOf(d2) : i1;
       if (i1 < 0) continue;
-
-      // Check if today is in range
-      const inRange = i1 <= i2
-        ? (dayIdx >= i1 && dayIdx <= i2)
-        : (dayIdx >= i1 || dayIdx <= i2); // wraps around week
+      const inRange = i1 <= i2 ? (dayIdx >= i1 && dayIdx <= i2) : (dayIdx >= i1 || dayIdx <= i2);
       if (!inRange) continue;
-
-      // Parse hours
       const parseTime = (h, ap) => {
         let [hh, mm] = h.split(':').map(Number);
         mm = mm || 0;
@@ -96,7 +88,6 @@ function isWithinBusinessHours(businessHoursStr) {
         if (ap === 'am' && hh === 12) hh = 0;
         return hh * 60 + mm;
       };
-
       const start = parseTime(h1, ap1 || (parseInt(h1) < 8 ? 'pm' : 'am'));
       const end   = parseTime(h2, ap2 || 'pm');
       if (curMins >= start && curMins < end) return true;
@@ -104,7 +95,7 @@ function isWithinBusinessHours(businessHoursStr) {
     return false;
   } catch(e) {
     console.log('Hours parse error:', e.message);
-    return true; // on error assume open
+    return true;
   }
 }
 
@@ -116,60 +107,45 @@ async function redirectCallToHuman(callSid, toPhone, fromPhone, accountSid, auth
   <Say voice="Polly.Joanna">Please hold, connecting you to an agent.</Say>
   <Dial callerId="${fromPhone}">${toPhone}</Dial>
 </Response>`;
-
-  // Save TwiML to Vercel endpoint, then redirect call
   const auth = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-  const url   = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Authorization': auth, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      Twiml: twiml,
-    }).toString(),
-  });
+  const r = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`,
+    {
+      method: 'POST',
+      headers: { 'Authorization': auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ Twiml: twiml }).toString(),
+    }
+  );
   const d = await r.json();
   console.log('Twilio redirect:', r.status, d.status || d.message);
   return r.ok;
 }
 
-// ─── Save AI booking to Firebase ─────────────────────────────────────────────
+// ─── Save AI booking ─────────────────────────────────────────────────────────
 
 async function saveAiBooking({ partnerId, name, phone, address, serviceType, date, notes, callSid }) {
   try {
     const bookingId = 'ai_' + Date.now();
     const booking = {
-      id:          bookingId,
-      callSid,
-      clientName:  name || '',
-      phone:       phone || '',
-      address:     address || '',
-      serviceType: serviceType || 'Cleaning',
-      date:        date || '',
-      notes:       notes || '',
-      status:      'pending_confirmation',
-      source:      'AI Receptionist',
-      aiGenerated: true,
-      color:       'pink',          // ← calendar renders this bright pink
-      createdAt:   new Date().toISOString(),
+      id: bookingId, callSid, clientName: name || '', phone: phone || '',
+      address: address || '', serviceType: serviceType || 'Cleaning',
+      date: date || '', notes: notes || '',
+      status: 'pending_confirmation', source: 'AI Receptionist',
+      aiGenerated: true, color: 'pink',
+      createdAt: new Date().toISOString(),
     };
-
-    // Save to partner workspace bookings
+    const saves = [];
     if (partnerId) {
-      await fetch(`${FB_BASE}/partners/${partnerId}/workspace/bookings/${bookingId}.json${FB_SUFFIX}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(booking),
-      });
+      saves.push(fetch(`${FB_BASE}/partners/${partnerId}/workspace/bookings/${bookingId}.json${FB_SUFFIX}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(booking),
+      }));
     }
-
-    // Also save to ai_leads for the leads panel
-    await fetch(`${FB_BASE}/ai_leads/${bookingId}.json${FB_SUFFIX}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    saves.push(fetch(`${FB_BASE}/ai_leads/${bookingId}.json${FB_SUFFIX}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...booking, status: 'new_lead' }),
-    });
-
-    console.log('AI booking saved:', bookingId, 'partner:', partnerId);
+    }));
+    await Promise.all(saves);
+    console.log('AI booking saved:', bookingId);
     return bookingId;
   } catch(e) {
     console.error('Save booking error:', e.message);
@@ -180,7 +156,7 @@ async function saveAiBooking({ partnerId, name, phone, address, serviceType, dat
 // ─── Server ──────────────────────────────────────────────────────────────────
 
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '4.0'
+  status: 'ok', service: 'Corex Voice Server', version: '4.1'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -192,19 +168,40 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
     return `<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`;
   }
 
+  // Load partner config from Firebase
   let cfg = defaultCfg();
   try {
     const key = (To || '').replace(/[^0-9]/g, '');
     if (key) {
       const r = await fetch(`${FB_BASE}/ai_receptionist_config/${key}.json${FB_SUFFIX}`);
       const d = await r.json();
-      if (d?.companyName) { cfg = { ...cfg, ...d }; console.log('Config loaded:', cfg.companyName); }
+      if (d?.companyName) {
+        cfg = { ...cfg, ...d };
+        console.log('Config loaded:', cfg.companyName, '| enabled:', cfg.enabled);
+      }
     }
   } catch(e) { console.log('Config error:', e.message); }
 
-  // Check if currently within business hours
+  // ✅ ENABLED CHECK — if manager turned off AI, play simple message and hang up
+  if (cfg.enabled === false) {
+    console.log('AI Receptionist is DISABLED — playing unavailable message');
+    const voice = cfg.language === 'ru' ? 'Polly.Tatyana' : 'Polly.Joanna';
+    const lang  = cfg.language === 'ru' ? 'ru-RU' : 'en-US';
+    const msg   = cfg.language === 'ru'
+      ? `Здравствуйте! Вы позвонили в ${cfg.companyName}. Все операторы сейчас заняты. Пожалуйста, перезвоните позже. До свидания!`
+      : `Thank you for calling ${cfg.companyName}. All agents are currently available. Please call back during business hours. Goodbye!`;
+
+    res.header('Content-Type', 'text/xml');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="${voice}" language="${lang}">${msg}</Say>
+  <Hangup/>
+</Response>`;
+  }
+
+  // Check business hours for transfer logic
   const isOpen = isWithinBusinessHours(cfg.businessHours);
-  console.log('Business hours open:', isOpen, '|', cfg.businessHours);
+  console.log('Business hours open:', isOpen);
 
   global._calls = global._calls || {};
   global._calls[CallSid] = { cfg, From, To, isOpen };
@@ -253,24 +250,24 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         `Business hours: ${cfg.businessHours || 'Monday-Friday 8am-6pm'}`,
         cfg.customPrompt ? `Special instructions: ${cfg.customPrompt}` : '',
         isOpen
-          ? 'Operators are currently AVAILABLE. If caller wants to speak with a human, use transfer_to_human tool.'
-          : 'It is currently OUTSIDE business hours. Operators are NOT available. If caller wants human, apologize and offer to take their booking instead.',
-        'When you have name, address, service type, and preferred date — use create_booking tool.',
+          ? 'Operators are currently AVAILABLE. If caller wants to speak with a human, use the transfer_to_human tool.'
+          : 'It is currently OUTSIDE business hours. Operators are NOT available. If caller wants a human, apologize and offer to take their booking instead.',
+        'Collect: name, address, service type, preferred date — then use create_booking tool.',
         'Be warm, concise, natural. Max 1-2 sentences per response.',
       ].filter(Boolean).join('\n');
 
       elWs.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
         dynamic_variables: {
-          company_name:    cfg.companyName   || 'Natural Cleaning Experts',
-          services:        cfg.services       || 'Standard cleaning, Deep cleaning',
-          min_price:       String(cfg.minPrice || '120'),
-          service_area:    cfg.serviceArea    || 'Austin TX and Miami FL',
-          business_hours:  cfg.businessHours  || 'Mon-Fri 8am-6pm',
-          transfer_phone:  cfg.transferPhone  || '',
-          is_open:         isOpen ? 'yes' : 'no',
-          custom_notes:    cfg.customPrompt   || '',
-          system_context:  systemContext,
+          company_name:   cfg.companyName   || 'Natural Cleaning Experts',
+          services:       cfg.services       || 'Standard cleaning, Deep cleaning',
+          min_price:      String(cfg.minPrice || '120'),
+          service_area:   cfg.serviceArea    || 'Austin TX and Miami FL',
+          business_hours: cfg.businessHours  || 'Mon-Fri 8am-6pm',
+          transfer_phone: cfg.transferPhone  || '',
+          is_open:        isOpen ? 'yes' : 'no',
+          custom_notes:   cfg.customPrompt   || '',
+          system_context: systemContext,
         },
       }));
 
@@ -285,7 +282,6 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
       try {
         const msg = JSON.parse(rawData);
 
-        // ── Audio: PCM 16kHz → mulaw 8kHz → Twilio ──
         if (msg.type === 'audio') {
           const pcm = msg.audio_event?.audio_base_64
             || msg.audio?.chunk
@@ -294,7 +290,6 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
             ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: pcm16ToMulaw(pcm) } }));
           }
 
-        // ── Tool call: transfer_to_human ──
         } else if (msg.type === 'client_tool_call' && msg.client_tool_call?.tool_name === 'transfer_to_human') {
           const cfg    = callData?.cfg || {};
           const isOpen = callData?.isOpen !== false;
@@ -302,26 +297,26 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
 
           let result;
           if (isOpen && cfg.transferPhone) {
-            const accountSid = process.env.TWILIO_ACCOUNT_SID;
-            const authToken  = process.env.TWILIO_AUTH_TOKEN;
-            const ok = await redirectCallToHuman(callSid, cfg.transferPhone, callData?.From || '', accountSid, authToken);
+            const ok = await redirectCallToHuman(
+              callSid, cfg.transferPhone, callData?.From || '',
+              process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN
+            );
             result = ok
               ? { success: true,  message: 'Transferring now' }
-              : { success: false, message: 'Transfer failed, please try again' };
+              : { success: false, message: 'Transfer failed' };
           } else if (!isOpen) {
-            result = { success: false, message: 'Outside business hours — offer to take booking' };
+            result = { success: false, message: 'Outside business hours' };
           } else {
             result = { success: false, message: 'No transfer number configured' };
           }
 
           elWs.send(JSON.stringify({
-            type:            'client_tool_result',
-            tool_call_id:    msg.client_tool_call?.tool_call_id,
-            result:          JSON.stringify(result),
-            is_error:        !result.success,
+            type:         'client_tool_result',
+            tool_call_id: msg.client_tool_call?.tool_call_id,
+            result:       JSON.stringify(result),
+            is_error:     !result.success,
           }));
 
-        // ── Tool call: create_booking ──
         } else if (msg.type === 'client_tool_call' && msg.client_tool_call?.tool_name === 'create_booking') {
           const params = msg.client_tool_call?.parameters || {};
           const cfg    = callData?.cfg || {};
@@ -338,14 +333,14 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
             callSid,
           });
 
-          // Send SMS confirmation
+          // SMS confirmation to caller
           if (callData?.From && params.name) {
             fetch(`${VERCEL_URL}/api/send-sms`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                to:      callData.From,
-                message: `Hi ${params.name}! Your ${params.service_type || 'cleaning'} request at ${params.address || 'your location'} on ${params.preferred_date || 'your preferred date'} is received. Our manager will call you to confirm details. — ${cfg.companyName}`,
+                to:         callData.From,
+                message:    `Hi ${params.name}! Your ${params.service_type || 'cleaning'} request at ${params.address || 'your location'} on ${params.preferred_date || 'your preferred date'} is received. Our manager will call you to confirm. — ${cfg.companyName}`,
                 fromNumber: callData.To,
               }),
             }).catch(() => {});
@@ -441,6 +436,7 @@ function defaultCfg() {
     transferPhone: '',
     customPrompt:  '',
     partnerId:     null,
+    enabled:       true,  // ← default ON
   };
 }
 
@@ -449,7 +445,7 @@ process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message |
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v4.0 running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v4.1 running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
