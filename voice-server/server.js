@@ -16,7 +16,7 @@ const FB_AUTH    = process.env.FIREBASE_DB_SECRET;
 const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
 
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '3.0'
+  status: 'ok', service: 'Corex Voice Server', version: '3.1'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -68,14 +68,27 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
     if (elWs) return;
     console.log('Connecting to ElevenLabs...');
 
-    const url = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+    // Pass API key in URL if available
+    const url = EL_API_KEY
+      ? `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}&xi-api-key=${EL_API_KEY}`
+      : `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
+
     elWs = new WebSocket(url);
 
     elWs.on('open', () => {
       console.log('ElevenLabs OPEN ✅');
       const cfg = callData?.cfg || {};
+
+      // ✅ FIX: Tell ElevenLabs we're receiving mulaw 8kHz from Twilio
+      // Without this, ElevenLabs defaults to PCM 16kHz and closes with 1002
       elWs.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
+        conversation_config_override: {
+          audio: {
+            input_audio_format: 'ulaw_8000',
+            output_audio_format: 'ulaw_8000',
+          },
+        },
         dynamic_variables: {
           company_name:    cfg.companyName    || 'Natural Cleaning Experts',
           services:        cfg.services        || 'Standard cleaning, Deep cleaning',
@@ -86,6 +99,7 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
           custom_notes:    cfg.customPrompt    || '',
         },
       }));
+
       // Send any buffered audio
       console.log('Sending', pendingAudio.length, 'buffered audio packets');
       for (const chunk of pendingAudio) {
@@ -114,8 +128,8 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
     });
 
     elWs.on('error', (e) => console.error('EL error:', e.message));
-    elWs.on('close', (code) => {
-      console.log('EL closed:', code);
+    elWs.on('close', (code, reason) => {
+      console.log('EL closed:', code, reason?.toString());
       elWs = null;
     });
   }
@@ -137,7 +151,6 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
       } else if (msg.event === 'media') {
         if (!streamSid) streamSid = msg.streamSid;
         if (!started) {
-          // Start event not received — init on first media
           started = true;
           callSid = callSid || 'unknown';
           console.log('No start event — initializing on first media');
@@ -148,9 +161,8 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
           if (elWs?.readyState === WebSocket.OPEN) {
             elWs.send(JSON.stringify({ user_audio_chunk: payload }));
           } else {
-            // Buffer audio until ElevenLabs connects
             pendingAudio.push(payload);
-            if (pendingAudio.length > 100) pendingAudio.shift(); // keep last 100
+            if (pendingAudio.length > 100) pendingAudio.shift();
           }
         }
       } else if (msg.event === 'stop') {
@@ -182,7 +194,7 @@ process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message |
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v3.0 running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v3.1 running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
