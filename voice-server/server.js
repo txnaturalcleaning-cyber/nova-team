@@ -203,8 +203,9 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
 
         case 'media': {
           // If start was missed, init ElevenLabs now
-          if (!elevenWs && !streamSid) {
-            streamSid = msg.streamSid;
+          if (!elevenWs) {
+            streamSid = msg.streamSid || streamSid;
+            callSid = callSid || msg.streamSid;
             console.log('Start missed! Initializing ElevenLabs on first media packet');
             const elUrl = EL_API_KEY
               ? await getSignedUrl()
