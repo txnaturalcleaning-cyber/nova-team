@@ -16,7 +16,7 @@ const FB_AUTH    = process.env.FIREBASE_DB_SECRET;
 const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
 
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '3.2'
+  status: 'ok', service: 'Corex Voice Server', version: '3.3-debug'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -63,14 +63,13 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
   let streamSid    = null;
   let callSid      = null;
   let pendingAudio = [];
+  let audioCount   = 0;
 
   function connectElevenLabs(callData) {
     if (elWs) return;
     console.log('Connecting to ElevenLabs... API key:', EL_API_KEY ? '✅ set' : '❌ MISSING');
 
     const url = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
-
-    // ✅ FIX: API key in WebSocket header, not URL
     const wsOptions = EL_API_KEY
       ? { headers: { 'xi-api-key': EL_API_KEY } }
       : {};
@@ -81,7 +80,6 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
       console.log('ElevenLabs OPEN ✅');
       const cfg = callData?.cfg || {};
 
-      // ✅ FIX: Tell ElevenLabs to use mulaw 8kHz — Twilio's format
       elWs.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
         conversation_config_override: {
@@ -111,16 +109,29 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
     elWs.on('message', (data) => {
       try {
         const msg = JSON.parse(data);
-        console.log('EL:', msg.type);
 
-        if (msg.type === 'ping') {
-          elWs.send(JSON.stringify({ type: 'pong', event_id: msg.ping_event?.event_id }));
+        if (msg.type === 'audio') {
+          audioCount++;
 
-        } else if (msg.type === 'audio') {
-          const chunk = msg.audio?.chunk || msg.audio;
-          if (chunk && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: chunk } }));
+          // DEBUG: log structure of first 3 audio messages
+          if (audioCount <= 3) {
+            const audioKeys = JSON.stringify(Object.keys(msg.audio || {}));
+            const chunkVal  = msg.audio?.chunk;
+            const chunkLen  = typeof chunkVal === 'string' ? chunkVal.length : 0;
+            console.log(`EL audio #${audioCount} | keys: ${audioKeys} | chunk len: ${chunkLen} | streamSid: ${!!streamSid} | ws.open: ${ws.readyState === WebSocket.OPEN}`);
+            // Also log raw audio structure (truncated)
+            console.log(`EL audio #${audioCount} raw:`, JSON.stringify(msg.audio).slice(0, 100));
           }
+
+          const chunk = msg.audio?.chunk || msg.audio;
+          if (chunk && typeof chunk === 'string' && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: chunk } }));
+          } else if (audioCount <= 3) {
+            console.log(`EL audio #${audioCount} NOT sent | chunk type: ${typeof chunk} | chunk truthy: ${!!chunk}`);
+          }
+
+        } else if (msg.type === 'ping') {
+          elWs.send(JSON.stringify({ type: 'pong', event_id: msg.ping_event?.event_id }));
 
         } else if (msg.type === 'interruption') {
           if (ws.readyState === WebSocket.OPEN) {
@@ -129,6 +140,9 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
 
         } else if (msg.type === 'conversation_initiation_metadata') {
           console.log('EL conversation started ✅ id:', msg.conversation_initiation_metadata_event?.conversation_id);
+
+        } else {
+          console.log('EL:', msg.type);
         }
 
       } catch(e) { console.error('EL parse error:', e.message); }
@@ -207,7 +221,7 @@ process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message |
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v3.2 running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v3.3-debug running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
