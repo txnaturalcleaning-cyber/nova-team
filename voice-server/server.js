@@ -20,7 +20,7 @@ const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
 
 // ── Health check ──────────────────────────────────────────────
 fastify.get('/', async (req, res) => {
-  return { status: 'ok', service: 'Corex Voice Server', version: '1.0' };
+  return { status: 'ok', service: 'Corex Voice Server', version: '2.0' };
 });
 
 // ── Twilio inbound webhook ────────────────────────────────────
