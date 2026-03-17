@@ -15,8 +15,59 @@ const FB_BASE    = 'https://nova-launch-system-default-rtdb.firebaseio.com';
 const FB_AUTH    = process.env.FIREBASE_DB_SECRET;
 const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
 
+// ─── Audio conversion helpers ───────────────────────────────────────────────
+
+// mulaw → 16-bit PCM linear
+function mulawToLinear(u) {
+  u = ~u & 0xFF;
+  const sign     = u & 0x80;
+  const exponent = (u >> 4) & 0x07;
+  const mantissa = u & 0x0F;
+  let sample = ((mantissa << 1) + 33) << (exponent + 2);
+  return sign ? -sample : sample;
+}
+
+// 16-bit PCM linear → mulaw
+function linearToMulaw(sample) {
+  const BIAS = 33;
+  let sign = 0;
+  if (sample < 0) { sign = 0x80; sample = -sample; }
+  if (sample > 32767) sample = 32767;
+  sample += BIAS;
+  let exp = 7;
+  for (let mask = 0x4000; (sample & mask) === 0 && exp > 0; exp--, mask >>= 1) {}
+  const mantissa = (sample >> (exp + 3)) & 0x0F;
+  return (~(sign | (exp << 4) | mantissa)) & 0xFF;
+}
+
+// Twilio → ElevenLabs: mulaw 8kHz → PCM 16kHz (upsample 1:2)
+function mulawToElevenLabs(base64Mulaw) {
+  const src = Buffer.from(base64Mulaw, 'base64');
+  const dst = Buffer.alloc(src.length * 4); // 8kHz mulaw → 16kHz 16-bit PCM = 4x bytes
+  for (let i = 0; i < src.length; i++) {
+    const pcm = mulawToLinear(src[i]);
+    dst.writeInt16LE(pcm, i * 4);
+    dst.writeInt16LE(pcm, i * 4 + 2); // duplicate sample for 8k→16k
+  }
+  return dst.toString('base64');
+}
+
+// ElevenLabs → Twilio: PCM 16kHz → mulaw 8kHz (downsample 2:1)
+function elevenLabsToMulaw(base64Pcm) {
+  const src = Buffer.from(base64Pcm, 'base64');
+  const numSamples = Math.floor(src.length / 4); // 16-bit samples, take every other (16k→8k)
+  const dst = Buffer.alloc(numSamples);
+  for (let i = 0; i < numSamples; i++) {
+    const sample = src.readInt16LE(i * 4); // every other 16-bit sample
+    dst[i] = linearToMulaw(sample);
+  }
+  return dst.toString('base64');
+}
+
+// ─── Server ─────────────────────────────────────────────────────────────────
+
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '3.4'
+  status: 'ok', service: 'Corex Voice Server', version: '3.5'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -41,13 +92,11 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
   global._calls = global._calls || {};
   global._calls[CallSid] = { cfg, From, To };
 
-  const wsUrl = `wss://nova-team-9gbc.onrender.com/media-stream`;
-
   res.header('Content-Type', 'text/xml');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${wsUrl}">
+    <Stream url="wss://nova-team-9gbc.onrender.com/media-stream">
       <Parameter name="callSid" value="${CallSid}"/>
     </Stream>
   </Connect>
@@ -69,24 +118,17 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
     console.log('Connecting to ElevenLabs... API key:', EL_API_KEY ? '✅ set' : '❌ MISSING');
 
     const url = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
-    const wsOptions = EL_API_KEY
-      ? { headers: { 'xi-api-key': EL_API_KEY } }
-      : {};
-
+    const wsOptions = EL_API_KEY ? { headers: { 'xi-api-key': EL_API_KEY } } : {};
     elWs = new WebSocket(url, wsOptions);
 
     elWs.on('open', () => {
       console.log('ElevenLabs OPEN ✅');
       const cfg = callData?.cfg || {};
 
+      // ✅ No audio format override — ElevenLabs uses PCM 16kHz by default
+      // We convert both directions in this server
       elWs.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
-        conversation_config_override: {
-          audio: {
-            input_audio_format:  'ulaw_8000',
-            output_audio_format: 'ulaw_8000',
-          },
-        },
         dynamic_variables: {
           company_name:    cfg.companyName   || 'Natural Cleaning Experts',
           services:        cfg.services       || 'Standard cleaning, Deep cleaning',
@@ -98,9 +140,11 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         },
       }));
 
+      // Send buffered caller audio (converted mulaw→PCM)
       console.log('Sending', pendingAudio.length, 'buffered audio packets');
       for (const chunk of pendingAudio) {
-        elWs.send(JSON.stringify({ user_audio_chunk: chunk }));
+        const converted = mulawToElevenLabs(chunk);
+        elWs.send(JSON.stringify({ user_audio_chunk: converted }));
       }
       pendingAudio = [];
     });
@@ -110,17 +154,14 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         const msg = JSON.parse(data);
 
         if (msg.type === 'audio') {
-          // ✅ FIX: ElevenLabs new API sends audio in audio_event.audio_base_64
-          // Old structure: msg.audio.chunk
-          // New structure: msg.audio_event.audio_base_64
-          const chunk = msg.audio_event?.audio_base_64
+          // ElevenLabs sends PCM 16kHz → convert to mulaw 8kHz for Twilio
+          const pcmBase64 = msg.audio_event?.audio_base_64
             || msg.audio?.chunk
             || (typeof msg.audio === 'string' ? msg.audio : null);
 
-          if (chunk && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: chunk } }));
-          } else {
-            console.log('Audio not sent | chunk:', !!chunk, '| ws:', ws.readyState);
+          if (pcmBase64 && ws.readyState === WebSocket.OPEN) {
+            const mulawBase64 = elevenLabsToMulaw(pcmBase64);
+            ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: mulawBase64 } }));
           }
 
         } else if (msg.type === 'ping') {
@@ -175,8 +216,11 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         const payload = msg.media?.payload;
         if (payload) {
           if (elWs?.readyState === WebSocket.OPEN) {
-            elWs.send(JSON.stringify({ user_audio_chunk: payload }));
+            // Convert mulaw 8kHz → PCM 16kHz for ElevenLabs
+            const converted = mulawToElevenLabs(payload);
+            elWs.send(JSON.stringify({ user_audio_chunk: converted }));
           } else {
+            // Buffer raw mulaw — will convert when ElevenLabs opens
             pendingAudio.push(payload);
             if (pendingAudio.length > 100) pendingAudio.shift();
           }
@@ -214,7 +258,7 @@ process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message |
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v3.4 running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v3.5 running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
