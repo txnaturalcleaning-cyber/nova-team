@@ -207,10 +207,14 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
             streamSid = msg.streamSid || streamSid;
             callSid = callSid || msg.streamSid;
             console.log('Start missed! Initializing ElevenLabs on first media packet');
-            const elUrl = EL_API_KEY
+            // Twilio uses mulaw 8000Hz — must tell ElevenLabs
+          const baseElUrl = EL_API_KEY
               ? await getSignedUrl()
               : `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
-            console.log('ElevenLabs URL:', elUrl.slice(0,80));
+          const elUrl = baseElUrl.includes('?')
+              ? baseElUrl + '&input_format=mulaw_8000&output_format=mulaw_8000'
+              : baseElUrl + '?input_format=mulaw_8000&output_format=mulaw_8000';
+            console.log('ElevenLabs URL:', elUrl.slice(0,100));
             elevenWs = new WebSocket(elUrl);
             const cfgData = global._callConfigs?.[callSid] || {};
             elevenWs.on('open', () => {
