@@ -16,7 +16,7 @@ const FB_AUTH    = process.env.FIREBASE_DB_SECRET;
 const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
 
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '3.3-debug'
+  status: 'ok', service: 'Corex Voice Server', version: '3.4'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -63,7 +63,6 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
   let streamSid    = null;
   let callSid      = null;
   let pendingAudio = [];
-  let audioCount   = 0;
 
   function connectElevenLabs(callData) {
     if (elWs) return;
@@ -111,23 +110,17 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         const msg = JSON.parse(data);
 
         if (msg.type === 'audio') {
-          audioCount++;
+          // ✅ FIX: ElevenLabs new API sends audio in audio_event.audio_base_64
+          // Old structure: msg.audio.chunk
+          // New structure: msg.audio_event.audio_base_64
+          const chunk = msg.audio_event?.audio_base_64
+            || msg.audio?.chunk
+            || (typeof msg.audio === 'string' ? msg.audio : null);
 
-          // DEBUG: log structure of first 3 audio messages
-          if (audioCount <= 3) {
-            const audioKeys = JSON.stringify(Object.keys(msg.audio || {}));
-            const chunkVal  = msg.audio?.chunk;
-            const chunkLen  = typeof chunkVal === 'string' ? chunkVal.length : 0;
-            console.log(`EL audio #${audioCount} | keys: ${audioKeys} | chunk len: ${chunkLen} | streamSid: ${!!streamSid} | ws.open: ${ws.readyState === WebSocket.OPEN}`);
-            // Also log raw audio structure (truncated)
-            console.log(`EL audio #${audioCount} raw:`, JSON.stringify(msg.audio).slice(0, 100));
-          }
-
-          const chunk = msg.audio?.chunk || msg.audio;
-          if (chunk && typeof chunk === 'string' && ws.readyState === WebSocket.OPEN) {
+          if (chunk && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: chunk } }));
-          } else if (audioCount <= 3) {
-            console.log(`EL audio #${audioCount} NOT sent | chunk type: ${typeof chunk} | chunk truthy: ${!!chunk}`);
+          } else {
+            console.log('Audio not sent | chunk:', !!chunk, '| ws:', ws.readyState);
           }
 
         } else if (msg.type === 'ping') {
@@ -221,7 +214,7 @@ process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message |
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v3.3-debug running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v3.4 running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
