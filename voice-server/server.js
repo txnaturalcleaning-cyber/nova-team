@@ -235,20 +235,31 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
             elevenWs.on('message', (elData) => {
               try {
                 const elMsg = JSON.parse(elData);
-                if (elMsg.type === 'audio') {
-                  if (twilioWs.readyState === WebSocket.OPEN) {
+                console.log('EL msg type:', elMsg.type);
+                
+                if (elMsg.type === 'ping') {
+                  // Must respond to ping or ElevenLabs closes with 1002
+                  elevenWs.send(JSON.stringify({
+                    type: 'pong',
+                    event_id: elMsg.ping_event?.event_id,
+                  }));
+                } else if (elMsg.type === 'audio') {
+                  const audioChunk = elMsg.audio?.chunk || elMsg.audio;
+                  if (audioChunk && twilioWs.readyState === WebSocket.OPEN) {
                     twilioWs.send(JSON.stringify({
-                      event: 'media', streamSid,
-                      media: { payload: elMsg.audio?.chunk || elMsg.audio },
+                      event: 'media',
+                      streamSid,
+                      media: { payload: audioChunk },
                     }));
                   }
                 } else if (elMsg.type === 'interruption') {
                   if (twilioWs.readyState === WebSocket.OPEN) {
                     twilioWs.send(JSON.stringify({ event: 'clear', streamSid }));
                   }
+                } else if (elMsg.type === 'conversation_initiation_metadata') {
+                  console.log('ElevenLabs conversation started! ID:', elMsg.conversation_initiation_metadata_event?.conversation_id);
                 }
-                console.log('EL msg type:', elMsg.type);
-              } catch(e) {}
+              } catch(e) { console.error('EL message error:', e.message); }
             });
             elevenWs.on('error', (e) => console.error('ElevenLabs error:', e.message));
             elevenWs.on('close', (c) => console.log('ElevenLabs closed:', c));
