@@ -14,20 +14,19 @@ const EL_API_KEY = process.env.ELEVENLABS_API_KEY;
 const FB_BASE    = 'https://nova-launch-system-default-rtdb.firebaseio.com';
 const FB_AUTH    = process.env.FIREBASE_DB_SECRET;
 const FB_SUFFIX  = FB_AUTH ? `?auth=${FB_AUTH}` : '';
+const VERCEL_URL = 'https://nova-team-omega.vercel.app';
 
-// ─── Audio conversion helpers ───────────────────────────────────────────────
+// ─── Audio conversion ────────────────────────────────────────────────────────
 
-// mulaw → 16-bit PCM linear
 function mulawToLinear(u) {
   u = ~u & 0xFF;
-  const sign     = u & 0x80;
-  const exponent = (u >> 4) & 0x07;
-  const mantissa = u & 0x0F;
-  let sample = ((mantissa << 1) + 33) << (exponent + 2);
-  return sign ? -sample : sample;
+  const sign = u & 0x80;
+  const exp  = (u >> 4) & 0x07;
+  const mant = u & 0x0F;
+  let s = ((mant << 1) + 33) << (exp + 2);
+  return sign ? -s : s;
 }
 
-// 16-bit PCM linear → mulaw
 function linearToMulaw(sample) {
   const BIAS = 33;
   let sign = 0;
@@ -36,38 +35,152 @@ function linearToMulaw(sample) {
   sample += BIAS;
   let exp = 7;
   for (let mask = 0x4000; (sample & mask) === 0 && exp > 0; exp--, mask >>= 1) {}
-  const mantissa = (sample >> (exp + 3)) & 0x0F;
-  return (~(sign | (exp << 4) | mantissa)) & 0xFF;
+  const mant = (sample >> (exp + 3)) & 0x0F;
+  return (~(sign | (exp << 4) | mant)) & 0xFF;
 }
 
-// Twilio → ElevenLabs: mulaw 8kHz → PCM 16kHz (upsample 1:2)
-function mulawToElevenLabs(base64Mulaw) {
+function mulawToPcm16(base64Mulaw) {
   const src = Buffer.from(base64Mulaw, 'base64');
-  const dst = Buffer.alloc(src.length * 4); // 8kHz mulaw → 16kHz 16-bit PCM = 4x bytes
+  const dst = Buffer.alloc(src.length * 4);
   for (let i = 0; i < src.length; i++) {
     const pcm = mulawToLinear(src[i]);
     dst.writeInt16LE(pcm, i * 4);
-    dst.writeInt16LE(pcm, i * 4 + 2); // duplicate sample for 8k→16k
+    dst.writeInt16LE(pcm, i * 4 + 2);
   }
   return dst.toString('base64');
 }
 
-// ElevenLabs → Twilio: PCM 16kHz → mulaw 8kHz (downsample 2:1)
-function elevenLabsToMulaw(base64Pcm) {
+function pcm16ToMulaw(base64Pcm) {
   const src = Buffer.from(base64Pcm, 'base64');
-  const numSamples = Math.floor(src.length / 4); // 16-bit samples, take every other (16k→8k)
-  const dst = Buffer.alloc(numSamples);
-  for (let i = 0; i < numSamples; i++) {
-    const sample = src.readInt16LE(i * 4); // every other 16-bit sample
-    dst[i] = linearToMulaw(sample);
+  const n   = Math.floor(src.length / 4);
+  const dst = Buffer.alloc(n);
+  for (let i = 0; i < n; i++) {
+    dst[i] = linearToMulaw(src.readInt16LE(i * 4));
   }
   return dst.toString('base64');
 }
 
-// ─── Server ─────────────────────────────────────────────────────────────────
+// ─── Business hours check ────────────────────────────────────────────────────
+// Parses "Monday-Friday 8am-6pm, Saturday 9am-3pm" style strings
+
+function isWithinBusinessHours(businessHoursStr) {
+  if (!businessHoursStr) return true; // no config = always open
+  try {
+    const now     = new Date();
+    const dayIdx  = now.getDay(); // 0=Sun,1=Mon,...,6=Sat
+    const curMins = now.getHours() * 60 + now.getMinutes();
+
+    const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+    const curDay   = dayNames[dayIdx];
+
+    const parts = businessHoursStr.toLowerCase().split(',');
+    for (const part of parts) {
+      const m = part.trim().match(/([a-z]+)(?:-([a-z]+))?\s+(\d+(?::\d+)?)(am|pm)?-(\d+(?::\d+)?)(am|pm)?/);
+      if (!m) continue;
+      const [, d1, d2, h1, ap1, h2, ap2] = m;
+      const i1 = dayNames.indexOf(d1);
+      const i2 = d2 ? dayNames.indexOf(d2) : i1;
+      if (i1 < 0) continue;
+
+      // Check if today is in range
+      const inRange = i1 <= i2
+        ? (dayIdx >= i1 && dayIdx <= i2)
+        : (dayIdx >= i1 || dayIdx <= i2); // wraps around week
+      if (!inRange) continue;
+
+      // Parse hours
+      const parseTime = (h, ap) => {
+        let [hh, mm] = h.split(':').map(Number);
+        mm = mm || 0;
+        if (ap === 'pm' && hh !== 12) hh += 12;
+        if (ap === 'am' && hh === 12) hh = 0;
+        return hh * 60 + mm;
+      };
+
+      const start = parseTime(h1, ap1 || (parseInt(h1) < 8 ? 'pm' : 'am'));
+      const end   = parseTime(h2, ap2 || 'pm');
+      if (curMins >= start && curMins < end) return true;
+    }
+    return false;
+  } catch(e) {
+    console.log('Hours parse error:', e.message);
+    return true; // on error assume open
+  }
+}
+
+// ─── Twilio call redirect ────────────────────────────────────────────────────
+
+async function redirectCallToHuman(callSid, toPhone, fromPhone, accountSid, authToken) {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna">Please hold, connecting you to an agent.</Say>
+  <Dial callerId="${fromPhone}">${toPhone}</Dial>
+</Response>`;
+
+  // Save TwiML to Vercel endpoint, then redirect call
+  const auth = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const url   = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls/${callSid}.json`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      Twiml: twiml,
+    }).toString(),
+  });
+  const d = await r.json();
+  console.log('Twilio redirect:', r.status, d.status || d.message);
+  return r.ok;
+}
+
+// ─── Save AI booking to Firebase ─────────────────────────────────────────────
+
+async function saveAiBooking({ partnerId, name, phone, address, serviceType, date, notes, callSid }) {
+  try {
+    const bookingId = 'ai_' + Date.now();
+    const booking = {
+      id:          bookingId,
+      callSid,
+      clientName:  name || '',
+      phone:       phone || '',
+      address:     address || '',
+      serviceType: serviceType || 'Cleaning',
+      date:        date || '',
+      notes:       notes || '',
+      status:      'pending_confirmation',
+      source:      'AI Receptionist',
+      aiGenerated: true,
+      color:       'pink',          // ← calendar renders this bright pink
+      createdAt:   new Date().toISOString(),
+    };
+
+    // Save to partner workspace bookings
+    if (partnerId) {
+      await fetch(`${FB_BASE}/partners/${partnerId}/workspace/bookings/${bookingId}.json${FB_SUFFIX}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(booking),
+      });
+    }
+
+    // Also save to ai_leads for the leads panel
+    await fetch(`${FB_BASE}/ai_leads/${bookingId}.json${FB_SUFFIX}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...booking, status: 'new_lead' }),
+    });
+
+    console.log('AI booking saved:', bookingId, 'partner:', partnerId);
+    return bookingId;
+  } catch(e) {
+    console.error('Save booking error:', e.message);
+    return null;
+  }
+}
+
+// ─── Server ──────────────────────────────────────────────────────────────────
 
 fastify.get('/', async () => ({
-  status: 'ok', service: 'Corex Voice Server', version: '3.5'
+  status: 'ok', service: 'Corex Voice Server', version: '4.0'
 }));
 
 fastify.post('/elevenlabs-inbound', async (req, res) => {
@@ -89,8 +202,12 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
     }
   } catch(e) { console.log('Config error:', e.message); }
 
+  // Check if currently within business hours
+  const isOpen = isWithinBusinessHours(cfg.businessHours);
+  console.log('Business hours open:', isOpen, '|', cfg.businessHours);
+
   global._calls = global._calls || {};
-  global._calls[CallSid] = { cfg, From, To };
+  global._calls[CallSid] = { cfg, From, To, isOpen };
 
   res.header('Content-Type', 'text/xml');
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -111,10 +228,12 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
   let started      = false;
   let streamSid    = null;
   let callSid      = null;
+  let callData     = null;
   let pendingAudio = [];
 
-  function connectElevenLabs(callData) {
+  function connectElevenLabs(data) {
     if (elWs) return;
+    callData = data;
     console.log('Connecting to ElevenLabs... API key:', EL_API_KEY ? '✅ set' : '❌ MISSING');
 
     const url = `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`;
@@ -123,46 +242,121 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
 
     elWs.on('open', () => {
       console.log('ElevenLabs OPEN ✅');
-      const cfg = callData?.cfg || {};
+      const cfg    = data?.cfg || {};
+      const isOpen = data?.isOpen !== false;
 
-      // ✅ No audio format override — ElevenLabs uses PCM 16kHz by default
-      // We convert both directions in this server
+      const systemContext = [
+        `You are Clara, a warm AI receptionist for ${cfg.companyName || 'Natural Cleaning Experts'}.`,
+        `Services: ${cfg.services || 'Standard, Deep, Move-in/out, Recurring cleaning'}`,
+        `Prices from: $${cfg.minPrice || '120'}`,
+        `Service area: ${cfg.serviceArea || 'Austin TX and Miami FL'}`,
+        `Business hours: ${cfg.businessHours || 'Monday-Friday 8am-6pm'}`,
+        cfg.customPrompt ? `Special instructions: ${cfg.customPrompt}` : '',
+        isOpen
+          ? 'Operators are currently AVAILABLE. If caller wants to speak with a human, use transfer_to_human tool.'
+          : 'It is currently OUTSIDE business hours. Operators are NOT available. If caller wants human, apologize and offer to take their booking instead.',
+        'When you have name, address, service type, and preferred date — use create_booking tool.',
+        'Be warm, concise, natural. Max 1-2 sentences per response.',
+      ].filter(Boolean).join('\n');
+
       elWs.send(JSON.stringify({
         type: 'conversation_initiation_client_data',
         dynamic_variables: {
           company_name:    cfg.companyName   || 'Natural Cleaning Experts',
           services:        cfg.services       || 'Standard cleaning, Deep cleaning',
-          min_price:       cfg.minPrice       || '120',
+          min_price:       String(cfg.minPrice || '120'),
           service_area:    cfg.serviceArea    || 'Austin TX and Miami FL',
           business_hours:  cfg.businessHours  || 'Mon-Fri 8am-6pm',
-          available_slots: 'Contact us for availability',
+          transfer_phone:  cfg.transferPhone  || '',
+          is_open:         isOpen ? 'yes' : 'no',
           custom_notes:    cfg.customPrompt   || '',
+          system_context:  systemContext,
         },
       }));
 
-      // Send buffered caller audio (converted mulaw→PCM)
       console.log('Sending', pendingAudio.length, 'buffered audio packets');
       for (const chunk of pendingAudio) {
-        const converted = mulawToElevenLabs(chunk);
-        elWs.send(JSON.stringify({ user_audio_chunk: converted }));
+        elWs.send(JSON.stringify({ user_audio_chunk: mulawToPcm16(chunk) }));
       }
       pendingAudio = [];
     });
 
-    elWs.on('message', (data) => {
+    elWs.on('message', async (rawData) => {
       try {
-        const msg = JSON.parse(data);
+        const msg = JSON.parse(rawData);
 
+        // ── Audio: PCM 16kHz → mulaw 8kHz → Twilio ──
         if (msg.type === 'audio') {
-          // ElevenLabs sends PCM 16kHz → convert to mulaw 8kHz for Twilio
-          const pcmBase64 = msg.audio_event?.audio_base_64
+          const pcm = msg.audio_event?.audio_base_64
             || msg.audio?.chunk
             || (typeof msg.audio === 'string' ? msg.audio : null);
-
-          if (pcmBase64 && ws.readyState === WebSocket.OPEN) {
-            const mulawBase64 = elevenLabsToMulaw(pcmBase64);
-            ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: mulawBase64 } }));
+          if (pcm && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: 'media', streamSid, media: { payload: pcm16ToMulaw(pcm) } }));
           }
+
+        // ── Tool call: transfer_to_human ──
+        } else if (msg.type === 'client_tool_call' && msg.client_tool_call?.tool_name === 'transfer_to_human') {
+          const cfg    = callData?.cfg || {};
+          const isOpen = callData?.isOpen !== false;
+          console.log('Tool: transfer_to_human | open:', isOpen, '| phone:', cfg.transferPhone);
+
+          let result;
+          if (isOpen && cfg.transferPhone) {
+            const accountSid = process.env.TWILIO_ACCOUNT_SID;
+            const authToken  = process.env.TWILIO_AUTH_TOKEN;
+            const ok = await redirectCallToHuman(callSid, cfg.transferPhone, callData?.From || '', accountSid, authToken);
+            result = ok
+              ? { success: true,  message: 'Transferring now' }
+              : { success: false, message: 'Transfer failed, please try again' };
+          } else if (!isOpen) {
+            result = { success: false, message: 'Outside business hours — offer to take booking' };
+          } else {
+            result = { success: false, message: 'No transfer number configured' };
+          }
+
+          elWs.send(JSON.stringify({
+            type:            'client_tool_result',
+            tool_call_id:    msg.client_tool_call?.tool_call_id,
+            result:          JSON.stringify(result),
+            is_error:        !result.success,
+          }));
+
+        // ── Tool call: create_booking ──
+        } else if (msg.type === 'client_tool_call' && msg.client_tool_call?.tool_name === 'create_booking') {
+          const params = msg.client_tool_call?.parameters || {};
+          const cfg    = callData?.cfg || {};
+          console.log('Tool: create_booking |', params);
+
+          const bookingId = await saveAiBooking({
+            partnerId:   cfg.partnerId,
+            name:        params.name,
+            phone:       callData?.From,
+            address:     params.address,
+            serviceType: params.service_type,
+            date:        params.preferred_date,
+            notes:       params.notes || '',
+            callSid,
+          });
+
+          // Send SMS confirmation
+          if (callData?.From && params.name) {
+            fetch(`${VERCEL_URL}/api/send-sms`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to:      callData.From,
+                message: `Hi ${params.name}! Your ${params.service_type || 'cleaning'} request at ${params.address || 'your location'} on ${params.preferred_date || 'your preferred date'} is received. Our manager will call you to confirm details. — ${cfg.companyName}`,
+                fromNumber: callData.To,
+              }),
+            }).catch(() => {});
+          }
+
+          elWs.send(JSON.stringify({
+            type:         'client_tool_result',
+            tool_call_id: msg.client_tool_call?.tool_call_id,
+            result:       JSON.stringify({ success: !!bookingId, booking_id: bookingId }),
+            is_error:     !bookingId,
+          }));
 
         } else if (msg.type === 'ping') {
           elWs.send(JSON.stringify({ type: 'pong', event_id: msg.ping_event?.event_id }));
@@ -201,26 +395,22 @@ fastify.get('/media-stream', { websocket: true }, (connection, req) => {
         streamSid = msg.start?.streamSid;
         callSid   = msg.start?.customParameters?.callSid || msg.start?.callSid;
         started   = true;
-        const callData = global._calls?.[callSid];
-        console.log('callSid:', callSid, '| callData:', !!callData);
-        connectElevenLabs(callData);
+        const cd  = global._calls?.[callSid];
+        console.log('callSid:', callSid, '| callData:', !!cd);
+        connectElevenLabs(cd);
 
       } else if (msg.event === 'media') {
         if (!streamSid) streamSid = msg.streamSid;
         if (!started) {
           started = true;
           callSid = callSid || 'unknown';
-          console.log('No start event — initializing on first media');
           connectElevenLabs(null);
         }
         const payload = msg.media?.payload;
         if (payload) {
           if (elWs?.readyState === WebSocket.OPEN) {
-            // Convert mulaw 8kHz → PCM 16kHz for ElevenLabs
-            const converted = mulawToElevenLabs(payload);
-            elWs.send(JSON.stringify({ user_audio_chunk: converted }));
+            elWs.send(JSON.stringify({ user_audio_chunk: mulawToPcm16(payload) }));
           } else {
-            // Buffer raw mulaw — will convert when ElevenLabs opens
             pendingAudio.push(payload);
             if (pendingAudio.length > 100) pendingAudio.shift();
           }
@@ -247,7 +437,8 @@ function defaultCfg() {
     services:      'Standard cleaning, Deep cleaning, Move-in/out, Recurring',
     minPrice:      '120',
     serviceArea:   'Austin TX and Miami FL',
-    businessHours: 'Monday-Friday 8am-6pm',
+    businessHours: 'Monday-Friday 8am-6pm, Saturday 9am-3pm',
+    transferPhone: '',
     customPrompt:  '',
     partnerId:     null,
   };
@@ -258,7 +449,7 @@ process.on('unhandledRejection', (e) => console.error('Rejection:', e?.message |
 
 try {
   await fastify.listen({ port: PORT, host: '0.0.0.0' });
-  console.log(`✅ Corex Voice Server v3.5 running on port ${PORT}`);
+  console.log(`✅ Corex Voice Server v4.0 running on port ${PORT}`);
 } catch(e) {
   console.error(e);
   process.exit(1);
