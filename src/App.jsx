@@ -5273,6 +5273,25 @@ function AppInner() {
 
     const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
+    async function toggleEnabled() {
+      const newVal = !form.enabled;
+      set('enabled', newVal);
+      try {
+        const phoneNum = p?.purchasedPhone?.phoneNumber;
+        if (phoneNum) {
+          await fetch('/api/save-ai-config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              phoneNumber: phoneNum,
+              config: { ...form, enabled: newVal, partnerId: pid },
+            }),
+          });
+          console.log('AI receptionist toggled:', newVal ? 'ON' : 'OFF');
+        }
+      } catch(e) { console.error('Toggle save error:', e.message); }
+    }
+
     async function save() {
       setSaving(true);
       // Save to partner state (local)
@@ -5314,7 +5333,7 @@ function AppInner() {
             <div style={{fontWeight:600,fontSize:14}}>{ru?'AI Ресепшн активен':'AI Receptionist Active'}</div>
             <div style={{fontSize:12,color:'var(--mu)',marginTop:2}}>{ru?'Отвечает на звонки если не берёте трубку 20 секунд':'Answers calls if you do not pick up within 20 seconds'}</div>
           </div>
-          <div onClick={()=>set('enabled',!form.enabled)}
+          <div onClick={toggleEnabled}
             style={{width:48,height:26,borderRadius:13,background:form.enabled?'var(--gr)':'var(--s2)',border:'1px solid var(--bdr)',cursor:'pointer',position:'relative',transition:'background .2s'}}>
             <div style={{width:20,height:20,borderRadius:'50%',background:'#fff',position:'absolute',top:2,left:form.enabled?24:2,transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,0.2)'}}/>
           </div>
