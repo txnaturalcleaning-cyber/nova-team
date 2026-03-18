@@ -25,7 +25,7 @@ const db    = getFirestore(fbApp);
 /* ─── TRANSLATIONS ─── */
 const T = {
   ru: {
-    appName: "Nova Launch System", appSub: "Business Platform",
+    appName: "Corex", appSub: "AI Business OS",
     login: "Вход в систему", loginSub: "Введите ваши данные для входа",
     email: "Email", password: "Пароль", enter: "Войти →", checking: "Проверяем...",
     wrongCreds: "Неверный email или пароль", fillAll: "Введите email и пароль",
@@ -112,11 +112,11 @@ const T = {
     confirmDelete: "Удалить партнёра?",
     empPerPlan: "Сотрудников:", citiesPerPlan: "Городов:",
     noAccess: "Нет доступа к этому разделу",
-    copyright: "Nova Launch System © 2025",
+    copyright: "Corex © 2026",
     loading: "Загрузка...",
   },
   en: {
-    appName: "Nova Launch System", appSub: "Business Platform",
+    appName: "Corex", appSub: "AI Business OS",
     login: "Sign In", loginSub: "Enter your credentials to continue",
     email: "Email", password: "Password", enter: "Sign In →", checking: "Checking...",
     wrongCreds: "Incorrect email or password", fillAll: "Please enter email and password",
@@ -199,7 +199,7 @@ const T = {
     empPerPlan: "Employees:", citiesPerPlan: "Cities:",
     noAccess: "No access to this section",
     training: "Corex LMS",
-    copyright: "Nova Launch System © 2025",
+    copyright: "Corex © 2026",
     loading: "Loading...",
   }
 };
@@ -287,10 +287,10 @@ const ROLES_EN = ["CEO / Founder","Operations Manager","Sales Manager","Bookkeep
 
 /* ─── STYLES ─── */
 const S = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-:root{--bg:#07090f;--s1:#0d1119;--s2:#131825;--s3:#1a2030;--bdr:#ffffff0b;--bdr2:#ffffff14;--tx:#e6eaf4;--mu:#576070;--mu2:#333d50;--acc:#f0a500;--gr:#22c55e;--rd:#ef4444;--bl:#3b82f6;--pu:#a855f7;}
-html.light-mode{--bg:#f0f4fb;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#00000012;--bdr2:#00000022;--tx:#1a2030;--mu:#4b5563;--mu2:#9ca3af;}
+:root{--bg:#07070e;--s1:#0f0f1a;--s2:#141425;--s3:#1a1a2e;--bdr:#ffffff0b;--bdr2:#4f8fff22;--tx:#eaeaf5;--mu:#4a4a65;--mu2:#7a7a9a;--acc:#4f8fff;--gr:#22c55e;--rd:#ef4444;--bl:#4f8fff;--pu:#a855f7;--teal:#00e5c0;}
+html.light-mode{--bg:#f0f2f8;--s1:#ffffff;--s2:#f4f6fb;--s3:#e8ecf4;--bdr:#00000012;--bdr2:#4f8fff22;--tx:#1a2030;--mu:#4b5563;--mu2:#9ca3af;--acc:#4f8fff;}
 html.light-mode body{background:#f0f4fb;color:#111827;}
 html.light-mode .sb{background:#fff;box-shadow:2px 0 16px #0000000f;border-right-color:#0000001a;}
 html.light-mode .topbar{background:#fff;box-shadow:0 2px 8px #00000008;border-bottom-color:#0000001a;}
@@ -332,13 +332,13 @@ html.light-mode select,html.light-mode textarea{background:#f4f6fb;border-color:
 html.light-mode .task-col .card-t{color:#111827;}
 html.light-mode .partner-card *:not([style*="color"]){color:#111827;}
 html.light-mode [class*="recharts"] text{fill:#4b5563;}
-body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;transition:background .2s,color .2s;}
-button,input,select,textarea{font-family:'DM Sans',sans-serif;cursor:pointer;}
+body{background:var(--bg);color:var(--tx);font-family:'Sora',sans-serif;font-size:14px;transition:background .2s,color .2s;}
+button,input,select,textarea{font-family:'Sora',sans-serif;cursor:pointer;}
 input,select,textarea{cursor:text;}
 .app{display:flex;height:100vh;overflow:hidden;}
 .sb{width:232px;min-width:232px;background:var(--s1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden;transition:background .2s,border-color .2s;}
 .sb-logo{padding:16px 14px 12px;border-bottom:1px solid var(--bdr);}
-.sb-logo-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.3px;line-height:1.2;}
+.sb-logo-name{font-family:'Sora',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.3px;line-height:1.2;}
 .sb-logo-sub{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-top:2px;}
 .sb-user{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--bdr);}
 .sb-nav{flex:1;padding:5px 7px;overflow-y:auto;display:flex;flex-direction:column;}
@@ -351,22 +351,22 @@ input,select,textarea{cursor:text;}
 .sb-foot{padding:9px 13px;border-top:1px solid var(--bdr);}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 .topbar{padding:11px 20px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;background:var(--s1);flex-shrink:0;}
-.pg-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;}
+.pg-title{font-family:'Sora',sans-serif;font-size:17px;font-weight:700;}
 .pg-sub{font-size:11px;color:var(--mu);margin-top:1px;}
 .content{flex:1;overflow-y:auto;padding:20px;}
 .btn{padding:7px 14px;border-radius:8px;border:none;font-size:13px;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
-.btn-p{background:var(--acc);color:#000;} .btn-p:hover{background:#fbbf24;}
+.btn-p{background:var(--acc);color:#fff;} .btn-p:hover{background:#3a7de8;}
 .btn-g{background:var(--s2);color:var(--tx);border:1px solid var(--bdr);} .btn-g:hover{background:var(--s3);}
 .btn-d{background:#ef444415;color:var(--rd);border:1px solid #ef444425;}
 .btn-bl{background:#3b82f615;color:var(--bl);border:1px solid #3b82f625;}
 .btn-sm{padding:4px 10px;font-size:11px;}
 .card{background:var(--s1);border:1px solid var(--bdr);border-radius:12px;padding:17px;}
 .card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;}
-.card-t{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;}
+.card-t{font-family:'Sora',sans-serif;font-size:14px;font-weight:600;}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
 .stat{background:var(--s1);border:1px solid var(--bdr);border-radius:11px;padding:14px 16px;}
 .stat-l{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;}
-.stat-v{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;margin-top:4px;}
+.stat-v{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;margin-top:4px;}
 .stat-s{font-size:11px;color:var(--mu);margin-top:2px;}
 .tw{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
@@ -376,14 +376,14 @@ tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--s2);}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;}
 .b-gr{background:#22c55e15;color:var(--gr);} .b-rd{background:#ef444415;color:var(--rd);}
-.b-yw{background:#f0a50015;color:var(--acc);} .b-bl{background:#3b82f615;color:var(--bl);}
+.b-yw{background:#4f8fff15;color:var(--acc);} .b-bl{background:#3b82f615;color:var(--bl);}
 .b-pu{background:#a855f715;color:var(--pu);} .b-mu{background:#ffffff0b;color:var(--mu);}
 .av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
 .av-lg{width:38px;height:38px;font-size:13px;}
 .flex-c{display:flex;align-items:center;gap:10px;}
 .ovl{position:fixed;inset:0;background:#00000092;display:flex;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(4px);}
 .modal{background:var(--s1);border:1px solid var(--bdr2);border-radius:16px;padding:24px;width:520px;max-width:95vw;max-height:92vh;overflow-y:auto;}
-.modal-t{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;}
+.modal-t{font-family:'Sora',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;}
 .fg{margin-bottom:12px;}
 .lbl{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;display:block;}
 .inp{width:100%;background:var(--s2);border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;color:var(--tx);font-size:13px;outline:none;transition:border-color .15s;}
@@ -530,14 +530,32 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
         <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
       </div>
       <div style={{textAlign:"center",marginBottom:26}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,color:"var(--mu)",textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>{t.appName}</div>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:36,fontWeight:800,letterSpacing:-1.5,lineHeight:1.1}}>
+        {/* Corex Logo */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:16}}>
+          <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+            <polygon points="24,2 43,13 43,35 24,46 5,35 5,13" fill="none" stroke="#4f8fff" strokeWidth="1" opacity="0.3"/>
+            <polygon points="24,7 38,15.5 38,32.5 24,41 10,32.5 10,15.5" fill="none" stroke="#4f8fff" strokeWidth="1.2"/>
+            <circle cx="24" cy="24" r="7.5" fill="#4f8fff"/>
+            <circle cx="24" cy="24" r="3.5" fill="#07070e"/>
+            <circle cx="24" cy="7" r="2" fill="#00e5c0"/>
+            <circle cx="38" cy="15.5" r="1.5" fill="#4f8fff"/>
+            <circle cx="38" cy="32.5" r="1.5" fill="#4f8fff"/>
+            <circle cx="24" cy="41" r="1.5" fill="#4f8fff"/>
+            <circle cx="10" cy="32.5" r="1.5" fill="#4f8fff"/>
+            <circle cx="10" cy="15.5" r="1.5" fill="#4f8fff"/>
+          </svg>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:32,fontWeight:800,letterSpacing:-1.5,lineHeight:1,color:"#eaeaf5"}}>
+            cor<span style={{color:"#4f8fff"}}>ex</span>
+          </div>
+        </div>
+        <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:3,marginBottom:8}}>AI Business OS</div>
+        <div style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,letterSpacing:-1,lineHeight:1.15}}>
           {lang==="ru"?"Платформа управления":"Business Management"}<br/>
           <span style={{color:"var(--acc)"}}>{lang==="ru"?"клининговым бизнесом":"for Cleaning Companies"}</span>
         </div>
       </div>
       <div style={{background:"var(--s1)",border:"1px solid var(--bdr2)",borderRadius:16,padding:"26px 30px",width:390}}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontSize:17,fontWeight:700,marginBottom:3}}>{t.login}</div>
+        <div style={{fontFamily:"'Sora',sans-serif",fontSize:17,fontWeight:700,marginBottom:3}}>{t.login}</div>
         <div style={{fontSize:12,color:"var(--mu)",marginBottom:20}}>{t.loginSub}</div>
         <div className="fg">
           <label className="lbl">{t.email}</label>
@@ -555,11 +573,14 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
         </div>
         {err&&<div style={{background:"#ef444415",border:"1px solid #ef444428",borderRadius:8,padding:"8px 11px",fontSize:12,color:"var(--rd)",marginBottom:13}}>⚠️ {err}</div>}
         <button onClick={tryLogin} disabled={loading}
-          style={{width:"100%",background:loading?"var(--s3)":"var(--acc)",color:loading?"var(--mu)":"#000",border:"none",borderRadius:10,padding:"10px",fontSize:14,fontWeight:600,fontFamily:"'Syne',sans-serif",transition:"all .2s"}}>
+          style={{width:"100%",background:loading?"var(--s3)":"var(--acc)",color:loading?"var(--mu)":"#000",border:"none",borderRadius:10,padding:"10px",fontSize:14,fontWeight:600,fontFamily:"'Sora',sans-serif",transition:"all .2s"}}>
           {loading?t.checking:t.enter}
         </button>
       </div>
-      <div style={{marginTop:14,fontSize:11,color:"var(--mu2)"}}>{t.copyright}</div>
+      <div style={{marginTop:14,textAlign:"center"}}>
+        <div style={{fontSize:11,color:"var(--mu2)"}}>{t.copyright}</div>
+        <div style={{fontSize:10,color:"var(--mu)",marginTop:4,letterSpacing:1}}>Powered by <span style={{color:"var(--acc)"}}>Natural Cleaning Experts</span></div>
+      </div>
     </div>
   );
 }
@@ -1116,7 +1137,7 @@ function Telephony() {
 
                     {/* Improvements */}
                     {call.aiAnalysis.improvements?.length > 0 && (
-                      <div style={{background:"#f0a50015", border:"1px solid #f0a50030", borderRadius:8, padding:12}}>
+                      <div style={{background:"#4f8fff15", border:"1px solid #4f8fff30", borderRadius:8, padding:12}}>
                         <div style={{fontSize:12, fontWeight:700, color:"var(--acc)", marginBottom:6}}>💡 {ru?"Что улучшить:":"Improvements:"}</div>
                         {call.aiAnalysis.improvements.map((m,i)=>(
                           <div key={i} style={{fontSize:13, marginBottom:3}}>• {m}</div>
@@ -1505,7 +1526,7 @@ function AppInner() {
   function getPartner(id) { return partners.find(p=>p.id===id); }
 
   // Forms
-  const defP   = { companyName:"", email:"", password:"", plan:"Basic", status:"active", logo:"", accentColor:"#f0a500", logoUrl:"" };
+  const defP   = { companyName:"", email:"", password:"", plan:"Basic", status:"active", logo:"", accentColor:"#4f8fff", logoUrl:"" };
   const defE   = { name:"", email:"", password:"", role:roles[0], sections:["dashboard","tasks","chat"], chatChannels:["general"], deptId:"", branchId:"", status:"active" };
   const defD   = { name:"", icon:"🏢", color:"#3b82f6", branchId:"" };
   const defBr  = { name:"", city:"" };
@@ -1548,7 +1569,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, employees:[...(x.employees||[]), newEmp]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[newEmp], departments:[], branches:[], tasks:[], kb:[],
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1563,7 +1584,7 @@ function AppInner() {
     if (existing) return existing;
     if (pid === "nce_main") {
       const ws = { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[], branches:[], tasks:[], kb:[],
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] };
       setPartners(ps => [...ps, ws]);
@@ -1586,7 +1607,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, departments:[...(x.departments||[]), newDept]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[newDept], branches:[], tasks:[], kb:[],
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1615,7 +1636,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, branches:[...(x.branches||[]), newBranch]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[], branches:[newBranch], tasks:[], kb:[],
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1636,7 +1657,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, tasks:[...(x.tasks||[]), newItem]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[], branches:[], tasks:[newItem], kb:[],
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1654,7 +1675,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, kb:[...(x.kb||[]), newItem]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[], branches:[], tasks:[], kb:[newItem],
         schedule:[], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1669,7 +1690,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, schedule:[...(x.schedule||[]), newItem]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[], branches:[], tasks:[], kb:[],
         schedule:[newItem], salaryPayments:[], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1684,7 +1705,7 @@ function AppInner() {
       setPartners(ps => ps.map(x => x.id===pid ? {...x, salaryPayments:[...(x.salaryPayments||[]), newItem]} : x));
     } else if (pid === "nce_main") {
       setPartners(ps => [...ps, { id:"nce_main", companyName:"Natural Cleaning Experts", plan:"VIP",
-        email:"", password:"", status:"active", logo:"🏢", accentColor:"#f0a500",
+        email:"", password:"", status:"active", logo:"🏢", accentColor:"#4f8fff",
         employees:[], departments:[], branches:[], tasks:[], kb:[],
         schedule:[], salaryPayments:[newItem], createdAt:new Date().toISOString().split("T")[0] }]);
     } else return;
@@ -1701,7 +1722,20 @@ function AppInner() {
       <>
         <style>{S}</style>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)",flexDirection:"column",gap:16}}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,letterSpacing:-1}}>Nova Launch System<span style={{color:"var(--acc)"}}>.</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+            <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+              <polygon points="24,7 38,15.5 38,32.5 24,41 10,32.5 10,15.5" fill="none" stroke="#4f8fff" strokeWidth="1.2"/>
+              <circle cx="24" cy="24" r="7.5" fill="#4f8fff"/>
+              <circle cx="24" cy="24" r="3.5" fill="#07070e"/>
+              <circle cx="24" cy="7" r="2" fill="#00e5c0"/>
+              <circle cx="38" cy="15.5" r="1.5" fill="#4f8fff"/>
+              <circle cx="38" cy="32.5" r="1.5" fill="#4f8fff"/>
+              <circle cx="24" cy="41" r="1.5" fill="#4f8fff"/>
+              <circle cx="10" cy="32.5" r="1.5" fill="#4f8fff"/>
+              <circle cx="10" cy="15.5" r="1.5" fill="#4f8fff"/>
+            </svg>
+            <div style={{fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:800,letterSpacing:-1}}>cor<span style={{color:"#4f8fff"}}>ex</span></div>
+          </div>
           <div style={{width:36,height:36,border:"3px solid var(--bdr2)",borderTop:"3px solid var(--acc)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}`}</style>
           <div style={{fontSize:12,color:"var(--mu)"}}>Загрузка данных...</div>
@@ -1748,7 +1782,7 @@ function AppInner() {
           <div style={{background:"var(--s1)",borderBottom:"1px solid var(--bdr)",padding:"0 20px",height:56,display:"flex",alignItems:"center",gap:14}}>
             {candPartner?.logoUrl
               ? <img src={candPartner.logoUrl} style={{height:32,borderRadius:6,objectFit:"contain"}} alt="logo"/>
-              : <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)"}}>{candPartner?.companyName||"Nova"}</div>}
+              : <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:18,color:"var(--acc)"}}>{candPartner?.companyName||"Nova"}</div>}
             <div style={{flex:1}}/>
             <div style={{fontSize:13,color:"var(--mu)"}}>{ru?"Привет,":"Hi,"} <strong>{myCard.firstName}</strong>! 👋</div>
             <div className="lang-toggle" style={{marginLeft:8}}>
@@ -1764,13 +1798,13 @@ function AppInner() {
           <div style={{flex:1,maxWidth:680,margin:"0 auto",padding:"32px 20px 60px",width:"100%"}}>
             {/* Welcome banner */}
             <div style={{background:`linear-gradient(135deg,var(--acc),var(--bl))`,borderRadius:16,padding:"22px 26px",marginBottom:28,color:"#fff"}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,marginBottom:6}}>{ru?"Ваш план обучения":"Your Training Plan"}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:22,marginBottom:6}}>{ru?"Ваш план обучения":"Your Training Plan"}</div>
               <div style={{fontSize:13,opacity:.85,marginBottom:16}}>{ru?"Пройдите все модули чтобы начать работу":"Complete all modules to start working"}</div>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
                 <div style={{flex:1,height:10,background:"rgba(255,255,255,.25)",borderRadius:5,overflow:"hidden"}}>
                   <div style={{height:"100%",background:"#fff",borderRadius:5,width:lmsPct+"%",transition:"width .5s"}}/>
                 </div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,minWidth:50,textAlign:"right"}}>{lmsPct}%</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:22,minWidth:50,textAlign:"right"}}>{lmsPct}%</div>
               </div>
               <div style={{fontSize:12,opacity:.75,marginTop:6}}>{lmsDone.length} {ru?"из":"of"} {LMS_MODULES.length} {ru?"модулей завершено":"modules completed"}</div>
             </div>
@@ -1780,14 +1814,14 @@ function AppInner() {
               <div style={{background:"var(--gr)15",border:"2px solid var(--gr)",borderRadius:14,padding:"16px 22px",marginBottom:22,display:"flex",alignItems:"center",gap:14}}>
                 <div style={{fontSize:40}}>🎓</div>
                 <div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:"var(--gr)",marginBottom:2}}>{ru?"Обучение завершено!":"Training Complete!"}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:17,color:"var(--gr)",marginBottom:2}}>{ru?"Обучение завершено!":"Training Complete!"}</div>
                   <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"HR-менеджер свяжется с вами для следующего шага":"Your HR manager will contact you about the next step"}</div>
                 </div>
               </div>
             )}
 
             {/* Module list */}
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14,color:"var(--tx)"}}>📚 {ru?"Модули обучения":"Training Modules"}</div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,marginBottom:14,color:"var(--tx)"}}>📚 {ru?"Модули обучения":"Training Modules"}</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {LMS_MODULES.map((mod,i)=>{
                 const done    = lmsDone.includes(mod.id);
@@ -1819,7 +1853,7 @@ function AppInner() {
                       {done&&(
                         <div style={{textAlign:"center",flexShrink:0}}>
                           {score
-                            ? <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:score>=80?"var(--gr)":score>=60?"#f0a500":"var(--rd)"}}>{score}%</div>
+                            ? <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:score>=80?"var(--gr)":score>=60?"#f0a500":"var(--rd)"}}>{score}%</div>
                             : null}
                         </div>
                       )}
@@ -1931,7 +1965,7 @@ function AppInner() {
         {!partners.length && (
           <div style={{textAlign:"center",padding:60,color:"var(--mu)"}}>
             <div style={{fontSize:40,marginBottom:12}}>🤝</div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:16,marginBottom:6}}>{t.noPartners}</div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:600,fontSize:16,marginBottom:6}}>{t.noPartners}</div>
             <div style={{fontSize:13}}>{t.noPartnersDesc}</div>
           </div>
         )}
@@ -1943,7 +1977,7 @@ function AppInner() {
                 {p.logoUrl ? <img src={p.logoUrl} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:3}}/> : (p.logo||"🏢")}
               </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName}</div>
                   <div style={{fontSize:11,color:"var(--mu)"}}>{p.email}</div>
                 </div>
                 <Bdg cls={planBdg(p.plan)}>{p.plan}</Bdg>
@@ -1955,7 +1989,7 @@ function AppInner() {
                   {l:t.branches,  v:(p.branches||[]).length},
                 ].map((s,i)=>(
                   <div key={i} style={{background:"var(--s2)",borderRadius:8,padding:"7px 9px",textAlign:"center"}}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17}}>{s.v}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17}}>{s.v}</div>
                     <div style={{fontSize:10,color:"var(--mu)"}}>{s.l}</div>
                   </div>
                 ))}
@@ -2337,7 +2371,7 @@ function AppInner() {
                 <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.3}}>{s.l}</span>
                 <span style={{fontSize:16,lineHeight:1}}>{s.ico}</span>
               </div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:22,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
               <div style={{fontSize:10,color:"var(--mu)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.sub}</div>
             </div>
           ))}
@@ -2346,7 +2380,7 @@ function AppInner() {
         {/* ── Revenue Chart ── */}
         <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"16px 18px",marginBottom:18}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,flex:1}}>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,flex:1}}>
               📈 {lang==="ru"?"Выручка по дням":"Revenue by Day"}
             </div>
             <div style={{display:"flex",gap:5}}>
@@ -2395,7 +2429,7 @@ function AppInner() {
           {/* Calendar */}
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px"}}>
             <div style={{display:"flex",alignItems:"center",marginBottom:12}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,flex:1}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,flex:1}}>
                 📅 {monthName} {calYear}
               </div>
               <button onClick={()=>setCalMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1))}
@@ -2477,7 +2511,7 @@ function AppInner() {
           {/* AI Recommendations */}
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px",display:"flex",flexDirection:"column",gap:8}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,flex:1}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,flex:1}}>
                 🤖 {lang==="ru"?"AI Рекомендации":"AI Recommendations"}
               </div>
               {aiSchedTs&&!aiSchedLoading&&(
@@ -2532,7 +2566,7 @@ function AppInner() {
 
         {/* ── Activity Feed ── */}
         <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px"}}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>
+          <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>
             ⚡ {lang==="ru"?"Активность системы":"Activity Feed"}
           </div>
           {activityFeed.length===0&&(
@@ -2575,7 +2609,7 @@ function AppInner() {
                       <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600}}>{s.l}</span>
                       <span style={{fontSize:16}}>{s.ico}</span>
                     </div>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:22,color:s.c,lineHeight:1,marginBottom:3}}>{s.v}</div>
                     <div style={{fontSize:10,color:"var(--mu)"}}>{s.sub}</div>
                   </div>
                 ));
@@ -2583,7 +2617,7 @@ function AppInner() {
             </div>
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,overflow:"hidden"}}>
               <div style={{padding:"12px 16px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13}}>🏢 {t.allPartners}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13}}>🏢 {t.allPartners}</div>
                 <button className="btn btn-p btn-sm" onClick={()=>setPage("partners")}>{lang==="ru"?"Управление":"Manage"} →</button>
               </div>
               <div className="tw">
@@ -2594,7 +2628,7 @@ function AppInner() {
                       <tr key={p.id}>
                         <td><div className="flex-c"><div style={{fontSize:16}}>{p.logo||"🏢"}</div><div><div style={{fontWeight:500,fontSize:12}}>{p.companyName}</div><div style={{fontSize:10,color:"var(--mu)"}}>{p.email}</div></div></div></td>
                         <td><Bdg cls={planBdg(p.plan)}>{p.plan}</Bdg></td>
-                        <td style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:12}}>{(p.employees||[]).length}</td>
+                        <td style={{fontFamily:"'Sora',sans-serif",fontWeight:600,fontSize:12}}>{(p.employees||[]).length}</td>
                         <td><Bdg cls={p.status==="active"?"b-gr":"b-rd"}>{p.status==="active"?t.active:t.blocked}</Bdg></td>
                         <td><button className="btn btn-bl btn-sm" onClick={()=>{setViewPartner(p);setPage("dashboard");}}>{t.enterCabinet}</button></td>
                       </tr>
@@ -2720,7 +2754,7 @@ function AppInner() {
           <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
             <Av name={(card.firstName||"?")} size="av-lg" color={dept.color}/>
             <div style={{flex:1,minWidth:120}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20}}>{card.firstName} {card.lastName}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20}}>{card.firstName} {card.lastName}</div>
               <div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>{card.phone}{card.email?` • ${card.email}`:""}</div>
               {card.city&&<div style={{fontSize:11,color:"var(--mu)",marginTop:1}}>📍 {card.city}{card.language?` • 🗣 ${card.language}`:""}</div>}
             </div>
@@ -2775,7 +2809,7 @@ function AppInner() {
 
             {/* ── LMS Access Block ── */}
             <div style={{marginTop:18,paddingTop:16,borderTop:"1px solid var(--bdr)"}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>
                 🔑 {ru?"Доступ к обучению (LMS)":"LMS Training Access"}
               </div>
               {card.lmsEmail ? (
@@ -2889,7 +2923,7 @@ function AppInner() {
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
               <div style={{fontWeight:700,fontSize:13}}>📚 {ru?"Модули обучения":"Training Modules"}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:lmsPct===100?"var(--gr)":"var(--acc)"}}>{lmsPct}%</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:18,color:lmsPct===100?"var(--gr)":"var(--acc)"}}>{lmsPct}%</div>
             </div>
             <div style={{height:6,background:"var(--s2)",borderRadius:3,overflow:"hidden",marginBottom:16}}>
               <div style={{height:"100%",background:lmsPct===100?"var(--gr)":"var(--acc)",borderRadius:3,width:lmsPct+"%",transition:"width .4s"}}/>
@@ -3032,7 +3066,7 @@ function AppInner() {
               <div style={{fontWeight:700,fontSize:12,color:dept.color}}>{dept.name}</div>
               <div style={{fontSize:10,color:"var(--mu)"}}>HR Workspace</div>
             </div>
-            <div style={{marginLeft:8,fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)"}}>{allCards.length}</div>
+            <div style={{marginLeft:8,fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)"}}>{allCards.length}</div>
           </div>
         </div>
 
@@ -3094,21 +3128,21 @@ function AppInner() {
                     <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.4}}>{s.l}</span>
                     <span style={{fontSize:15}}>{s.ico}</span>
                   </div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
                 </div>
               ))}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}} className="cal-ai-row">
               {/* Pipeline summary */}
               <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>📊 Pipeline</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>📊 Pipeline</div>
                 {HR_COLS.filter(s=>!["archived","rejected"].includes(s.id)).map(s=>{
                   const cnt=allCards.filter(c=>c.pipelineStatus===s.id).length;
                   return cnt>0?(
                     <div key={s.id} onClick={()=>{setHrTab("pipeline");}} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,cursor:"pointer"}}>
                       <div style={{width:8,height:8,borderRadius:"50%",background:s.color,flexShrink:0}}/>
                       <div style={{flex:1,fontSize:12}}>{ru?s.label.ru:s.label.en}</div>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,color:s.color}}>{cnt}</div>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,color:s.color}}>{cnt}</div>
                     </div>
                   ):null;
                 })}
@@ -3116,7 +3150,7 @@ function AppInner() {
               </div>
               {/* Today */}
               <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 16px"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>📅 {ru?"Сегодня":"Today"}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>📅 {ru?"Сегодня":"Today"}</div>
                 {interviews.map(c=>(
                   <div key={c.id} onClick={()=>setOpenCard(c.id)}
                     style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid var(--bdr)",cursor:"pointer"}}>
@@ -3200,7 +3234,7 @@ function AppInner() {
         {/* LMS overview */}
         {!openC&&hrTab==="lms"&&(
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px"}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>📚 {ru?"Прогресс LMS":"LMS Progress"}</div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,marginBottom:14}}>📚 {ru?"Прогресс LMS":"LMS Progress"}</div>
             {allCards.filter(c=>(c.lmsDone||[]).length>0||["student_lms","training_assigned","training_completed"].includes(c.pipelineStatus)).map(c=>{
               const pct=Math.round(((c.lmsDone||[]).length/LMS_MODULES.length)*100);
               return (
@@ -3213,7 +3247,7 @@ function AppInner() {
                       <div style={{height:"100%",background:pct===100?"var(--gr)":"var(--acc)",borderRadius:3,width:pct+"%",transition:"width .3s"}}/>
                     </div>
                   </div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:pct===100?"var(--gr)":"var(--acc)"}}>{pct}%</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:16,color:pct===100?"var(--gr)":"var(--acc)"}}>{pct}%</div>
                 </div>
               );
             })}
@@ -3350,7 +3384,7 @@ function AppInner() {
               return (
                 <div key={s.id} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:14,marginBottom:10}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700}}>📅 {s.date}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700}}>📅 {s.date}</div>
                     {s.location&&<div style={{fontSize:12,color:"var(--mu)"}}>📍 {s.location}</div>}
                     {s.duration&&<div style={{fontSize:12,color:"var(--mu)"}}>⏱ {s.duration}h</div>}
                     {s.supervisor&&<div style={{fontSize:12,color:"var(--mu)"}}>👤 {s.supervisor}</div>}
@@ -3383,12 +3417,12 @@ function AppInner() {
                     <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.4}}>{s.l}</span>
                     <span style={{fontSize:15}}>{s.ico}</span>
                   </div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
                 </div>
               ))}
             </div>
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"14px 18px"}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🎯 {ru?"Стажёры":"Trainees"}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🎯 {ru?"Стажёры":"Trainees"}</div>
               {trainees.map(c=>{
                 const st=plStatus(c.pipelineStatus);
                 return (
@@ -3581,7 +3615,7 @@ function AppInner() {
                     <span style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,fontWeight:600,lineHeight:1.4}}>{s.l}</span>
                     <span style={{fontSize:15}}>{s.ico}</span>
                   </div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:28,color:s.c,lineHeight:1}}>{s.v}</div>
                 </div>
               ))}
             </div>
@@ -3651,7 +3685,7 @@ function AppInner() {
         {!worker&&opsTab==="ai_dispatch"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:13,padding:"16px 18px"}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15,marginBottom:6}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:15,marginBottom:6}}>
                 🤖 AI {ru?"Анализ расписания":"Schedule Dispatcher"}
               </div>
               <div style={{fontSize:12,color:"var(--mu)",marginBottom:14,lineHeight:1.6}}>
@@ -3665,7 +3699,7 @@ function AppInner() {
                   disabled={aiSchedLoading}
                   style={{padding:"9px 20px",background:aiSchedLoading?"var(--s3)":"var(--acc)",
                     color:aiSchedLoading?"var(--mu)":"#000",border:"none",borderRadius:9,
-                    fontWeight:700,fontSize:13,cursor:aiSchedLoading?"default":"pointer",fontFamily:"'Syne',sans-serif"}}>
+                    fontWeight:700,fontSize:13,cursor:aiSchedLoading?"default":"pointer",fontFamily:"'Sora',sans-serif"}}>
                   {aiSchedLoading?(ru?"⏳ Анализирую...":"⏳ Analyzing..."):(ru?"🔄 Запустить анализ":"🔄 Run Analysis")}
                 </button>
                 {aiSchedTs&&<span style={{fontSize:11,color:"var(--mu2)"}}>{ru?"Последний анализ:":"Last run:"} {aiSchedTs}</span>}
@@ -3715,7 +3749,7 @@ function AppInner() {
             {!aiSchedLoading&&!aiSchedResult&&!aiSchedErr&&(
               <div style={{textAlign:"center",padding:"40px 20px",color:"var(--mu)"}}>
                 <div style={{fontSize:48,marginBottom:12,opacity:0.3}}>AI</div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:8}}>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:16,marginBottom:8}}>
                   {ru?"AI Диспетчер готов":"AI Dispatcher Ready"}
                 </div>
                 <div style={{fontSize:12,maxWidth:320,margin:"0 auto",lineHeight:1.6}}>
@@ -3767,7 +3801,7 @@ function AppInner() {
               <div style={{fontSize:36}}>{dept?.icon}</div>
               <div style={{flex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,color:dept?.color}}>{dept?.name}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:18,fontWeight:700,color:dept?.color}}>{dept?.name}</div>
                   {canEdit&&<div style={{display:"flex",gap:4}}>
                     <button className="btn btn-g btn-sm" style={{padding:"3px 7px",fontSize:11}} title={t.edit}
                       onClick={e=>{e.stopPropagation();setDF({name:dept.name,icon:dept.icon,color:dept.color,branchId:dept.branchId||"",_editId:dept.id});setModal("dept");}}>✏️</button>
@@ -3778,7 +3812,7 @@ function AppInner() {
                 {branch&&<div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>📍 {branch.name}{branch.city?`, ${branch.city}`:""}</div>}
               </div>
               <div style={{textAlign:"right"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:"var(--acc)"}}>{members.length}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:"var(--acc)"}}>{members.length}</div>
                 <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
               </div>
             </div>
@@ -3837,7 +3871,7 @@ function AppInner() {
         )}
         {depts.length>0&&(
           <>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
+            <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
               {lang==="ru"?"Отделы (нажмите чтобы открыть)":"Departments (click to open)"}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:20}}>
@@ -3922,16 +3956,16 @@ function AppInner() {
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               <div style={{fontSize:36}}>🏙️</div>
               <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:700}}>{branch?.name}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:700}}>{branch?.name}</div>
                 {branch?.city&&<div style={{fontSize:13,color:"var(--mu)",marginTop:2}}>📍 {branch.city}</div>}
               </div>
               <div style={{marginLeft:"auto",display:"flex",gap:18,textAlign:"center"}}>
                 <div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"var(--acc)"}}>{brEmps.length}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:26,fontWeight:800,color:"var(--acc)"}}>{brEmps.length}</div>
                   <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
                 </div>
                 <div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"var(--bl)"}}>{brDepts.length}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:26,fontWeight:800,color:"var(--bl)"}}>{brDepts.length}</div>
                   <div style={{fontSize:11,color:"var(--mu)"}}>{lang==="ru"?"отделов":"departments"}</div>
                 </div>
               </div>
@@ -3940,7 +3974,7 @@ function AppInner() {
 
           {brDepts.length>0&&(
             <>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
                 {lang==="ru"?"Отделы в этом городе":"Departments in this city"}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10,marginBottom:20}}>
@@ -3961,7 +3995,7 @@ function AppInner() {
 
           {brEmps.length>0&&(
             <>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:600,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>
                 {lang==="ru"?"Сотрудники":"Employees"}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:10}}>
@@ -4008,15 +4042,15 @@ function AppInner() {
                 onMouseEnter={e=>e.currentTarget.style.borderColor="var(--bdr2)"}
                 onMouseLeave={e=>e.currentTarget.style.borderColor="var(--bdr)"}>
                 <div style={{fontSize:28,marginBottom:8}}>🏙️</div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:2}}>{b.name}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:16,marginBottom:2}}>{b.name}</div>
                 <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>{b.city}</div>
                 <div style={{display:"flex",gap:16}}>
                   <div>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:"var(--acc)"}}>{cnt}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:700,color:"var(--acc)"}}>{cnt}</div>
                     <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"сотрудников":"employees"}</div>
                   </div>
                   <div>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:"var(--bl)"}}>{dcnt}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:700,color:"var(--bl)"}}>{dcnt}</div>
                     <div style={{fontSize:10,color:"var(--mu)"}}>{lang==="ru"?"отделов":"departments"}</div>
                   </div>
                 </div>
@@ -4116,7 +4150,7 @@ function AppInner() {
             const colT = filteredTasks.filter(x=>x.status===col);
             return (
               <div key={col} className="task-col">
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:600,color,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:12,fontWeight:600,color,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                   {label}
                   <span style={{marginLeft:"auto",background:"var(--s3)",color:"var(--mu)",fontSize:10,padding:"2px 7px",borderRadius:10}}>{colT.length}</span>
                 </div>
@@ -4182,7 +4216,7 @@ function AppInner() {
         {canEdit&&<div style={{marginBottom:13}}><button className="btn btn-p" onClick={()=>{setScF(defSc);setModal("schedule");}}>{t.addShift}</button></div>}
         {dates.map(date=>(
           <div key={date} style={{marginBottom:16}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"var(--acc)",marginBottom:10}}>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,color:"var(--acc)",marginBottom:10}}>
               📅 {new Date(date+"T12:00:00").toLocaleDateString(lang==="ru"?"ru":"en",{weekday:"long",day:"numeric",month:"long"})}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10}}>
@@ -4257,7 +4291,7 @@ function AppInner() {
                   return (
                     <tr key={x.id}>
                       <td><div className="flex-c"><Av name={emp?.name||"?"}/><span style={{fontWeight:500}}>{emp?.name||"—"}</span></div></td>
-                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(x.amount).toLocaleString()}</td>
+                      <td style={{fontFamily:"'Sora',sans-serif",fontWeight:700,color:"var(--gr)"}}>${Number(x.amount).toLocaleString()}</td>
                       <td style={{color:"var(--mu)",fontSize:12}}>{x.date}</td>
                       <td style={{color:"var(--mu)",fontSize:12}}>{x.note}</td>
                       <td><Bdg cls={x.status==="paid"?"b-gr":"b-yw"}>{x.status==="paid"?t.paid:t.notPaid}</Bdg></td>
@@ -4290,7 +4324,7 @@ function AppInner() {
                 <Av name={emp.name} size="av-lg"/>
                 <div><div style={{fontWeight:600,fontSize:14}}>{emp.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{emp.role}</div></div>
                 <div style={{marginLeft:"auto",textAlign:"right"}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:pct>=80?"var(--gr)":pct>=50?"var(--acc)":"var(--mu)"}}>{myT.length?`${pct}%`:"—"}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,color:pct>=80?"var(--gr)":pct>=50?"var(--acc)":"var(--mu)"}}>{myT.length?`${pct}%`:"—"}</div>
                   <div style={{fontSize:10,color:"var(--mu)"}}>{t.efficiency}</div>
                 </div>
               </div>
@@ -4527,7 +4561,7 @@ function AppInner() {
               return (
                 <div key={m.id} style={{display:"flex",gap:9,flexDirection:isMe?"row-reverse":"row",alignItems:"flex-end"}}>
                   <Av name={m.authorName} color={color}/>
-                  <div className="chat-bbl" style={{background:isMe?"#f0a50012":"var(--s2)",maxWidth:"68%"}}>
+                  <div className="chat-bbl" style={{background:isMe?"#4f8fff15":"var(--s2)",maxWidth:"68%"}}>
                     <div style={{fontSize:11,fontWeight:600,color,marginBottom:4}}>{m.authorName}</div>
                     {m.type==="image"&&(
                       <img src={m.content} alt="" style={{maxWidth:200,maxHeight:180,borderRadius:8,display:"block",cursor:"pointer",marginBottom:4}} onClick={()=>window.open(m.content)}/>
@@ -5287,7 +5321,6 @@ function AppInner() {
               config: { ...form, enabled: newVal, partnerId: pid },
             }),
           });
-          console.log('AI receptionist toggled:', newVal ? 'ON' : 'OFF');
         }
       } catch(e) { console.error('Toggle save error:', e.message); }
     }
@@ -7299,7 +7332,7 @@ function AppInner() {
                       <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"7px 0 0 7px",fontSize:13,color:"var(--mu)",flexShrink:0}}>$</span>
                       <input type="number" min="0" value={bkF.priceOverride!=null?bkF.priceOverride:autoPrice}
                         onChange={e=>setBkF(f=>({...f,priceOverride:+e.target.value}))}
-                        className="inp" style={{borderRadius:"0 7px 7px 0",borderLeft:"none",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)",width:90,textAlign:"center"}}/>
+                        className="inp" style={{borderRadius:"0 7px 7px 0",borderLeft:"none",fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)",width:90,textAlign:"center"}}/>
                     </div>
                     {bkF.priceOverride!=null&&<button onClick={()=>setBkF(f=>({...f,priceOverride:null}))}
                       style={{fontSize:9,color:"var(--mu)",background:"none",border:"none",cursor:"pointer",marginTop:3,padding:0}}>
@@ -7317,7 +7350,7 @@ function AppInner() {
                       <input type="number" min="0.5" max="24" step="0.5"
                         value={bkF.durOverride!=null?bkF.durOverride:autoDur}
                         onChange={e=>setBkF(f=>({...f,durOverride:+e.target.value}))}
-                        className="inp" style={{borderRadius:"7px 0 0 7px",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:20,color:"var(--bl)",width:72,textAlign:"center"}}/>
+                        className="inp" style={{borderRadius:"7px 0 0 7px",fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:20,color:"var(--bl)",width:72,textAlign:"center"}}/>
                       <span style={{padding:"7px 8px",background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:"0 7px 7px 0",fontSize:13,color:"var(--mu)",borderLeft:"none",flexShrink:0}}>{lang==="ru"?"ч":"h"}</span>
                     </div>
                     {bkF.durOverride!=null&&<button onClick={()=>setBkF(f=>({...f,durOverride:null}))}
@@ -7411,7 +7444,7 @@ function AppInner() {
                     {bkF.parking>0&&<span style={{color:"var(--bl)"}}> + {bkSettings.currency}{bkF.parking} parking</span>}
                     {taxAmt>0&&<span style={{color:"#f0a500"}}> + {bkSettings.currency}{taxAmt} tax</span>}
                   </span>
-                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)"}}>
+                  <span style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)"}}>
                     = {bkSettings.currency}{total}
                   </span>
                 </div>
@@ -7590,7 +7623,7 @@ function AppInner() {
             <div style={{padding:"10px 18px",borderBottom:"1px solid var(--bdr)",display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:11,padding:"3px 9px",borderRadius:5,background:sc+"20",color:sc,fontWeight:600}}>{STATUS_LABELS[bk.status]}</span>
               {bk.paymentMethod&&<span style={{fontSize:12}}>{PM_ICO[bk.paymentMethod]||""} <span style={{fontSize:10,color:"var(--mu)"}}>{bk.paymentMethod?.toUpperCase()}</span></span>}
-              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)",marginLeft:"auto"}}>{bkSettings.currency}{displayPrice}</span>
+              <span style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--acc)",marginLeft:"auto"}}>{bkSettings.currency}{displayPrice}</span>
               {bk.tipAmt>0&&<span style={{fontSize:10,color:"var(--gr)"}}>+${bk.tipAmt} tip</span>}
             </div>
 
@@ -7709,7 +7742,7 @@ function AppInner() {
                 <div key={ds} style={{textAlign:"center",padding:"6px 4px",borderRadius:8,
                   background:isToday?"var(--acc)15":"transparent",marginBottom:4}}>
                   <div style={{fontSize:10,color:isToday?"var(--acc)":"var(--mu)",fontWeight:600}}>{DAY_NAMES_SHORT[d.getDay()]}</div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,color:isToday?"var(--acc)":"var(--tx)"}}>{d.getDate()}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:18,color:isToday?"var(--acc)":"var(--tx)"}}>{d.getDate()}</div>
                   {cnt>0&&<div style={{fontSize:9,color:"var(--mu)"}}>{cnt} {lang==="ru"?"заяв":"bk"}</div>}
                 </div>
               );
@@ -8441,7 +8474,7 @@ function AppInner() {
                             return (
                               <div key={`${b}-${ba}`} style={{background:"var(--s1)",borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
                                 <div style={{fontSize:9,color:"var(--mu)"}}>{b}bd/{ba}ba</div>
-                                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:"var(--acc)",fontSize:14}}>${pr}</div>
+                                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,color:"var(--acc)",fontSize:14}}>${pr}</div>
                                 <div style={{fontSize:9,color:"var(--bl)"}}>{dr}h</div>
                               </div>
                             );
@@ -8462,7 +8495,7 @@ function AppInner() {
                             return (
                               <div key={`${b}-${ba}`} style={{background:"var(--s1)",borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
                                 <div style={{fontSize:9,color:"var(--mu)"}}>{b}bd/{ba}ba</div>
-                                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:typeColor,fontSize:14}}>${pr}</div>
+                                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,color:typeColor,fontSize:14}}>${pr}</div>
                                 <div style={{fontSize:9,color:"var(--bl)"}}>{dr}h</div>
                               </div>
                             );
@@ -8662,14 +8695,14 @@ function AppInner() {
             ].map(s=>(
               <div key={s.l} style={{background:"var(--s1)",border:`1px solid ${s.c}20`,borderRadius:10,padding:"12px 14px"}}>
                 <div style={{fontSize:10,color:"var(--mu)",marginBottom:3,textTransform:"uppercase",letterSpacing:.4}}>{s.l}</div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div>
               </div>
             ))}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,flexWrap:"wrap"}}>
             {/* Frequency breakdown */}
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🔄 {lang==="ru"?"По частоте":"By Frequency"}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🔄 {lang==="ru"?"По частоте":"By Frequency"}</div>
               {Object.entries(FREQ_LABELS).map(([k,v])=>{
                 const cnt=byFreq[k]||0; const pct=filtered.length?Math.round(cnt/filtered.length*100):0;
                 return (
@@ -8686,13 +8719,13 @@ function AppInner() {
             </div>
             {/* Top cleaners */}
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🧹 {lang==="ru"?"Топ клинеры":"Top Cleaners"}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:13,marginBottom:12}}>🧹 {lang==="ru"?"Топ клинеры":"Top Cleaners"}</div>
               {topCleaners.length===0&&<div style={{color:"var(--mu)",fontSize:12}}>{lang==="ru"?"Нет данных":"No data"}</div>}
               {topCleaners.map(({emp,cnt},i)=>(
                 <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                   <Av name={emp?.name||"?"} color={cleanerColor(emp?.id)} style={{width:28,height:28,fontSize:11}}/>
                   <span style={{flex:1,fontSize:12}}>{emp?.name||"?"}</span>
-                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--bl)"}}>{cnt}</span>
+                  <span style={{fontFamily:"'Sora',sans-serif",fontWeight:700,color:"var(--bl)"}}>{cnt}</span>
                 </div>
               ))}
             </div>
@@ -8864,7 +8897,7 @@ function AppInner() {
                     ].map(s=>(
                       <div key={s.l} style={{background:"var(--s2)",borderRadius:7,padding:"6px 8px",textAlign:"center"}}>
                         <div style={{fontSize:8,color:"var(--mu)",textTransform:"uppercase"}}>{s.l}</div>
-                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:s.c}}>{s.v}</div>
+                        <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,color:s.c}}>{s.v}</div>
                       </div>
                     ))}
                   </div>
@@ -8942,7 +8975,7 @@ function AppInner() {
                     </div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--acc)"}}>${total}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,color:"var(--acc)"}}>${total}</div>
                     <div style={{fontSize:11,color:"var(--mu)"}}>{cBks.length} {lang==="ru"?"уборок":"cleanings"}</div>
                   </div>
                   <div style={{display:"flex",gap:5}}>
@@ -8984,13 +9017,13 @@ function AppInner() {
           ].map(s=>(
             <div key={s.l} style={{background:"var(--s1)",border:`1px solid ${s.c}20`,borderRadius:9,padding:"10px 13px"}}>
               <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>{s.l}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:s.c,marginTop:2}}>{s.v}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:800,color:s.c,marginTop:2}}>{s.v}</div>
             </div>
           ))}
         </div>
 
         {/* Page title from sidebar sub-nav */}
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+        <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:16,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
           {tab==="calendar"&&<>📅 {lang==="ru"?"Календарь":"Calendar"}</>}
           {tab==="cleaners"&&<>🧹 {lang==="ru"?"Клинеры":"Cleaners"}</>}
           {tab==="clients"&&<>👤 {lang==="ru"?"Клиенты":"Clients"}</>}
@@ -9031,7 +9064,7 @@ function AppInner() {
                   calView==="week"?d.setDate(d.getDate()-7):d.setMonth(d.getMonth()-1);
                   setViewDate(d);
                 }}>‹</button>
-                <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,minWidth:160,textAlign:"center"}}>
+                <span style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:15,minWidth:160,textAlign:"center"}}>
                   {calView==="week"
                     ? `${weekDates[0].getDate()} – ${weekDates[6].getDate()} ${MONTH_NAMES[weekDates[6].getMonth()]} ${weekDates[6].getFullYear()}`
                     : `${MONTH_NAMES[mo]} ${yr}`}
@@ -9058,7 +9091,7 @@ function AppInner() {
 
             {/* Right panel: Cleaners */}
             <div style={{width:190,flexShrink:0}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,marginBottom:8,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:12,marginBottom:8,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>
                 {lang==="ru"?"Клинеры":"Providers"}
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:3}}>
@@ -9231,7 +9264,7 @@ function AppInner() {
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:14,padding:20,marginBottom:16}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:"wrap"}}>
               <div style={{flex:1,minWidth:200}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,marginBottom:6}}>{lsn.title}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:800,marginBottom:6}}>{lsn.title}</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
                   {dept   && <span style={{fontSize:11,color:dept.color,background:dept.color+"18",borderRadius:5,padding:"2px 8px"}}>{dept.icon} {dept.name}</span>}
                   {branch && <span style={{fontSize:11,color:"var(--mu)",background:"var(--s2)",borderRadius:5,padding:"2px 8px"}}>📍 {branch.name}</span>}
@@ -9269,7 +9302,7 @@ function AppInner() {
           {quizDone&&(
             <div style={{background:"var(--s1)",border:"1px solid var(--gr)30",borderRadius:14,padding:32,textAlign:"center",marginBottom:16}}>
               <div style={{fontSize:48,marginBottom:12}}>{IC.award}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:"var(--gr)",marginBottom:8}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontSize:22,fontWeight:800,color:"var(--gr)",marginBottom:8}}>
                 {lang==="ru"?"Урок завершён!":"Lesson Complete!"}
               </div>
               <div style={{fontSize:14,color:"var(--mu)",marginBottom:16}}>
@@ -9311,7 +9344,7 @@ function AppInner() {
               {/* QUIZ */}
               {lsn.type==="quiz"&&(
                 <div>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:15,fontWeight:700,marginBottom:16}}>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontSize:15,fontWeight:700,marginBottom:16}}>
                     📝 {lang==="ru"?"Тест":"Quiz"} — {(lsn.quiz||[]).length} {lang==="ru"?"вопросов":"questions"}
                   </div>
                   {(lsn.quiz||[]).map((q,qi)=>(
@@ -9419,7 +9452,7 @@ function AppInner() {
                       {group.icon}
                     </div>
                     <div style={{flex:1}}>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:group.color}}>{group.label}</div>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:15,color:group.color}}>{group.label}</div>
                       <div style={{fontSize:11,color:"var(--mu)"}}>{group.items.length} {lang==="ru"?"уроков":"lessons"} · {assigns.filter(a=>group.items.some(l=>l.id===a.lessonId)&&a.status==="completed").length} {lang==="ru"?"завершено":"completed"}</div>
                     </div>
                   </div>
@@ -9585,7 +9618,7 @@ function AppInner() {
             <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginBottom:18,display:"flex",alignItems:"center",gap:20}}>
               <CirclePct pct={progressPct(currentUser.id)} size={64} color={progressPct(currentUser.id)===100?"var(--gr)":"var(--acc)"}/>
               <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:700}}>{lang==="ru"?"Мой прогресс":"My Progress"}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontSize:16,fontWeight:700}}>{lang==="ru"?"Мой прогресс":"My Progress"}</div>
                 <div style={{fontSize:12,color:"var(--mu)",marginTop:3}}>
                   {myAssigns.filter(a=>a.status==="completed").length} / {myAssigns.length} {lang==="ru"?"уроков завершено":"lessons completed"}
                 </div>
@@ -9921,7 +9954,7 @@ function AppInner() {
           {/* Header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
             <div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:18}}>
                 📥 {ru?"Импорт клиентов из CSV":"Import Clients from CSV"}
               </div>
               <div style={{fontSize:12,color:"var(--mu)",marginTop:3}}>
@@ -10034,17 +10067,17 @@ function AppInner() {
           {importStep===3&&importDone&&(
             <div style={{textAlign:"center",padding:"20px 0"}}>
               <div style={{fontSize:56,marginBottom:12}}>🎉</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"var(--gr)",marginBottom:8}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:22,color:"var(--gr)",marginBottom:8}}>
                 {ru?"Импорт завершён!":"Import Complete!"}
               </div>
               <div style={{display:"flex",justifyContent:"center",gap:24,marginBottom:20}}>
                 <div style={{textAlign:"center"}}>
-                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:"var(--gr)"}}>{importDone.added}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:32,color:"var(--gr)"}}>{importDone.added}</div>
                   <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"добавлено":"added"}</div>
                 </div>
                 {importDone.skipped>0&&(
                   <div style={{textAlign:"center"}}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:32,color:"var(--mu)"}}>{importDone.skipped}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:32,color:"var(--mu)"}}>{importDone.skipped}</div>
                     <div style={{fontSize:12,color:"var(--mu)"}}>{ru?"пропущено (дублей)":"skipped (duplicates)"}</div>
                   </div>
                 )}
@@ -10106,7 +10139,7 @@ function AppInner() {
         setPartners(ps=>ps.map(x=>x.id===pid?{...x,pnl:[...(x.pnl||[]),newItem]}:x));
       } else if (pid==="nce_main") {
         setPartners(ps=>[...ps,{id:"nce_main",companyName:"Natural Cleaning Experts",plan:"VIP",
-          email:"",password:"",status:"active",logo:"🏢",accentColor:"#f0a500",
+          email:"",password:"",status:"active",logo:"🏢",accentColor:"#4f8fff",
           employees:[],departments:[],branches:[],tasks:[],kb:[],schedule:[],salaryPayments:[],
           pnl:[newItem],createdAt:new Date().toISOString().split("T")[0]}]);
       }
@@ -10155,7 +10188,7 @@ function AppInner() {
         {/* Category manager panel */}
         {showCatMgr&&canEdit&&(
           <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:16,marginBottom:16}}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:14,marginBottom:12}}>
               ⚙️ {lang==="ru"?"Управление категориями":"Manage Categories"}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
@@ -10252,7 +10285,7 @@ function AppInner() {
                       <td style={{fontSize:12,color:"var(--mu)"}}>{e.date}</td>
                       <td><Bdg cls={e.type==="income"?"b-gr":"b-rd"}>{e.type==="income"?t.pnlInc:t.pnlExp}</Bdg></td>
                       <td style={{fontSize:12}}>{e.category}</td>
-                      <td style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:e.type==="income"?"var(--gr)":"var(--rd)"}}>{fmt(e.amount)}</td>
+                      <td style={{fontFamily:"'Sora',sans-serif",fontWeight:700,color:e.type==="income"?"var(--gr)":"var(--rd)"}}>{fmt(e.amount)}</td>
                       <td style={{fontSize:11,color:"var(--mu)"}}>{e.note||"—"}</td>
                       {canEdit&&<td><button className="btn btn-d btn-sm" onClick={()=>delEntry(e.id)}>{IC.trash}</button></td>}
                     </tr>
@@ -10354,7 +10387,7 @@ function AppInner() {
           <div style={{display:"flex",alignItems:"center",gap:6,color:"var(--mu)",cursor:"pointer",fontSize:13,marginBottom:15}} onClick={()=>setKbView(null)}>{t.backToKb}</div>
           <div style={{maxWidth:680}}>
             <div style={{fontSize:28,marginBottom:8}}>{a.thumb}</div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:700,marginBottom:4}}>{a.title}</div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontSize:20,fontWeight:700,marginBottom:4}}>{a.title}</div>
             <div style={{fontSize:12,color:"var(--mu)",marginBottom:16}}><Bdg cls={a.type==="youtube"?"b-rd":a.type==="gdoc"?"b-bl":"b-pu"}>{a.type==="youtube"?t.ytType:a.type==="gdoc"?t.gdocType:t.sopType}</Bdg></div>
             {a.type==="youtube"&&<div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:22,textAlign:"center"}}><div style={{fontSize:40,marginBottom:8}}>▶️</div><div style={{fontSize:14,marginBottom:12,color:"var(--mu)"}}>{a.desc}</div><a href={a.url} target="_blank" rel="noreferrer" className="btn btn-p" style={{textDecoration:"none"}}>{t.openYt}</a></div>}
             {a.type==="gdoc"&&<div style={{background:"var(--s2)",border:"1px solid var(--bdr)",borderRadius:12,padding:22}}><div style={{display:"flex",alignItems:"center",gap:11,marginBottom:13}}><span style={{fontSize:34}}>📄</span><div><div style={{fontWeight:600,marginBottom:3}}>{a.title}</div><div style={{fontSize:12,color:"var(--mu)"}}>{a.desc}</div></div></div><a href={a.url} target="_blank" rel="noreferrer" className="btn btn-p" style={{textDecoration:"none",marginRight:8}}>{t.openDoc}</a><span style={{fontSize:11,color:"var(--mu)"}}>{t.opensNewTab}</span><div style={{marginTop:11,background:"var(--s3)",borderRadius:8,padding:"7px 10px",fontSize:11,color:"var(--mu)",wordBreak:"break-all"}}>{a.url}</div></div>}
@@ -10381,7 +10414,7 @@ function AppInner() {
             <div key={a.id} className="kb-card" onClick={()=>setKbView(a.id)}>
               <div style={{fontSize:26,marginBottom:7}}>{a.thumb}</div>
               <div style={{fontSize:10,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>{a.type==="youtube"?t.ytType:a.type==="gdoc"?t.gdocType:t.sopType}</div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:600,marginBottom:5}}>{a.title}</div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontSize:13,fontWeight:600,marginBottom:5}}>{a.title}</div>
               <div style={{fontSize:12,color:"var(--mu)",lineHeight:1.4}}>{a.desc||a.content?.slice(0,65)+"..."}</div>
             </div>
           ))}
@@ -10402,7 +10435,7 @@ function AppInner() {
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
   const wsPages    = ALL_SECTIONS.filter(s=>myAccess.includes(s.id)).map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
   const navPages   = viewPartner ? wsPages
-    : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Nova Launch System"}]
+    : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Corex"}]
     : wsPages;
   const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>, telephony:<Telephony/>, ai_center:<CorexAI/>};
 
@@ -10421,7 +10454,7 @@ function AppInner() {
   })();
 
   const useBranding = viewPartner&&["Pro","VIP"].includes(viewPartner?.plan);
-  const brandName   = useBranding?viewPartner.companyName:"Nova Launch System";
+  const brandName   = useBranding?viewPartner.companyName:"Corex";
   const brandColor  = useBranding?(viewPartner.accentColor||"var(--acc)"):"var(--acc)";
 
   return (
@@ -10442,10 +10475,24 @@ function AppInner() {
                   </div>
                 </div>
               ) : (
-                <>
-                  <div className="sb-logo-name">{brandName}<span style={{color:brandColor}}>.</span></div>
-                  <div className="sb-logo-sub">{t.appSub}</div>
-                </>
+                <div style={{display:"flex",alignItems:"center",gap:9}}>
+                  <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+                    <polygon points="24,2 43,13 43,35 24,46 5,35 5,13" fill="none" stroke="#4f8fff" strokeWidth="1" opacity="0.3"/>
+                    <polygon points="24,7 38,15.5 38,32.5 24,41 10,32.5 10,15.5" fill="none" stroke="#4f8fff" strokeWidth="1.2"/>
+                    <circle cx="24" cy="24" r="7.5" fill="#4f8fff"/>
+                    <circle cx="24" cy="24" r="3.5" fill="#07070e"/>
+                    <circle cx="24" cy="7" r="2" fill="#00e5c0"/>
+                    <circle cx="38" cy="15.5" r="1.5" fill="#4f8fff"/>
+                    <circle cx="38" cy="32.5" r="1.5" fill="#4f8fff"/>
+                    <circle cx="24" cy="41" r="1.5" fill="#4f8fff"/>
+                    <circle cx="10" cy="32.5" r="1.5" fill="#4f8fff"/>
+                    <circle cx="10" cy="15.5" r="1.5" fill="#4f8fff"/>
+                  </svg>
+                  <div>
+                    <div className="sb-logo-name">cor<span style={{color:"#4f8fff"}}>ex</span></div>
+                    <div className="sb-logo-sub">{t.appSub}</div>
+                  </div>
+                </div>
               );
             })()}
           </div>
@@ -10616,7 +10663,7 @@ function AppInner() {
             <div className="topbar">
               <div>
                 <div className="pg-title">{sectionLabels[page]||(page==="partners"?t.partners:t.dashboard)}</div>
-                <div className="pg-sub">{viewPartner?viewPartner.companyName:isSA?"Nova Launch System — "+t.superAdmin:isPartner?(currentUser.companyName||""):currentUser.role||""}</div>
+                <div className="pg-sub">{viewPartner?viewPartner.companyName:isSA?"Corex — "+t.superAdmin:isPartner?(currentUser.companyName||""):currentUser.role||""}</div>
               </div>
             </div>
           )}
