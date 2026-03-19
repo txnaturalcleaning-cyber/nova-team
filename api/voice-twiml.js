@@ -1,20 +1,20 @@
 // api/voice-twiml.js
-// Inbound:  Direction=inbound → check enabled (max 1.5s) → ring browser → fallback to AI
+// Inbound logic:
+//   AI ON  → ring browser 20s → if no answer → ElevenLabs AI takes over
+//   AI OFF → ring browser 20s → if no answer → simple voicemail message (no AI)
 // Outbound: SDK dials external number
 
 import twilio from 'twilio';
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
-// Fetch with timeout — if Firebase is slow, return null and proceed normally
 async function fetchConfigWithTimeout(url, ms = 1500) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   try {
     const r = await fetch(url, { signal: controller.signal });
-    const d = await r.json();
-    return d;
+    return await r.json();
   } catch(e) {
-    console.log('Config fetch timeout/error:', e.message);
+    console.log('Config fetch error:', e.message);
     return null;
   } finally {
     clearTimeout(timer);
@@ -32,59 +32,59 @@ export default async function handler(req, res) {
     const fbAuth   = process.env.FIREBASE_DB_SECRET;
     const fbSuffix = fbAuth ? `?auth=${fbAuth}` : '';
 
-    console.log('voice-twiml:', { Direction, To, From, identity });
+    console.log('voice-twiml:', { Direction, To, From });
 
     // ── INBOUND ──
     if (Direction === 'inbound') {
 
-      // Check enabled flag — max 1.5s, on timeout we proceed normally
-      let aiDisabled = false;
-      let disabledCfg = null;
+      // Read AI config (1.5s timeout — on fail, treat as AI ON)
+      let aiEnabled = true;
+      let cfg = null;
       try {
         const phoneKey = (To || '').replace(/[^0-9]/g, '');
         if (phoneKey) {
-          const cfg = await fetchConfigWithTimeout(
-            `${fbBase}/ai_receptionist_config/${phoneKey}.json${fbSuffix}`,
-            1500
+          cfg = await fetchConfigWithTimeout(
+            `${fbBase}/ai_receptionist_config/${phoneKey}.json${fbSuffix}`
           );
-          if (cfg && cfg.enabled === false) {
-            aiDisabled = true;
-            disabledCfg = cfg;
-          }
-          console.log('Config check:', { enabled: cfg?.enabled, company: cfg?.companyName });
+          // If config exists and explicitly disabled, turn AI off
+          if (cfg && cfg.enabled === false) aiEnabled = false;
+          console.log('AI enabled:', aiEnabled, '| company:', cfg?.companyName);
         }
       } catch(e) {
-        console.log('Config check error (proceeding normally):', e.message);
+        console.log('Config error (defaulting to AI ON):', e.message);
       }
 
-      // AI is OFF — tell caller and hang up
-      if (aiDisabled && disabledCfg) {
-        const voice = disabledCfg.language === 'ru' ? 'Polly.Tatyana' : 'Polly.Joanna';
-        const lang  = disabledCfg.language === 'ru' ? 'ru-RU' : 'en-US';
-        const msg   = disabledCfg.language === 'ru'
-          ? `Здравствуйте! Вы позвонили в ${disabledCfg.companyName || 'нашу компанию'}. Все операторы сейчас доступны. Пожалуйста, перезвоните позже.`
-          : `Thank you for calling ${disabledCfg.companyName || 'us'}. Our agents are currently available. Please call back shortly. Goodbye!`;
-        console.log('AI DISABLED — hanging up');
-        twiml.say({ voice, language: lang }, msg);
-        twiml.hangup();
-        res.setHeader('Content-Type', 'text/xml');
-        return res.send(twiml.toString());
+      if (aiEnabled) {
+        // AI ON: ring browser → if no answer → ElevenLabs takes over
+        console.log(`AI ON → ringing ${identity}, fallback to ElevenLabs`);
+        const dial = twiml.dial({
+          callerId:                      From,
+          record:                        'record-from-answer',
+          recordingStatusCallback:       `${baseUrl}/api/recording-webhook`,
+          recordingStatusCallbackMethod: 'POST',
+          recordingStatusCallbackEvent:  'completed',
+          trim:                          'trim-silence',
+          timeout:                       20,
+          action:                        'https://nova-team-9gbc.onrender.com/elevenlabs-inbound',
+          method:                        'POST',
+        });
+        dial.client(identity);
+      } else {
+        // AI OFF: ring browser → if no answer → simple message (manager mode)
+        console.log(`AI OFF → ringing ${identity}, no AI fallback`);
+        const dial = twiml.dial({
+          callerId:                      From,
+          record:                        'record-from-answer',
+          recordingStatusCallback:       `${baseUrl}/api/recording-webhook`,
+          recordingStatusCallbackMethod: 'POST',
+          recordingStatusCallbackEvent:  'completed',
+          trim:                          'trim-silence',
+          timeout:                       30,
+          action:                        `${baseUrl}/api/voice-twiml-fallback`,
+          method:                        'POST',
+        });
+        dial.client(identity);
       }
-
-      // AI is ON (or config not found / timeout) — ring browser, fallback to ElevenLabs
-      console.log(`Inbound from ${From} → ringing client:${identity}, fallback to AI`);
-      const dial = twiml.dial({
-        callerId:                      From,
-        record:                        'record-from-answer',
-        recordingStatusCallback:       `${baseUrl}/api/recording-webhook`,
-        recordingStatusCallbackMethod: 'POST',
-        recordingStatusCallbackEvent:  'completed',
-        trim:                          'trim-silence',
-        timeout:                       20,
-        action:                        'https://nova-team-9gbc.onrender.com/elevenlabs-inbound',
-        method:                        'POST',
-      });
-      dial.client(identity);
 
       res.setHeader('Content-Type', 'text/xml');
       return res.send(twiml.toString());
