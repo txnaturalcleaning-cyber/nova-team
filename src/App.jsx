@@ -543,9 +543,7 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
             <circle cx="10" cy="32.5" r="1.5" fill="#4f8fff"/>
             <circle cx="10" cy="15.5" r="1.5" fill="#4f8fff"/>
           </svg>
-          <div style={{fontFamily:"'Sora',sans-serif",fontSize:32,fontWeight:800,letterSpacing:-1.5,lineHeight:1,color:"#eaeaf5"}}>
-            cor<span style={{color:"#4f8fff"}}>ex</span>
-          </div>
+          <div style={{fontFamily:"'Sora',sans-serif",fontSize:32,fontWeight:800,letterSpacing:-1.5,lineHeight:1,color:"#eaeaf5"}}>cor<span style={{color:"#4f8fff"}}>ex</span></div>
         </div>
         <div style={{fontFamily:"'Sora',sans-serif",fontSize:11,color:"var(--mu)",textTransform:"uppercase",letterSpacing:3,marginBottom:8}}>AI Business OS</div>
         <div style={{fontFamily:"'Sora',sans-serif",fontSize:28,fontWeight:800,letterSpacing:-1,lineHeight:1.15}}>
@@ -5308,25 +5306,33 @@ function AppInner() {
 
     async function toggleEnabled() {
       const newVal = !form.enabled;
+
+      // 1. Update local form state (visual toggle)
       set('enabled', newVal);
-      // save-ai-config.js saves to BOTH paths server-side:
-      // 1. ai_receptionist_config/{phoneKey} — for server.js (Render)
-      // 2. partners/{partnerId}/aiReceptionist — for UI on reload
+
+      // 2. Update partners state → triggers Firestore auto-save (where UI reads from)
+      setPartners(ps => ps.map(x =>
+        x.id === pid
+          ? { ...x, aiReceptionist: { ...(x.aiReceptionist || {}), ...form, enabled: newVal } }
+          : x
+      ));
+
+      // 3. Also save to Realtime DB via API → server.js reads this on each call
       try {
         const phoneNum = p?.purchasedPhone?.phoneNumber;
-        if (!phoneNum) { console.warn('Toggle: no phone number on partner'); return; }
-        const r = await fetch('/api/save-ai-config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phoneNumber: phoneNum,
-            config: { ...form, enabled: newVal, partnerId: pid },
-          }),
-        });
-        console.log('AI Receptionist toggled', newVal ? 'ON' : 'OFF', '| saved:', r.ok);
-      } catch(e) {
-        console.error('Toggle error:', e.message);
-      }
+        if (phoneNum) {
+          await fetch('/api/save-ai-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phoneNumber: phoneNum,
+              config: { ...form, enabled: newVal, partnerId: pid },
+            }),
+          });
+        }
+      } catch(e) { console.error('Toggle RTD save error:', e.message); }
+
+      console.log('AI Receptionist toggled', newVal ? 'ON ✅' : 'OFF ⛔');
     }
 
     async function save() {
