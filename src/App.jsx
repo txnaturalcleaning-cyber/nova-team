@@ -376,7 +376,7 @@ tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--s2);}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;}
 .b-gr{background:#22c55e15;color:var(--gr);} .b-rd{background:#ef444415;color:var(--rd);}
-.b-yw{background:#4f8fff15;color:var(--acc);} .b-bl{background:#3b82f615;color:var(--bl);}
+.b-yw{background:#f0a50015;color:var(--acc);} .b-bl{background:#3b82f615;color:var(--bl);}
 .b-pu{background:#a855f715;color:var(--pu);} .b-mu{background:#ffffff0b;color:var(--mu);}
 .av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
 .av-lg{width:38px;height:38px;font-size:13px;}
@@ -530,7 +530,6 @@ function LoginScreen({ partners, saAccounts, onLogin, lang, setLang }) {
         <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
       </div>
       <div style={{textAlign:"center",marginBottom:26}}>
-        {/* Corex Logo */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:16}}>
           <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
             <polygon points="24,2 43,13 43,35 24,46 5,35 5,13" fill="none" stroke="#4f8fff" strokeWidth="1" opacity="0.3"/>
@@ -1137,7 +1136,7 @@ function Telephony() {
 
                     {/* Improvements */}
                     {call.aiAnalysis.improvements?.length > 0 && (
-                      <div style={{background:"#4f8fff15", border:"1px solid #4f8fff30", borderRadius:8, padding:12}}>
+                      <div style={{background:"#f0a50015", border:"1px solid #f0a50030", borderRadius:8, padding:12}}>
                         <div style={{fontSize:12, fontWeight:700, color:"var(--acc)", marginBottom:6}}>💡 {ru?"Что улучшить:":"Improvements:"}</div>
                         {call.aiAnalysis.improvements.map((m,i)=>(
                           <div key={i} style={{fontSize:13, marginBottom:3}}>• {m}</div>
@@ -5310,10 +5309,16 @@ function AppInner() {
     async function toggleEnabled() {
       const newVal = !form.enabled;
       set('enabled', newVal);
-      try {
-        const phoneNum = p?.purchasedPhone?.phoneNumber;
-        if (phoneNum) {
-          await fetch('/api/save-ai-config', {
+
+      const fbBase   = 'https://nova-launch-system-default-rtdb.firebaseio.com';
+      const phoneNum = p?.purchasedPhone?.phoneNumber;
+
+      console.log('Toggle AI:', newVal, '| phone:', phoneNum, '| pid:', pid);
+
+      // Path 1: save via API by phone number (needed for server.js to read)
+      if (phoneNum) {
+        try {
+          const r = await fetch('/api/save-ai-config', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -5321,8 +5326,24 @@ function AppInner() {
               config: { ...form, enabled: newVal, partnerId: pid },
             }),
           });
-        }
-      } catch(e) { console.error('Toggle save error:', e.message); }
+          console.log('Toggle saved via phone key:', r.ok);
+        } catch(e) { console.error('Toggle save error (phone):', e.message); }
+      }
+
+      // Path 2: always save to partner object in Firebase (backup)
+      if (pid) {
+        try {
+          await fetch(
+            `${fbBase}/partners/${pid}/aiReceptionist/enabled.json`,
+            {
+              method: 'PUT',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(newVal),
+            }
+          );
+          console.log('Toggle saved via partner path:', newVal);
+        } catch(e) { console.error('Toggle save error (partner):', e.message); }
+      }
     }
 
     async function save() {
