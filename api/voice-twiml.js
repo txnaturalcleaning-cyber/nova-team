@@ -1,9 +1,25 @@
 // api/voice-twiml.js
-// Inbound:  Direction=inbound → check enabled → ring browser → fallback to AI
+// Inbound:  Direction=inbound → check enabled (max 1.5s) → ring browser → fallback to AI
 // Outbound: SDK dials external number
 
 import twilio from 'twilio';
 const VoiceResponse = twilio.twiml.VoiceResponse;
+
+// Fetch with timeout — if Firebase is slow, return null and proceed normally
+async function fetchConfigWithTimeout(url, ms = 1500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    const d = await r.json();
+    return d;
+  } catch(e) {
+    console.log('Config fetch timeout/error:', e.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export default async function handler(req, res) {
   const twiml = new VoiceResponse();
@@ -18,35 +34,45 @@ export default async function handler(req, res) {
 
     console.log('voice-twiml:', { Direction, To, From, identity });
 
-    // ── INBOUND: check enabled flag first ──
+    // ── INBOUND ──
     if (Direction === 'inbound') {
 
-      // Read config for this phone number
-      let cfg = null;
+      // Check enabled flag — max 1.5s, on timeout we proceed normally
+      let aiDisabled = false;
+      let disabledCfg = null;
       try {
         const phoneKey = (To || '').replace(/[^0-9]/g, '');
         if (phoneKey) {
-          const r = await fetch(`${fbBase}/ai_receptionist_config/${phoneKey}.json${fbSuffix}`);
-          cfg = await r.json();
+          const cfg = await fetchConfigWithTimeout(
+            `${fbBase}/ai_receptionist_config/${phoneKey}.json${fbSuffix}`,
+            1500
+          );
+          if (cfg && cfg.enabled === false) {
+            aiDisabled = true;
+            disabledCfg = cfg;
+          }
+          console.log('Config check:', { enabled: cfg?.enabled, company: cfg?.companyName });
         }
-      } catch(e) { console.log('Config read error:', e.message); }
+      } catch(e) {
+        console.log('Config check error (proceeding normally):', e.message);
+      }
 
-      // ✅ If AI is disabled — play message and hang up immediately (no ringing)
-      if (cfg && cfg.enabled === false) {
-        console.log('AI Receptionist DISABLED — playing unavailable message');
-        const voice = cfg.language === 'ru' ? 'Polly.Tatyana' : 'Polly.Joanna';
-        const lang  = cfg.language === 'ru' ? 'ru-RU' : 'en-US';
-        const msg   = cfg.language === 'ru'
-          ? `Здравствуйте! Вы позвонили в ${cfg.companyName || 'нашу компанию'}. Все операторы сейчас доступны. Пожалуйста, перезвоните позже. До свидания!`
-          : `Thank you for calling ${cfg.companyName || 'us'}. All agents are currently available. Please call back shortly. Goodbye!`;
+      // AI is OFF — tell caller and hang up
+      if (aiDisabled && disabledCfg) {
+        const voice = disabledCfg.language === 'ru' ? 'Polly.Tatyana' : 'Polly.Joanna';
+        const lang  = disabledCfg.language === 'ru' ? 'ru-RU' : 'en-US';
+        const msg   = disabledCfg.language === 'ru'
+          ? `Здравствуйте! Вы позвонили в ${disabledCfg.companyName || 'нашу компанию'}. Все операторы сейчас доступны. Пожалуйста, перезвоните позже.`
+          : `Thank you for calling ${disabledCfg.companyName || 'us'}. Our agents are currently available. Please call back shortly. Goodbye!`;
+        console.log('AI DISABLED — hanging up');
         twiml.say({ voice, language: lang }, msg);
         twiml.hangup();
         res.setHeader('Content-Type', 'text/xml');
         return res.send(twiml.toString());
       }
 
-      // AI enabled (or no config found) — ring browser, fallback to AI
-      console.log(`Inbound from ${From} → trying client:${identity}, fallback to AI`);
+      // AI is ON (or config not found / timeout) — ring browser, fallback to ElevenLabs
+      console.log(`Inbound from ${From} → ringing client:${identity}, fallback to AI`);
       const dial = twiml.dial({
         callerId:                      From,
         record:                        'record-from-answer',
@@ -64,7 +90,7 @@ export default async function handler(req, res) {
       return res.send(twiml.toString());
     }
 
-    // ── OUTBOUND: SDK dialing external number ──
+    // ── OUTBOUND ──
     if (!To) {
       res.status(400).json({ error: 'Missing To parameter' });
       return;
