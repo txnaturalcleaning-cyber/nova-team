@@ -148,9 +148,12 @@ fastify.post('/elevenlabs-inbound', async (req, res) => {
     if (key) {
       const r = await fetch(`${FB_BASE}/ai_receptionist_config/${key}.json${FB_SUFFIX}`);
       const d = await r.json();
-      if (d?.companyName) {
+      console.log('Firebase config raw:', JSON.stringify(d).slice(0, 120));
+      if (d && typeof d === 'object' && !d.error) {
         cfg = { ...cfg, ...d };
         console.log('Config loaded:', cfg.companyName, '| enabled:', cfg.enabled);
+      } else {
+        console.log('No valid config found for key:', key);
       }
     }
   } catch(e) { console.log('Config error:', e.message); }
