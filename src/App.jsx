@@ -1469,6 +1469,41 @@ function AppInner() {
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
 
+  // ── Sync AI bookings from Realtime DB into partners state ──
+  // AI receptionist saves bookings to RTDB; this hook merges them into Firestore-backed state
+  useEffect(()=>{
+    if (fbLoading) return;
+    const fbBase = 'https://nova-launch-system-default-rtdb.firebaseio.com';
+    async function syncAiBookings() {
+      try {
+        // For each partner that has an id, check for AI bookings in RTDB
+        for (const partner of partners) {
+          const pid = partner.id;
+          if (!pid) continue;
+          const r = await fetch(`${fbBase}/partners/${pid}/workspace/bookings.json`);
+          const d = await r.json();
+          if (!d || typeof d !== 'object') continue;
+          const aiBookings = Object.values(d).filter(b => b && b.aiGenerated === true);
+          if (aiBookings.length === 0) continue;
+          // Merge AI bookings that don't exist yet in Firestore state
+          setPartners(ps => ps.map(p => {
+            if (p.id !== pid) return p;
+            const existing = p.bookings || [];
+            const existingIds = new Set(existing.map(b => b.id));
+            const newOnes = aiBookings.filter(b => !existingIds.has(b.id));
+            if (newOnes.length === 0) return p;
+            console.log(`Synced ${newOnes.length} AI booking(s) for partner ${pid}`);
+            return { ...p, bookings: [...existing, ...newOnes] };
+          }));
+        }
+      } catch(e) { console.log('AI bookings sync error:', e.message); }
+    }
+    syncAiBookings();
+    // Poll every 30 seconds for new AI bookings
+    const t = setInterval(syncAiBookings, 30000);
+    return () => clearInterval(t);
+  }, [fbLoading]);
+
   // ── Save chatMsgs to Firebase ──
   const chatMounted = useRef(false);
   useEffect(()=>{
@@ -2448,6 +2483,8 @@ function AppInner() {
                 const ds=`${calYear}-${String(calMo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const cnt=bksForDay(ds).length;
                 const dc=dayColor(ds);
+                const hasAi=bksForDay(ds).some(b=>b.aiGenerated||b.color==='pink');
+                const dotColor=hasAi?'#ec4899':(dc||"var(--acc)");
                 const isToday=ds===today2;
                 const isSelected=dayDetail===ds;
                 return (
@@ -2457,9 +2494,9 @@ function AppInner() {
                       border:`1px solid ${isToday?"var(--acc)":isSelected?"var(--acc)":"transparent"}`,
                       position:"relative",transition:"all .1s"}}>
                     <div style={{fontSize:11,fontWeight:isToday?700:400,color:isToday?"var(--acc)":"var(--tx)"}}>{day}</div>
-                    {cnt>0&&<div style={{width:6,height:6,borderRadius:"50%",background:dc||"var(--acc)",
+                    {cnt>0&&<div style={{width:6,height:6,borderRadius:"50%",background:dotColor,
                       margin:"1px auto 0",flexShrink:0}}/>}
-                    {cnt>1&&<div style={{fontSize:7,color:dc||"var(--mu)",fontWeight:700,lineHeight:1}}>{cnt}</div>}
+                    {cnt>1&&<div style={{fontSize:7,color:dotColor,fontWeight:700,lineHeight:1}}>{cnt}</div>}
                   </div>
                 );
               })}
@@ -2476,16 +2513,22 @@ function AppInner() {
                   {dbks.slice(0,4).map(b=>{
                     const cl=(ws?.bkClients||[]).find(c=>c.id===b.clientId);
                     const emp=emps.find(e=>e.id===b.cleanerId);
-                    const sc={"pending":"#f0a500","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)";
+                    // AI bookings show pink, others by status
+                    const sc = b.color==='pink'||b.aiGenerated
+                      ? '#ec4899'
+                      : ({"pending":"#f0a500","pending_confirmation":"#ec4899","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
                     return (
                       <div key={b.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,
-                        padding:"6px 8px",background:"var(--s2)",borderRadius:8}}>
+                        padding:"6px 8px",
+                        background: b.color==='pink'||b.aiGenerated ? '#ec489912' : "var(--s2)",
+                        borderRadius:8,
+                        border: b.color==='pink'||b.aiGenerated ? '1px solid #ec489930' : 'none'}}>
                         <div style={{width:6,height:6,borderRadius:"50%",background:sc,flexShrink:0}}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {b.time} · {cl?.name||"—"}
+                            {b.aiGenerated ? '🤖 ' : ''}{b.time} · {b.clientName||cl?.name||"—"}
                           </div>
-                          <div style={{fontSize:10,color:"var(--mu)"}}>{emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
+                          <div style={{fontSize:10,color:"var(--mu)"}}>{emp?.name||(b.aiGenerated?(lang==="ru"?"AI заявка — уточнить":"AI lead — confirm"):(lang==="ru"?"Клинер не назначен":"Unassigned"))}</div>
                         </div>
                         <div style={{fontSize:10,color:"var(--gr)",fontWeight:700}}>${b.total||b.price||0}</div>
                       </div>
