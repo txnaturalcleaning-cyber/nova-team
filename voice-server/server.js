@@ -101,13 +101,39 @@ async function redirectCallToHuman(callSid, toPhone, fromPhone, accountSid, auth
 
 // ─── Save AI booking ──────────────────────────────────────────────────────────
 
+// Convert natural language date to YYYY-MM-DD
+function normalizeDate(dateStr) {
+  if (!dateStr) return '';
+  const s = dateStr.toLowerCase().trim();
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  if (s === 'today')    return fmt(now);
+  if (s === 'tomorrow') { const t = new Date(now); t.setDate(t.getDate()+1); return fmt(t); }
+
+  const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const di = days.indexOf(s.replace('next ',''));
+  if (di >= 0) {
+    const d = new Date(now);
+    let diff = di - d.getDay();
+    if (diff <= 0 || s.startsWith('next')) diff += 7;
+    d.setDate(d.getDate() + diff);
+    return fmt(d);
+  }
+  // Try parsing as real date
+  const parsed = new Date(dateStr);
+  if (!isNaN(parsed)) return fmt(parsed);
+  return dateStr; // fallback — keep original
+}
+
 async function saveAiBooking({ partnerId, name, phone, address, serviceType, date, notes, callSid }) {
   try {
     const bookingId = 'ai_' + Date.now();
     const booking = {
       id: bookingId, callSid, clientName: name||'', phone: phone||'',
       address: address||'', serviceType: serviceType||'Cleaning',
-      date: date||'', notes: notes||'',
+      date: normalizeDate(date), notes: notes||'',
       status: 'pending_confirmation', source: 'AI Receptionist',
       aiGenerated: true, color: 'pink',
       createdAt: new Date().toISOString(),
