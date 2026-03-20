@@ -1469,38 +1469,32 @@ function AppInner() {
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
 
-  // ── Sync AI bookings from Realtime DB into partners state ──
-  // AI receptionist saves bookings to RTDB; this hook merges them into Firestore-backed state
+  // ── Sync AI bookings from RTDB into partners state (via secure API) ──
   useEffect(()=>{
     if (fbLoading) return;
-    const fbBase = 'https://nova-launch-system-default-rtdb.firebaseio.com';
     async function syncAiBookings() {
       try {
-        // For each partner that has an id, check for AI bookings in RTDB
         for (const partner of partners) {
           const pid = partner.id;
           if (!pid) continue;
-          const r = await fetch(`${fbBase}/partners/${pid}/workspace/bookings.json`);
-          const d = await r.json();
-          if (!d || typeof d !== 'object') continue;
-          const aiBookings = Object.values(d).filter(b => b && b.aiGenerated === true);
-          if (aiBookings.length === 0) continue;
-          // Merge AI bookings that don't exist yet in Firestore state
+          const r = await fetch(`/api/get-ai-bookings?partnerId=${pid}`);
+          if (!r.ok) continue;
+          const { bookings: aiBookings } = await r.json();
+          if (!aiBookings || aiBookings.length === 0) continue;
           setPartners(ps => ps.map(p => {
             if (p.id !== pid) return p;
             const existing = p.bookings || [];
             const existingIds = new Set(existing.map(b => b.id));
             const newOnes = aiBookings.filter(b => !existingIds.has(b.id));
             if (newOnes.length === 0) return p;
-            console.log(`Synced ${newOnes.length} AI booking(s) for partner ${pid}`);
+            console.log(`Synced ${newOnes.length} AI booking(s) for ${pid}`);
             return { ...p, bookings: [...existing, ...newOnes] };
           }));
         }
-      } catch(e) { console.log('AI bookings sync error:', e.message); }
+      } catch(e) { console.log('AI sync error:', e.message); }
     }
     syncAiBookings();
-    // Poll every 30 seconds for new AI bookings
-    const t = setInterval(syncAiBookings, 30000);
+    const t = setInterval(syncAiBookings, 15000);
     return () => clearInterval(t);
   }, [fbLoading]);
 
@@ -2513,22 +2507,20 @@ function AppInner() {
                   {dbks.slice(0,4).map(b=>{
                     const cl=(ws?.bkClients||[]).find(c=>c.id===b.clientId);
                     const emp=emps.find(e=>e.id===b.cleanerId);
-                    // AI bookings show pink, others by status
-                    const sc = b.color==='pink'||b.aiGenerated
-                      ? '#ec4899'
-                      : ({"pending":"#f0a500","pending_confirmation":"#ec4899","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
+                    const isAi = b.aiGenerated || b.color==='pink';
+                    const sc = isAi ? '#ec4899' : ({"pending":"#f0a500","pending_confirmation":"#ec4899","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
                     return (
                       <div key={b.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,
                         padding:"6px 8px",
-                        background: b.color==='pink'||b.aiGenerated ? '#ec489912' : "var(--s2)",
+                        background: isAi ? '#ec489912' : "var(--s2)",
                         borderRadius:8,
-                        border: b.color==='pink'||b.aiGenerated ? '1px solid #ec489930' : 'none'}}>
+                        border: isAi ? '1px solid #ec489930' : 'none'}}>
                         <div style={{width:6,height:6,borderRadius:"50%",background:sc,flexShrink:0}}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {b.aiGenerated ? '🤖 ' : ''}{b.time} · {b.clientName||cl?.name||"—"}
+                            {isAi?'🤖 ':''}{b.time||''} · {b.clientName||cl?.name||"—"}
                           </div>
-                          <div style={{fontSize:10,color:"var(--mu)"}}>{emp?.name||(b.aiGenerated?(lang==="ru"?"AI заявка — уточнить":"AI lead — confirm"):(lang==="ru"?"Клинер не назначен":"Unassigned"))}</div>
+                          <div style={{fontSize:10,color:"var(--mu)"}}>{isAi?(lang==="ru"?"AI заявка — подтвердить":"AI lead — confirm"):emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
                         </div>
                         <div style={{fontSize:10,color:"var(--gr)",fontWeight:700}}>${b.total||b.price||0}</div>
                       </div>
