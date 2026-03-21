@@ -2507,20 +2507,18 @@ function AppInner() {
                   {dbks.slice(0,4).map(b=>{
                     const cl=(ws?.bkClients||[]).find(c=>c.id===b.clientId);
                     const emp=emps.find(e=>e.id===b.cleanerId);
-                    const isAi = b.aiGenerated || b.color==='pink';
-                    const sc = isAi ? '#ec4899' : ({"pending":"#f0a500","pending_confirmation":"#ec4899","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
+                    const isAi=b.aiGenerated||b.color==='pink';
+                    const sc=isAi?'#ec4899':({"pending":"#f0a500","pending_confirmation":"#ec4899","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
                     return (
                       <div key={b.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,
-                        padding:"6px 8px",
-                        background: isAi ? '#ec489912' : "var(--s2)",
-                        borderRadius:8,
-                        border: isAi ? '1px solid #ec489930' : 'none'}}>
+                        padding:"6px 8px",background:isAi?"#ec489912":"var(--s2)",borderRadius:8,
+                        border:isAi?"1px solid #ec489930":"none"}}>
                         <div style={{width:6,height:6,borderRadius:"50%",background:sc,flexShrink:0}}/>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {isAi?'🤖 ':''}{b.time||''} · {b.clientName||cl?.name||"—"}
+                            {isAi?"🤖 ":""}{b.time||""} · {b.clientName||cl?.name||"—"}
                           </div>
-                          <div style={{fontSize:10,color:"var(--mu)"}}>{isAi?(lang==="ru"?"AI заявка — подтвердить":"AI lead — confirm"):emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
+                          <div style={{fontSize:10,color:"var(--mu)"}}>{isAi?(lang==="ru"?"AI заявка — подтвердить":"AI request — confirm"):emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
                         </div>
                         <div style={{fontSize:10,color:"var(--gr)",fontWeight:700}}>${b.total||b.price||0}</div>
                       </div>
@@ -7535,10 +7533,11 @@ function AppInner() {
 
     // ── Booking Quick Popup ──
     const BookingPopup = ({bk,onClose}) => {
+      const isAiBooking = bk.aiGenerated || bk.color === 'pink';
       const cl  = bkClients.find(c=>c.id===bk.clientId);
       const emp = emps.find(e=>e.id===bk.cleanerId);
       const ct  = (bkSettings.cleanTypes||[]).find(x=>x.id===bk.cleanType);
-      const sc  = STATUS_COLORS[bk.status]||"var(--mu)";
+      const sc  = isAiBooking ? '#ec4899' : (STATUS_COLORS[bk.status]||"var(--mu)");
       const dur = bk.durOverride||calcDuration(bk.beds,bk.baths,bk.cleanType,bk.cleanerCount);
       const displayPrice = bk.total||bk.price;
       const isCC = bk.paymentMethod==="cc";
@@ -7630,14 +7629,29 @@ function AppInner() {
             boxShadow:"0 20px 60px #00000050"}} onClick={e=>e.stopPropagation()}>
 
             {/* Header */}
-            <div style={{padding:"18px 18px 14px",borderBottom:"1px solid var(--bdr)"}}>
+            <div style={{padding:"18px 18px 14px",borderBottom:"1px solid var(--bdr)",
+              background: isAiBooking ? '#ec489908' : 'transparent'}}>
               <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                <Av name={cl?.name||"?"} color={cleanerColor(bk.cleanerId)} style={{width:42,height:42,fontSize:16,flexShrink:0}}/>
+                <div style={{width:42,height:42,borderRadius:"50%",flexShrink:0,
+                  background: isAiBooking ? '#ec489920' : cleanerColor(bk.cleanerId)+'20',
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
+                  {isAiBooking ? '🤖' : (cl?.name||'?')[0]?.toUpperCase()}
+                </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:15,marginBottom:1}}>{cl?.name||(lang==="ru"?"Клиент не указан":"No client")}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                    <div style={{fontWeight:700,fontSize:15}}>
+                      {isAiBooking ? (bk.clientName||lang==="ru"?"AI Заявка":"AI Request") : (cl?.name||(lang==="ru"?"Клиент не указан":"No client"))}
+                    </div>
+                    {isAiBooking&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:10,
+                      background:"#ec489920",color:"#ec4899",fontWeight:700,letterSpacing:.5}}>
+                      AI REQUEST
+                    </span>}
+                  </div>
                   <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:8,flexWrap:"wrap"}}>
-                    {cl?.phone&&<span>📞 {cl.phone}</span>}
-                    {cl?.city&&<span>📍 {cl.city}</span>}
+                    {isAiBooking&&bk.phone&&<span>📞 {bk.phone}</span>}
+                    {isAiBooking&&bk.address&&<span>📍 {bk.address}</span>}
+                    {!isAiBooking&&cl?.phone&&<span>📞 {cl.phone}</span>}
+                    {!isAiBooking&&cl?.city&&<span>📍 {cl.city}</span>}
                   </div>
                 </div>
                 <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--mu)",lineHeight:1,flexShrink:0}}>×</button>
@@ -7647,7 +7661,14 @@ function AppInner() {
             {/* Details */}
             <div style={{padding:"12px 18px",borderBottom:"1px solid var(--bdr)"}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 14px",fontSize:12}}>
-                {[
+                {isAiBooking ? [
+                  ["📅",lang==="ru"?"Дата":"Date", bk.date||"—"],
+                  ["🧹",lang==="ru"?"Услуга":"Service", bk.serviceType||"—"],
+                  ["📞",lang==="ru"?"Телефон":"Phone", bk.phone||"—"],
+                  ["📍",lang==="ru"?"Адрес":"Address", bk.address||"—"],
+                  ["⚡",lang==="ru"?"Статус":"Status", lang==="ru"?"Ожидает подтверждения":"Pending confirmation"],
+                  ["👤",lang==="ru"?"Клинер":"Cleaner", lang==="ru"?"Не назначен":"Unassigned"],
+                ] : [
                   ["📅",lang==="ru"?"Дата":"Date", `${bk.date} · ${bk.time}`],
                   ["🔄",lang==="ru"?"Частота":"Freq", FREQ_LABELS[bk.frequency]||"—"],
                   ["🛏",lang==="ru"?"Размер":"Size", `${bk.beds===0?"Studio":`${bk.beds}bd`} / ${bk.baths}ba`],
@@ -7662,6 +7683,9 @@ function AppInner() {
                 ))}
               </div>
               {bk.notes&&<div style={{fontSize:11,color:"var(--mu)",marginTop:10,padding:"6px 10px",background:"var(--s2)",borderRadius:7}}>📝 {bk.notes}</div>}
+              {isAiBooking&&<div style={{marginTop:10,padding:"8px 12px",background:"#ec489912",border:"1px solid #ec489930",borderRadius:8,fontSize:11,color:"#ec4899"}}>
+                🤖 {lang==="ru"?"Заявка создана AI-рецепционистом. Свяжитесь с клиентом для подтверждения деталей.":"Created by AI Receptionist. Contact the client to confirm details."}
+              </div>}
             </div>
 
             {/* Price + status + payment */}
