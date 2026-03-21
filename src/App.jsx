@@ -1469,7 +1469,7 @@ function AppInner() {
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
 
-  // ── Sync AI bookings from RTDB into partners state (via secure API) ──
+  // ── Sync AI bookings from RTDB (via secure API, no re-render if nothing new) ──
   useEffect(()=>{
     if (fbLoading) return;
     async function syncAiBookings() {
@@ -1481,15 +1481,11 @@ function AppInner() {
           if (!r.ok) continue;
           const { bookings: aiBookings } = await r.json();
           if (!aiBookings || aiBookings.length === 0) continue;
-          // ✅ Check BEFORE calling setPartners — only update if there are new bookings
           const existingIds = new Set((partner.bookings || []).map(b => b.id));
           const newOnes = aiBookings.filter(b => !existingIds.has(b.id));
-          if (newOnes.length === 0) continue; // Nothing new — don't trigger re-render
+          if (newOnes.length === 0) continue;
           console.log(`Synced ${newOnes.length} AI booking(s) for ${pid}`);
-          setPartners(ps => ps.map(p => {
-            if (p.id !== pid) return p;
-            return { ...p, bookings: [...(p.bookings || []), ...newOnes] };
-          }));
+          setPartners(ps => ps.map(p => p.id !== pid ? p : { ...p, bookings: [...(p.bookings||[]), ...newOnes] }));
         }
       } catch(e) { console.log('AI sync error:', e.message); }
     }
@@ -2477,8 +2473,6 @@ function AppInner() {
                 const ds=`${calYear}-${String(calMo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                 const cnt=bksForDay(ds).length;
                 const dc=dayColor(ds);
-                const hasAi=bksForDay(ds).some(b=>b.aiGenerated||b.color==='pink');
-                const dotColor=hasAi?'#ec4899':(dc||"var(--acc)");
                 const isToday=ds===today2;
                 const isSelected=dayDetail===ds;
                 return (
@@ -2488,9 +2482,9 @@ function AppInner() {
                       border:`1px solid ${isToday?"var(--acc)":isSelected?"var(--acc)":"transparent"}`,
                       position:"relative",transition:"all .1s"}}>
                     <div style={{fontSize:11,fontWeight:isToday?700:400,color:isToday?"var(--acc)":"var(--tx)"}}>{day}</div>
-                    {cnt>0&&<div style={{width:6,height:6,borderRadius:"50%",background:dotColor,
+                    {cnt>0&&<div style={{width:6,height:6,borderRadius:"50%",background:dc||"var(--acc)",
                       margin:"1px auto 0",flexShrink:0}}/>}
-                    {cnt>1&&<div style={{fontSize:7,color:dotColor,fontWeight:700,lineHeight:1}}>{cnt}</div>}
+                    {cnt>1&&<div style={{fontSize:7,color:dc||"var(--mu)",fontWeight:700,lineHeight:1}}>{cnt}</div>}
                   </div>
                 );
               })}
@@ -2508,7 +2502,7 @@ function AppInner() {
                     const cl=(ws?.bkClients||[]).find(c=>c.id===b.clientId);
                     const emp=emps.find(e=>e.id===b.cleanerId);
                     const isAi=b.aiGenerated||b.color==='pink';
-                    const sc=isAi?'#ec4899':({"pending":"#f0a500","pending_confirmation":"#ec4899","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
+                    const sc=isAi?'#ec4899':({"pending":"#f0a500","confirmed":"var(--bl)","done":"#22c55e","cancelled":"#ef4444"}[b.status]||"var(--mu)");
                     return (
                       <div key={b.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,
                         padding:"6px 8px",background:isAi?"#ec489912":"var(--s2)",borderRadius:8,
@@ -2518,7 +2512,7 @@ function AppInner() {
                           <div style={{fontSize:11,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                             {isAi?"🤖 ":""}{b.time||""} · {b.clientName||cl?.name||"—"}
                           </div>
-                          <div style={{fontSize:10,color:"var(--mu)"}}>{isAi?(lang==="ru"?"AI заявка — подтвердить":"AI request — confirm"):emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
+                          <div style={{fontSize:10,color:"var(--mu)"}}>{isAi?(lang==="ru"?"AI заявка":"AI request"):emp?.name||(lang==="ru"?"Клинер не назначен":"Unassigned")}</div>
                         </div>
                         <div style={{fontSize:10,color:"var(--gr)",fontWeight:700}}>${b.total||b.price||0}</div>
                       </div>
@@ -7630,22 +7624,20 @@ function AppInner() {
 
             {/* Header */}
             <div style={{padding:"18px 18px 14px",borderBottom:"1px solid var(--bdr)",
-              background: isAiBooking ? '#ec489908' : 'transparent'}}>
+              background:isAiBooking?'#ec489908':'transparent'}}>
               <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
                 <div style={{width:42,height:42,borderRadius:"50%",flexShrink:0,
-                  background: isAiBooking ? '#ec489920' : cleanerColor(bk.cleanerId)+'20',
-                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>
-                  {isAiBooking ? '🤖' : (cl?.name||'?')[0]?.toUpperCase()}
+                  background:isAiBooking?'#ec489920':'var(--s2)',
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:isAiBooking?20:16}}>
+                  {isAiBooking?'🤖':(cl?.name||'?')[0]?.toUpperCase()}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                     <div style={{fontWeight:700,fontSize:15}}>
-                      {isAiBooking ? (bk.clientName||lang==="ru"?"AI Заявка":"AI Request") : (cl?.name||(lang==="ru"?"Клиент не указан":"No client"))}
+                      {isAiBooking?(bk.clientName||(lang==="ru"?"AI Заявка":"AI Request")):(cl?.name||(lang==="ru"?"Клиент не указан":"No client"))}
                     </div>
                     {isAiBooking&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:10,
-                      background:"#ec489920",color:"#ec4899",fontWeight:700,letterSpacing:.5}}>
-                      AI REQUEST
-                    </span>}
+                      background:"#ec489920",color:"#ec4899",fontWeight:700,letterSpacing:.5}}>AI REQUEST</span>}
                   </div>
                   <div style={{fontSize:11,color:"var(--mu)",display:"flex",gap:8,flexWrap:"wrap"}}>
                     {isAiBooking&&bk.phone&&<span>📞 {bk.phone}</span>}
@@ -7661,7 +7653,7 @@ function AppInner() {
             {/* Details */}
             <div style={{padding:"12px 18px",borderBottom:"1px solid var(--bdr)"}}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 14px",fontSize:12}}>
-                {isAiBooking ? [
+                {(isAiBooking ? [
                   ["📅",lang==="ru"?"Дата":"Date", bk.date||"—"],
                   ["🧹",lang==="ru"?"Услуга":"Service", bk.serviceType||"—"],
                   ["📞",lang==="ru"?"Телефон":"Phone", bk.phone||"—"],
@@ -7675,7 +7667,7 @@ function AppInner() {
                   ["🧹",lang==="ru"?"Тип":"Type", ct?.label||"—"],
                   ["⏱",lang==="ru"?"Длит.":"Duration", `${dur}${lang==="ru"?"ч":"h"}`],
                   ["👤",lang==="ru"?"Клинер":"Cleaner", emp?.name||(lang==="ru"?"Не назначен":"Unassigned")],
-                ].map(([ico,lbl,val])=>(
+                ]).map(([ico,lbl,val])=>(
                   <div key={lbl}>
                     <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4,marginBottom:2}}>{ico} {lbl}</div>
                     <div style={{fontWeight:500,fontSize:12,wordBreak:"break-word"}}>{val}</div>
@@ -9131,32 +9123,21 @@ function AppInner() {
               <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
                 <button className="btn btn-g btn-sm" onClick={()=>{
                   const d=new Date(viewDate);
-                  calView==="week"?d.setDate(d.getDate()-7):d.setMonth(d.getMonth()-1);
+                  d.setMonth(d.getMonth()-1);
                   setViewDate(d);
                 }}>‹</button>
                 <span style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:15,minWidth:160,textAlign:"center"}}>
-                  {calView==="week"
-                    ? `${weekDates[0].getDate()} – ${weekDates[6].getDate()} ${MONTH_NAMES[weekDates[6].getMonth()]} ${weekDates[6].getFullYear()}`
-                    : `${MONTH_NAMES[mo]} ${yr}`}
+                  {`${MONTH_NAMES[mo]} ${yr}`}
                 </span>
                 <button className="btn btn-g btn-sm" onClick={()=>{
                   const d=new Date(viewDate);
-                  calView==="week"?d.setDate(d.getDate()+7):d.setMonth(d.getMonth()+1);
+                  d.setMonth(d.getMonth()+1);
                   setViewDate(d);
                 }}>›</button>
                 <button className="btn btn-g btn-sm" onClick={()=>setViewDate(new Date())}>{lang==="ru"?"Сегодня":"Today"}</button>
-                <div style={{marginLeft:"auto",display:"flex",gap:4}}>
-                  {[["week",lang==="ru"?"Неделя":"Week"],["month",lang==="ru"?"Месяц":"Month"]].map(([k,v])=>(
-                    <button key={k} onClick={()=>setCalView(k)} style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",
-                      border:`1px solid ${calView===k?"var(--acc)":"var(--bdr)"}`,background:calView===k?"var(--acc)18":"transparent",
-                      color:calView===k?"var(--acc)":"var(--mu)"}}>
-                      {v}
-                    </button>
-                  ))}
-                </div>
-                <button className="btn btn-p" onClick={()=>{setBkF(defBkF);setBkForm(true);}}>+ {lang==="ru"?"Заявка":"Booking"}</button>
+                <button className="btn btn-p" style={{marginLeft:"auto"}} onClick={()=>{setBkF(defBkF);setBkForm(true);}}>+ {lang==="ru"?"Заявка":"Booking"}</button>
               </div>
-              {calView==="week"?<WeekCalendar/>:<MonthCalendar/>}
+              <MonthCalendar/>
             </div>
 
             {/* Right panel: Cleaners */}
