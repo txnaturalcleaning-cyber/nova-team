@@ -1481,14 +1481,14 @@ function AppInner() {
           if (!r.ok) continue;
           const { bookings: aiBookings } = await r.json();
           if (!aiBookings || aiBookings.length === 0) continue;
+          // ✅ Check BEFORE calling setPartners — only update if there are new bookings
+          const existingIds = new Set((partner.bookings || []).map(b => b.id));
+          const newOnes = aiBookings.filter(b => !existingIds.has(b.id));
+          if (newOnes.length === 0) continue; // Nothing new — don't trigger re-render
+          console.log(`Synced ${newOnes.length} AI booking(s) for ${pid}`);
           setPartners(ps => ps.map(p => {
             if (p.id !== pid) return p;
-            const existing = p.bookings || [];
-            const existingIds = new Set(existing.map(b => b.id));
-            const newOnes = aiBookings.filter(b => !existingIds.has(b.id));
-            if (newOnes.length === 0) return p;
-            console.log(`Synced ${newOnes.length} AI booking(s) for ${pid}`);
-            return { ...p, bookings: [...existing, ...newOnes] };
+            return { ...p, bookings: [...(p.bookings || []), ...newOnes] };
           }));
         }
       } catch(e) { console.log('AI sync error:', e.message); }
