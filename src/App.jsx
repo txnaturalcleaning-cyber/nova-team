@@ -7677,8 +7677,8 @@ function AppInner() {
                   ["👤",lang==="ru"?"Клинер":"Cleaner", emp?.name||(lang==="ru"?"Не назначен":"Unassigned")],
                 ].map(([ico,lbl,val])=>(
                   <div key={lbl}>
-                    <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4,marginBottom:1}}>{ico} {lbl}</div>
-                    <div style={{fontWeight:500}}>{val}</div>
+                    <div style={{fontSize:9,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.4,marginBottom:2}}>{ico} {lbl}</div>
+                    <div style={{fontWeight:500,fontSize:12,wordBreak:"break-word"}}>{val}</div>
                   </div>
                 ))}
               </div>
@@ -7883,12 +7883,13 @@ function AppInner() {
                   <div style={{fontSize:12,fontWeight:isToday?700:500,color:isToday?"var(--acc)":"var(--tx)",marginBottom:3}}>{day}</div>
                   {dayBks.slice(0,3).map(bk=>{
                     const cl=bkClients.find(c=>c.id===bk.clientId);
-                    const cc=cleanerColor(bk.cleanerId);
+                    const isAi=bk.aiGenerated||bk.color==='pink';
+                    const cc=isAi?'#ec4899':cleanerColor(bk.cleanerId);
                     return (
                       <div key={bk.id} onClick={e=>{e.stopPropagation();setPopupBk(bk);}}
                         style={{fontSize:9,padding:"1px 5px",borderRadius:3,background:cc+"25",color:cc,
                           marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",cursor:"pointer",border:`1px solid ${cc}30`}}>
-                        {bk.time} {cl?.name||"?"}
+                        {isAi?'🤖 ':bk.time+' '}{isAi?(bk.clientName||'AI'):cl?.name||'?'}
                       </div>
                     );
                   })}
