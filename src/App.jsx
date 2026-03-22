@@ -1442,12 +1442,18 @@ function AppInner() {
   }
 
   // ── Firebase: load & sync partners in real-time ──
+  // Use a ref to track last known data hash — avoid re-renders when data unchanged
+  const lastDataHash = useRef(null);
   useEffect(()=>{
     const ref = doc(db, "app", "data");
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setPartners((data.partners || []).map(deserializePartner));
+        // Only update partners if data actually changed (prevents focus loss on inputs)
+        const hash = JSON.stringify((data.partners||[]).map(p=>({id:p.id,upd:p.updatedAt||p.createdAt})));
+        const partnersChanged = hash !== lastDataHash.current;
+        lastDataHash.current = hash;
+        if (partnersChanged) setPartners((data.partners || []).map(deserializePartner));
         setSaAccounts(data.saAccounts || []);
         if (data.chatMsgs) setChatMsgs(data.chatMsgs);
         // Restore session
