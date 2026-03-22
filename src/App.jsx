@@ -241,6 +241,7 @@ const IC = {
   hrcards:     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M14 8h4"/><path d="M14 12h4"/><path d="M4 20v-1a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v1"/></svg>,
   ai_center:   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
   crm:         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-4-4h0"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
+  settings:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   telephony:   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
   phone:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
   sms:         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
@@ -268,12 +269,13 @@ const ALL_SECTIONS = [
   { id:"crm",         icon:IC.crm },
   { id:"booking",     icon:IC.booking },
   { id:"ai_center",   icon:IC.ai_center },
+  { id:"settings",    icon:IC.settings },
 ];
 
 const PLAN_SECTIONS = {
-  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","booking","ai_center"],
-  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","ai_center"],
-  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","ai_center"],
+  Basic: ["dashboard","departments","tasks","chat","kb","pnl","training","crm","booking","ai_center","settings"],
+  Pro:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","ai_center","settings"],
+  VIP:   ["dashboard","departments","branches","tasks","schedule","salary","performance","chat","kb","pnl","training","crm","booking","ai_center","settings"],
 };
 
 const PLAN_LIMITS = {
@@ -2487,6 +2489,372 @@ function AppInner() {
     );
   };
 
+
+
+  /* ══════════════════════════════════════════════════════
+     PARTNER SETTINGS — настройки кабинета пользователя
+     Опции появляются автоматически исходя из плана
+  ══════════════════════════════════════════════════════ */
+  const PartnerSettings = () => {
+    const ru   = lang === "ru";
+    const pid  = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
+    const p    = getPartner(pid)||{};
+    const plan = p.plan||"Basic";
+
+    // Plan-based white label access (mirrors platform white label rules)
+    const canLogo       = ["Pro","VIP","Enterprise"].includes(plan);
+    const canAccent     = ["VIP","Enterprise"].includes(plan);
+    const canHideCorex  = plan === "Enterprise";
+    const canCustomDomain = plan === "Enterprise";
+
+    const [tab, setTab] = React.useState("company");
+    const [saved, setSaved] = React.useState(false);
+    const [form, setForm] = React.useState({
+      companyName:   p.companyName||"",
+      phone:         p.phone||"",
+      email:         p.email||"",
+      website:       p.website||"",
+      address:       p.address||"",
+      description:   p.description||"",
+      logoUrl:       p.logoUrl||"",
+      accentColor:   p.accentColor||"#4F8FFF",
+      timezone:      p.timezone||"America/Chicago",
+      currency:      p.currency||"USD",
+      serviceArea:   p.serviceArea||"",
+      businessHours: p.businessHours||{
+        mon:{open:true,from:"08:00",to:"18:00"},
+        tue:{open:true,from:"08:00",to:"18:00"},
+        wed:{open:true,from:"08:00",to:"18:00"},
+        thu:{open:true,from:"08:00",to:"18:00"},
+        fri:{open:true,from:"08:00",to:"18:00"},
+        sat:{open:true,from:"09:00",to:"15:00"},
+        sun:{open:false,from:"09:00",to:"15:00"},
+      },
+      smsReminder24h:  p.smsReminder24h!==false,
+      smsReminder2h:   p.smsReminder2h||false,
+      smsAfterCleaning: p.smsAfterCleaning!==false,
+      smsNewBooking:   p.smsNewBooking!==false,
+      emailDigest:     p.emailDigest||false,
+      pushNotifications: p.pushNotifications||false,
+      defaultBookingStatus: p.defaultBookingStatus||"pending",
+      allowOnlineBooking: p.allowOnlineBooking!==false,
+      bookingFormUrl: p.bookingFormUrl||"",
+    });
+
+    function save() {
+      setPartners(ps=>ps.map(x=>x.id===pid?{...x,...form}:x));
+      setSaved(true);
+      setTimeout(()=>setSaved(false), 2500);
+    }
+
+    const F = ({v}) => <span style={{color:"var(--gr)",fontSize:10,marginLeft:6}}>✓</span>;
+    const Lock = ({planNeeded}) => (
+      <span style={{fontSize:9,padding:"2px 7px",borderRadius:10,background:"var(--acc)15",
+        color:"var(--acc)",fontWeight:700,marginLeft:6,cursor:"pointer"}}
+        onClick={()=>alert(ru?`Доступно на плане ${planNeeded}`:`Available on ${planNeeded} plan`)}>
+        {planNeeded}
+      </span>
+    );
+
+    const Toggle = ({val, onChange}) => (
+      <div onClick={()=>onChange(!val)}
+        style={{width:34,height:19,borderRadius:10,background:val?"var(--acc)":"var(--s2)",
+          position:"relative",cursor:"pointer",flexShrink:0,transition:"background .2s"}}>
+        <div style={{position:"absolute",top:2,left:val?17:2,width:15,height:15,
+          borderRadius:"50%",background:"#fff",transition:"left .15s",boxShadow:"0 1px 3px #0003"}}/>
+      </div>
+    );
+
+    const Row = ({label, desc, children, last}) => (
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",
+        padding:"12px 0",borderBottom:last?"none":"1px solid var(--bdr)",gap:16}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:500,color:"var(--tx)"}}>{label}</div>
+          {desc&&<div style={{fontSize:11,color:"var(--mu)",marginTop:2,lineHeight:1.4}}>{desc}</div>}
+        </div>
+        <div style={{flexShrink:0}}>{children}</div>
+      </div>
+    );
+
+    const Section = ({title, children}) => (
+      <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px 20px",marginBottom:12}}>
+        <div style={{fontSize:10,fontWeight:700,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.8,marginBottom:12}}>{title}</div>
+        {children}
+      </div>
+    );
+
+    const DAYS = ru
+      ? [{k:"mon",l:"Пн"},{k:"tue",l:"Вт"},{k:"wed",l:"Ср"},{k:"thu",l:"Чт"},{k:"fri",l:"Пт"},{k:"sat",l:"Сб"},{k:"sun",l:"Вс"}]
+      : [{k:"mon",l:"Mon"},{k:"tue",l:"Tue"},{k:"wed",l:"Wed"},{k:"thu",l:"Thu"},{k:"fri",l:"Fri"},{k:"sat",l:"Sat"},{k:"sun",l:"Sun"}];
+
+    const TABS = [
+      {k:"company",  l:ru?"Компания":"Company"},
+      {k:"hours",    l:ru?"Часы работы":"Hours"},
+      {k:"booking",  l:ru?"Бронирование":"Booking"},
+      {k:"comms",    l:ru?"Уведомления":"Notifications"},
+      {k:"branding", l:ru?"Брендинг":"Branding"},
+    ];
+
+    return (
+      <div style={{maxWidth:740}}>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+          <div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--tx)"}}>
+              {ru?"Настройки":"Settings"}
+            </div>
+            <div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>
+              {p.companyName||"—"} · {plan}
+            </div>
+          </div>
+          <button className="btn btn-p" onClick={save} style={{gap:6}}>
+            {saved ? (ru?"✓ Сохранено":"✓ Saved") : (ru?"Сохранить":"Save")}
+          </button>
+        </div>
+
+        {/* Tab nav */}
+        <div style={{display:"flex",gap:4,marginBottom:16,borderBottom:"1px solid var(--bdr)",paddingBottom:0}}>
+          {TABS.map(t=>(
+            <button key={t.k} onClick={()=>setTab(t.k)}
+              style={{padding:"7px 14px",fontSize:12,cursor:"pointer",border:"none",background:"transparent",
+                color:tab===t.k?"var(--acc)":"var(--mu)",fontWeight:tab===t.k?600:400,
+                borderBottom:tab===t.k?"2px solid var(--acc)":"2px solid transparent",
+                marginBottom:-1,transition:"all .15s"}}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+
+        {/* Company */}
+        {tab==="company"&&(
+          <div>
+            <Section title={ru?"Информация о компании":"Company Information"}>
+              <Row label={ru?"Название компании":"Company Name"} desc={ru?"Отображается в кабинете и SMS клиентам":"Shown in cabinet and client SMS"}>
+                <input className="inp" style={{width:220,fontSize:12}} value={form.companyName}
+                  onChange={e=>setForm(f=>({...f,companyName:e.target.value}))} placeholder="Natural Cleaning Experts"/>
+              </Row>
+              <Row label={ru?"Телефон":"Phone"} desc={ru?"Основной номер бизнеса":"Main business number"}>
+                <input className="inp" style={{width:180,fontSize:12}} value={form.phone}
+                  onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="+1 (737) 418-1886"/>
+              </Row>
+              <Row label="Email" desc={ru?"Для уведомлений и счётов":"For notifications and invoices"}>
+                <input className="inp" style={{width:220,fontSize:12}} value={form.email}
+                  onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="hello@company.com"/>
+              </Row>
+              <Row label={ru?"Сайт":"Website"}>
+                <input className="inp" style={{width:220,fontSize:12}} value={form.website}
+                  onChange={e=>setForm(f=>({...f,website:e.target.value}))} placeholder="https://naturalcleaning4u.com"/>
+              </Row>
+              <Row label={ru?"Адрес":"Address"} desc={ru?"Физический адрес офиса":"Physical office address"}>
+                <input className="inp" style={{width:220,fontSize:12}} value={form.address}
+                  onChange={e=>setForm(f=>({...f,address:e.target.value}))} placeholder="Austin, TX"/>
+              </Row>
+              <Row label={ru?"Описание":"Description"} desc={ru?"Краткое описание бизнеса":"Short business description"} last>
+                <textarea style={{width:220,fontSize:12,height:70,resize:"none",padding:"6px 10px",
+                  borderRadius:8,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",fontFamily:"inherit"}}
+                  value={form.description}
+                  onChange={e=>setForm(f=>({...f,description:e.target.value}))}
+                  placeholder={ru?"Мы специализируемся на уборке...":"We specialize in cleaning..."}/>
+              </Row>
+            </Section>
+            <Section title={ru?"Региональные настройки":"Regional Settings"}>
+              <Row label={ru?"Часовой пояс":"Timezone"}>
+                <select className="inp" style={{width:220,fontSize:12}} value={form.timezone}
+                  onChange={e=>setForm(f=>({...f,timezone:e.target.value}))}>
+                  <option value="America/New_York">Eastern (ET)</option>
+                  <option value="America/Chicago">Central (CT)</option>
+                  <option value="America/Denver">Mountain (MT)</option>
+                  <option value="America/Los_Angeles">Pacific (PT)</option>
+                  <option value="America/Phoenix">Arizona (AZ)</option>
+                  <option value="Europe/Moscow">Moscow (MSK)</option>
+                </select>
+              </Row>
+              <Row label={ru?"Валюта":"Currency"} last>
+                <select className="inp" style={{width:140,fontSize:12}} value={form.currency}
+                  onChange={e=>setForm(f=>({...f,currency:e.target.value}))}>
+                  <option value="USD">USD $</option>
+                  <option value="EUR">EUR €</option>
+                  <option value="CAD">CAD $</option>
+                  <option value="GBP">GBP £</option>
+                </select>
+              </Row>
+            </Section>
+            <Section title={ru?"Зона обслуживания":"Service Area"}>
+              <Row label={ru?"Города и районы":"Cities & Areas"} desc={ru?"Перечислите через запятую — используется AI рецепционистом":"List comma-separated — used by AI receptionist"} last>
+                <textarea style={{width:260,fontSize:12,height:60,resize:"none",padding:"6px 10px",
+                  borderRadius:8,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",fontFamily:"inherit"}}
+                  value={form.serviceArea}
+                  onChange={e=>setForm(f=>({...f,serviceArea:e.target.value}))}
+                  placeholder="Austin TX, Cedar Park TX, Round Rock TX"/>
+              </Row>
+            </Section>
+          </div>
+        )}
+
+        {/* Business Hours */}
+        {tab==="hours"&&(
+          <Section title={ru?"Часы работы":"Business Hours"}>
+            <div style={{fontSize:11,color:"var(--mu)",marginBottom:14,lineHeight:1.5}}>
+              {ru?"Используется AI рецепционистом для определения доступности и показывается клиентам":"Used by AI receptionist to determine availability and shown to clients"}
+            </div>
+            {DAYS.map(({k,l})=>{
+              const d = form.businessHours[k]||{open:false,from:"08:00",to:"18:00"};
+              return (
+                <div key={k} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",
+                  borderBottom:"1px solid var(--bdr)",opacity:d.open?1:0.5}}>
+                  <div style={{width:32,fontSize:12,fontWeight:600,color:"var(--tx)"}}>{l}</div>
+                  <Toggle val={d.open} onChange={v=>setForm(f=>({...f,businessHours:{...f.businessHours,[k]:{...d,open:v}}}))}/>
+                  {d.open ? (
+                    <>
+                      <input type="time" value={d.from} style={{fontSize:12,padding:"3px 8px",borderRadius:6,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)"}}
+                        onChange={e=>setForm(f=>({...f,businessHours:{...f.businessHours,[k]:{...d,from:e.target.value}}}))}/>
+                      <span style={{fontSize:12,color:"var(--mu)"}}>—</span>
+                      <input type="time" value={d.to} style={{fontSize:12,padding:"3px 8px",borderRadius:6,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)"}}
+                        onChange={e=>setForm(f=>({...f,businessHours:{...f.businessHours,[k]:{...d,to:e.target.value}}}))}/>
+                    </>
+                  ) : (
+                    <span style={{fontSize:12,color:"var(--mu)"}}>{ru?"Выходной":"Closed"}</span>
+                  )}
+                </div>
+              );
+            })}
+          </Section>
+        )}
+
+        {/* Booking */}
+        {tab==="booking"&&(
+          <div>
+            <Section title={ru?"Онлайн-бронирование":"Online Booking"}>
+              <Row label={ru?"Онлайн-форма для клиентов":"Online booking form"} desc={ru?"Разрешить клиентам бронировать через сайт":"Allow clients to book via website"}>
+                <Toggle val={form.allowOnlineBooking} onChange={v=>setForm(f=>({...f,allowOnlineBooking:v}))}/>
+              </Row>
+              <Row label={ru?"URL формы бронирования":"Booking form URL"} desc={ru?"Ссылка на вашу страницу бронирования":"Link to your booking page"} last>
+                <input className="inp" style={{width:240,fontSize:12}} value={form.bookingFormUrl}
+                  onChange={e=>setForm(f=>({...f,bookingFormUrl:e.target.value}))}
+                  placeholder="https://yoursite.com/booking"/>
+              </Row>
+            </Section>
+            <Section title={ru?"Настройки заявок":"Booking Defaults"}>
+              <Row label={ru?"Статус новой брони":"Default booking status"} desc={ru?"С каким статусом создаётся новая бронь":"Status when new booking is created"} last>
+                <select className="inp" style={{width:180,fontSize:12}} value={form.defaultBookingStatus}
+                  onChange={e=>setForm(f=>({...f,defaultBookingStatus:e.target.value}))}>
+                  <option value="pending">{ru?"Ожидает подтверждения":"Pending confirmation"}</option>
+                  <option value="confirmed">{ru?"Подтверждено автоматически":"Auto-confirmed"}</option>
+                </select>
+              </Row>
+            </Section>
+          </div>
+        )}
+
+        {/* Notifications */}
+        {tab==="comms"&&(
+          <div>
+            <Section title={ru?"SMS клиентам":"Client SMS"}>
+              <Row label={ru?"Подтверждение брони":"Booking confirmation"} desc={ru?"SMS клиенту сразу после бронирования":"SMS to client after booking created"}>
+                <Toggle val={form.smsNewBooking} onChange={v=>setForm(f=>({...f,smsNewBooking:v}))}/>
+              </Row>
+              <Row label={ru?"Напоминание за 24 часа":"24h reminder"} desc={ru?"Автоматическое SMS накануне уборки":"Auto SMS the day before cleaning"}>
+                <Toggle val={form.smsReminder24h} onChange={v=>setForm(f=>({...f,smsReminder24h:v}))}/>
+              </Row>
+              <Row label={ru?"Напоминание за 2 часа":"2h reminder"} desc={ru?"За 2 часа до начала уборки":"2 hours before cleaning starts"}>
+                <Toggle val={form.smsReminder2h} onChange={v=>setForm(f=>({...f,smsReminder2h:v}))}/>
+              </Row>
+              <Row label={ru?"SMS после уборки":"Post-cleaning SMS"} desc={ru?"Благодарность + запрос отзыва на Google":"Thank you + Google review request"} last>
+                <Toggle val={form.smsAfterCleaning} onChange={v=>setForm(f=>({...f,smsAfterCleaning:v}))}/>
+              </Row>
+            </Section>
+            <Section title={ru?"Уведомления команде":"Team Notifications"}>
+              <Row label={ru?"Email при новой брони":"Email on new booking"} desc={ru?"Письмо менеджеру при каждой новой заявке":"Email to manager for each new booking"}>
+                <Toggle val={form.emailDigest} onChange={v=>setForm(f=>({...f,emailDigest:v}))}/>
+              </Row>
+              <Row label={ru?"Push-уведомления":"Push notifications"} desc={ru?"Браузерные уведомления о новых лидах и звонках":"Browser notifications for new leads and calls"} last>
+                <Toggle val={form.pushNotifications} onChange={v=>setForm(f=>({...f,pushNotifications:v}))}/>
+              </Row>
+            </Section>
+          </div>
+        )}
+
+        {/* Branding — shown based on plan */}
+        {tab==="branding"&&(
+          <div>
+            {canLogo ? (
+              <Section title={ru?"Логотип компании":"Company Logo"}>
+                <Row label={ru?"URL логотипа":"Logo URL"} desc={ru?"Прямая ссылка на изображение (PNG, SVG)":"Direct image link (PNG, SVG)"} last>
+                  <input className="inp" style={{width:260,fontSize:12}} value={form.logoUrl}
+                    onChange={e=>setForm(f=>({...f,logoUrl:e.target.value}))}
+                    placeholder="https://yoursite.com/logo.png"/>
+                </Row>
+                {form.logoUrl&&(
+                  <div style={{marginTop:10}}>
+                    <img src={form.logoUrl} alt="logo" style={{height:40,maxWidth:160,objectFit:"contain",borderRadius:6,border:"1px solid var(--bdr)"}}
+                      onError={e=>e.target.style.display="none"}/>
+                  </div>
+                )}
+              </Section>
+            ) : (
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px",marginBottom:12,textAlign:"center"}}>
+                <div style={{fontSize:14,marginBottom:6}}>🖼️</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:4}}>{ru?"Свой логотип":"Custom Logo"}</div>
+                <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>{ru?"Доступно с плана Pro и выше":"Available on Pro plan and above"}</div>
+                <div style={{fontSize:11,padding:"6px 14px",borderRadius:20,background:"var(--acc)15",color:"var(--acc)",display:"inline-block",fontWeight:700}}>Pro · VIP · Enterprise</div>
+              </div>
+            )}
+
+            {canAccent ? (
+              <Section title={ru?"Акцентный цвет":"Accent Color"}>
+                <Row label={ru?"Цвет кнопок и акцентов":"Button and accent color"} desc={ru?"Применяется к кнопкам, ссылкам и активным элементам":"Applied to buttons, links and active elements"} last>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <input type="color" value={form.accentColor}
+                      onChange={e=>setForm(f=>({...f,accentColor:e.target.value}))}
+                      style={{width:36,height:36,borderRadius:8,border:"1px solid var(--bdr)",cursor:"pointer",padding:2}}/>
+                    <input className="inp" style={{width:110,fontSize:12,fontFamily:"monospace"}} value={form.accentColor}
+                      onChange={e=>setForm(f=>({...f,accentColor:e.target.value}))}/>
+                  </div>
+                </Row>
+              </Section>
+            ) : (
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px",marginBottom:12,textAlign:"center"}}>
+                <div style={{fontSize:14,marginBottom:6}}>🎨</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:4}}>{ru?"Свой акцентный цвет":"Custom Accent Color"}</div>
+                <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>{ru?"Доступно с плана VIP":"Available on VIP plan and above"}</div>
+                <div style={{fontSize:11,padding:"6px 14px",borderRadius:20,background:"#00E5C015",color:"#00E5C0",display:"inline-block",fontWeight:700}}>VIP · Enterprise</div>
+              </div>
+            )}
+
+            {canHideCorex ? (
+              <Section title={ru?"Скрыть брендинг Corex":"Hide Corex Branding"}>
+                <Row label={ru?"Скрыть логотип Corex":"Hide Corex logo"} desc={ru?"Убрать логотип и упоминание Corex из интерфейса":"Remove Corex logo from interface"} last>
+                  <Toggle val={p.hideCorexBranding||false} onChange={v=>setPartners(ps=>ps.map(x=>x.id===pid?{...x,hideCorexBranding:v}:x))}/>
+                </Row>
+              </Section>
+            ) : (
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px",textAlign:"center"}}>
+                <div style={{fontSize:14,marginBottom:6}}>🏷️</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:4}}>{ru?"Скрыть брендинг Corex":"Hide Corex Branding"}</div>
+                <div style={{fontSize:12,color:"var(--mu)",marginBottom:12}}>{ru?"Полное удаление брендинга платформы":"Full removal of platform branding"}</div>
+                <div style={{fontSize:11,padding:"6px 14px",borderRadius:20,background:"var(--acc)15",color:"var(--acc)",display:"inline-block",fontWeight:700}}>Enterprise</div>
+              </div>
+            )}
+
+            <div style={{marginTop:12,padding:"12px 16px",background:"var(--s2)",borderRadius:10,fontSize:11,color:"var(--mu)",lineHeight:1.5}}>
+              {ru?"Текущий план: ":"Current plan: "}<strong style={{color:"var(--tx)"}}>{plan}</strong>
+              {!canAccent&&<span> · <span style={{color:"var(--acc)",cursor:"pointer"}} onClick={()=>alert(ru?"Свяжитесь с поддержкой для смены плана":"Contact support to upgrade plan")}>{ru?"Улучшить план →":"Upgrade plan →"}</span></span>}
+            </div>
+          </div>
+        )}
+
+        {/* Save button at bottom */}
+        <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+          <button className="btn btn-p" onClick={save} style={{padding:"10px 24px"}}>
+            {saved
+              ? <span style={{color:"#fff"}}>✓ {ru?"Сохранено!":"Saved!"}</span>
+              : ru?"Сохранить настройки":"Save Settings"
+            }
+          </button>
+        </div>
+      </div>
+    );
+  };
 
 /* ── SA: PARTNERS ── */
   const SAPartners = () => {
@@ -11060,6 +11428,9 @@ function AppInner() {
     tasks:t.tasks, schedule:t.schedule, salary:t.salary,
     performance:t.performance, chat:t.chat, kb:t.kb, pnl:t.pnl, training:t.training, crm:t.crm, booking:t.booking,
     ai_center: t.ai_center, telephony: lang==="ru" ? "Телефония" : "Telephony",
+    settings: lang==="ru" ? "Настройки" : "Settings",
+    settings: lang==="ru" ? "Настройки" : "Settings",
+    settings: lang==="ru" ? "Настройки" : "Settings",
   };
 
   const allWsPages = ALL_SECTIONS.map(s=>({key:s.id,icon:s.icon,label:sectionLabels[s.id]||s.id,sec:t.workspace}));
@@ -11067,7 +11438,7 @@ function AppInner() {
   const navPages   = viewPartner ? wsPages
     : isSA ? [...allWsPages, {key:"partners",icon:IC.partners,label:t.partners,sec:"Corex"}]
     : wsPages;
-  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>, telephony:<Telephony/>, ai_center:<CorexAI/>};
+  const pageMap   = {dashboard:<Dashboard/>,partners:<SAPartners/>,departments:<Employees/>,branches:<Branches/>,tasks:<Tasks/>,schedule:<Schedule/>,salary:<Salary/>,performance:<Performance/>,chat:<Chat/>,kb:<KnowledgeBase/>,pnl:<PnL/>,training:<Training/>, crm:<CRM/>, booking:<Booking/>, telephony:<Telephony/>, ai_center:<CorexAI/>, settings:<PartnerSettings/>};
 
   const activePid = viewPartner?.id||(isSA?"nce_main":isEmp?currentUser.partnerId:currentUser?.id);
   const activePart= getPartner(activePid);
