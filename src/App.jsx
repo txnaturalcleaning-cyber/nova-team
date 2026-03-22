@@ -2507,9 +2507,9 @@ function AppInner() {
     const canHideCorex  = plan === "Enterprise";
     const canCustomDomain = plan === "Enterprise";
 
-    const [tab, setTab] = React.useState("company");
-    const [saved, setSaved] = React.useState(false);
-    const [form, setForm] = React.useState({
+    const [tab, setTab] = useState("company");
+    const [saved, setSaved] = useState(false);
+    const [form, setForm] = useState({
       companyName:   p.companyName||"",
       phone:         p.phone||"",
       email:         p.email||"",
