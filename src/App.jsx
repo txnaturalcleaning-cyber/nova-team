@@ -5862,12 +5862,19 @@ function AppInner() {
 
     // ── CRUD ──
     function saveContact() {
-      if(!cF.name.trim()) return;
+      // Read values from DOM (uncontrolled inputs)
+      const name   = document.getElementById('cf-name')?.value   || cF.name;
+      const phone  = document.getElementById('cf-phone')?.value  || cF.phone;
+      const email  = document.getElementById('cf-email')?.value  || cF.email;
+      const source = document.getElementById('cf-source')?.value || cF.source;
+      const stage  = document.getElementById('cf-stage')?.value  || cF.stage;
+      const updated = {...cF, name, phone, email, source, stage};
+      if(!updated.name.trim()) return;
       const isEdit = cModal!==true;
       if(isEdit){
-        setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===cModal?{...c,...cF}:c)}:x));
+        setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:(x.contacts||[]).map(c=>c.id===cModal?{...c,...updated}:c)}:x));
       } else {
-        const item={...cF,id:"c_"+Date.now(),createdAt:new Date().toISOString().split("T")[0],history:[],lastContact:null};
+        const item={...updated,id:"c_"+Date.now(),createdAt:new Date().toISOString().split("T")[0],history:[],lastContact:null};
         setPartners(ps=>ps.map(x=>x.id===pid?{...x,contacts:[...(x.contacts||[]),item]}:x));
       }
       setCF({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
@@ -6824,16 +6831,16 @@ function AppInner() {
             <div className="modal" onClick={e=>e.stopPropagation()}>
               <div className="modal-t">{cModal===true?(lang==="ru"?"Новый контакт":"New Contact"):(lang==="ru"?"Редактировать контакт":"Edit Contact")}</div>
               <div className="fr">
-                <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label><input className="inp" value={cF.name} onChange={e=>setCF(f=>({...f,name:e.target.value}))} placeholder="Jane Smith"/></div>
-                <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" value={cF.phone} onChange={e=>setCF(f=>({...f,phone:e.target.value}))} placeholder="+1 (512) 000-0000"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Имя *":"Name *"}</label><input className="inp" id="cf-name" defaultValue={cF.name} placeholder="Jane Smith"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Телефон":"Phone"}</label><input className="inp" id="cf-phone" defaultValue={cF.phone} placeholder="+1 (512) 000-0000"/></div>
               </div>
               <div className="fr">
-                <div className="fg"><label className="lbl">Email</label><input className="inp" value={cF.email} onChange={e=>setCF(f=>({...f,email:e.target.value}))} placeholder="jane@example.com"/></div>
-                <div className="fg"><label className="lbl">{lang==="ru"?"Источник лида":"Lead Source"}</label><input className="inp" value={cF.source} onChange={e=>setCF(f=>({...f,source:e.target.value}))} placeholder="Google, Facebook, Referral..."/></div>
+                <div className="fg"><label className="lbl">Email</label><input className="inp" id="cf-email" defaultValue={cF.email} placeholder="jane@example.com"/></div>
+                <div className="fg"><label className="lbl">{lang==="ru"?"Источник лида":"Lead Source"}</label><input className="inp" id="cf-source" defaultValue={cF.source} placeholder="Google, Facebook, Referral..."/></div>
               </div>
               <div className="fr">
                 <div className="fg"><label className="lbl">Stage</label>
-                  <select className="inp" value={cF.stage} onChange={e=>setCF(f=>({...f,stage:e.target.value}))}>
+                  <select className="inp" id="cf-stage" defaultValue={cF.stage}>
                     {STAGES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
                 </div>
