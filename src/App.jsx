@@ -2113,38 +2113,63 @@ function AppInner() {
       }
 
       if (platformPage === "platform_modules") {
+        const MODULE_ICONS = {
+          booking:"📅", crm:"📞", ai_center:"🤖", training:"🎓", pnl:"💰", tasks:"✅"
+        };
+        const MODULE_COLORS = [
+          "var(--acc)", "#00E5C0", "#ec4899", "#f0a500", "#22c55e", "#a78bfa"
+        ];
         return (
           <div>
-            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17,marginBottom:20}}>{ru?"Использование модулей":"Module Usage"}</div>
-            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
-              {MODULE_KEYS.map(({key,label})=>{
+            {/* Module cards grid */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+              {MODULE_KEYS.map(({key,label},i)=>{
                 const total = partners.length||1;
                 const usingCount = partners.filter(p=>{
                   const access = p.plan==="VIP"||p.plan==="Enterprise" ? ALL_SECTIONS.map(s=>s.id) : PLAN_SECTIONS[p.plan]||[];
                   return access.includes(key);
                 }).length;
                 const pct = Math.round((usingCount/total)*100);
+                const color = MODULE_COLORS[i]||"var(--acc)";
                 return (
-                  <div key={key} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                    <div style={{width:120,fontSize:12,color:"var(--tx)",flexShrink:0}}>{label}</div>
-                    <div style={{flex:1,height:8,background:"var(--s2)",borderRadius:4,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${pct}%`,background:"var(--acc)",borderRadius:4,transition:"width .5s"}}/>
+                  <div key={key} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"18px 20px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                      <div style={{fontSize:22}}>{MODULE_ICONS[key]||"⚙️"}</div>
+                      <div style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:20,
+                        background:`${color}18`,color}}>{pct}%</div>
                     </div>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",width:60,textAlign:"right",flexShrink:0}}>{usingCount}/{total} ({pct}%)</div>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:4}}>{label}</div>
+                    <div style={{fontSize:11,color:"var(--mu)",marginBottom:12}}>{usingCount} {ru?"из":"of"} {total} {ru?"партнёров":"partners"}</div>
+                    {/* Thin accent line at bottom */}
+                    <div style={{height:3,background:"var(--s2)",borderRadius:2}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:2}}/>
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <div style={{marginTop:16,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
-              <div style={{fontSize:12,fontWeight:600,marginBottom:14}}>{ru?"Партнёры по планам":"Partners by plan"}</div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                {Object.entries(planCounts).filter(([,v])=>v>0).map(([plan,count])=>(
-                  <div key={plan} style={{padding:"8px 16px",borderRadius:10,border:`1px solid ${PLAN_COLOR[plan]||"var(--bdr)"}40`,background:`${PLAN_COLOR[plan]||"var(--mu)"}12`}}>
-                    <div style={{fontSize:10,color:PLAN_COLOR[plan]||"var(--mu)",fontWeight:700}}>{plan}</div>
-                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--tx)"}}>{count}</div>
+
+            {/* Partners by plan */}
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
+              <div style={{fontSize:12,fontWeight:700,marginBottom:16}}>{ru?"Партнёры по планам":"Partners by plan"}</div>
+              {Object.entries(planCounts).length === 0
+                ? <div style={{color:"var(--mu)",fontSize:12}}>{ru?"Нет партнёров":"No partners yet"}</div>
+                : <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {Object.entries(planCounts).map(([plan,count])=>{
+                      const pc = PLAN_COLOR[plan]||"var(--mu)";
+                      const price = PLAN_PRICE[plan]||0;
+                      return (
+                        <div key={plan} style={{background:"var(--s2)",borderRadius:10,padding:"16px",
+                          borderTop:`3px solid ${pc}`}}>
+                          <div style={{fontSize:10,color:pc,fontWeight:700,marginBottom:6,letterSpacing:.5}}>{plan.toUpperCase()}</div>
+                          <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:28,color:"var(--tx)",lineHeight:1,marginBottom:4}}>{count}</div>
+                          <div style={{fontSize:11,color:"var(--mu)"}}>{ru?"партнёров":"partners"}</div>
+                          <div style={{fontSize:12,color:pc,fontWeight:600,marginTop:8}}>${(price*count).toLocaleString()}/mo</div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+              }
             </div>
           </div>
         );
@@ -2260,11 +2285,17 @@ function AppInner() {
           {/* Logo */}
           <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--bdr)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-              <svg width="28" height="28" viewBox="0 0 100 100">
-                <polygon points="50,5 93,27.5 93,72.5 50,95 7,72.5 7,27.5" fill="none" stroke="#4F8FFF" strokeWidth="6"/>
-                <circle cx="50" cy="35" r="7" fill="#4F8FFF"/>
-                <circle cx="30" cy="65" r="7" fill="#00E5C0"/>
-                <circle cx="70" cy="65" r="7" fill="#4F8FFF" opacity="0.6"/>
+              <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+                <polygon points="24,2 43,13 43,35 24,46 5,35 5,13" fill="none" stroke="#4f8fff" strokeWidth="1" opacity="0.3"/>
+                <polygon points="24,7 38,15.5 38,32.5 24,41 10,32.5 10,15.5" fill="none" stroke="#4f8fff" strokeWidth="1.2"/>
+                <circle cx="24" cy="24" r="7.5" fill="#4f8fff"/>
+                <circle cx="24" cy="24" r="3.5" fill="#07070e"/>
+                <circle cx="24" cy="7" r="2" fill="#00e5c0"/>
+                <circle cx="38" cy="15.5" r="1.5" fill="#4f8fff"/>
+                <circle cx="38" cy="32.5" r="1.5" fill="#4f8fff"/>
+                <circle cx="24" cy="41" r="1.5" fill="#4f8fff"/>
+                <circle cx="10" cy="32.5" r="1.5" fill="#4f8fff"/>
+                <circle cx="10" cy="15.5" r="1.5" fill="#4f8fff"/>
               </svg>
               <div>
                 <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:16,letterSpacing:-0.5}}>
