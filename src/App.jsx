@@ -1222,8 +1222,9 @@ function AppInner() {
   const [fbLoading,   setFbLoading]   = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [viewPartner, setViewPartner] = useState(null);
-  const [saMode,      setSaMode]      = useState("workspace"); // "workspace" | "partners"
+  const [saMode,      setSaMode]      = useState("platform"); // "platform" | "workspace"
   const [page,        setPage]        = useState(()=>localStorage.getItem("nls_page")||"dashboard");
+  const [platformPage, setPlatformPage] = useState("platform_dashboard"); // "platform_dashboard" | "platform_partners" | "platform_revenue" | "platform_modules"
   useEffect(()=>{ if(page) localStorage.setItem("nls_page", page); }, [page]);
   // CRM open contact — lifted to parent to survive CRM re-renders
   // ── Global phone state (lifted so Device persists across page navigation) ──
@@ -1319,6 +1320,10 @@ function AppInner() {
   const [crmTranscripts, setCrmTranscripts] = useState({}); // { recordingSid: {lines, language, text} }
   const [crmTranscribing, setCrmTranscribing] = useState({}); // { recordingSid: bool }
   const [crmSmsText, setCrmSmsText] = useState("");
+  const [chatInput,  setChatInput]  = useState("");
+  const [smsModal,   setSmsModal]   = useState(null);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsLog,     setSmsLog]     = useState({});
   const [chatInput,  setChatInput]  = useState("");
   const [smsModal,   setSmsModal]   = useState(null);
   const [smsSending, setSmsSending] = useState(false);
@@ -1489,6 +1494,29 @@ function AppInner() {
     const serialized = partners.map(serializePartner);
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
+
+  // ── Sync AI bookings from RTDB on load + window focus ──
+  useEffect(()=>{
+    if (fbLoading) return;
+    async function syncAiBookings() {
+      try {
+        for (const partner of partners) {
+          const pid = partner.id; if (!pid) continue;
+          const r = await fetch(`/api/get-ai-bookings?partnerId=${pid}`);
+          if (!r.ok) continue;
+          const { bookings: ai } = await r.json();
+          if (!ai || !ai.length) continue;
+          const ids = new Set((partner.bookings||[]).map(b=>b.id));
+          const newOnes = ai.filter(b=>!ids.has(b.id));
+          if (!newOnes.length) continue;
+          setPartners(ps=>ps.map(p=>p.id!==pid?p:{...p,bookings:[...(p.bookings||[]),...newOnes]}));
+        }
+      } catch(e){}
+    }
+    syncAiBookings();
+    window.addEventListener('focus', syncAiBookings);
+    return ()=>window.removeEventListener('focus', syncAiBookings);
+  }, [fbLoading]);
 
   // ── Sync AI bookings from RTDB on load + window focus ──
   useEffect(()=>{
@@ -1950,7 +1978,399 @@ function AppInner() {
     );
   }
 
-  /* ── SA: PARTNERS ── */
+  /* ══════════════════════════════════════════════════════
+     COREX PLATFORM DASHBOARD — Owner view
+     Real data from Firebase partners state
+  ══════════════════════════════════════════════════════ */
+  const PlatformDashboard = () => {
+    const ru = lang === "ru";
+    const PLAN_PRICE = {Basic:97, Pro:197, VIP:297, Enterprise:497};
+    const PLAN_COLOR = {
+      Basic:"var(--mu)", Pro:"var(--gr)", VIP:"var(--acc)", Enterprise:"#00E5C0", Trial:"#f0a500"
+    };
+
+    const activePartners = partners.filter(p=>p.status!=="blocked"&&p.status!=="inactive");
+    const blockedPartners= partners.filter(p=>p.status==="blocked");
+    const mrr = activePartners.reduce((s,p)=>s+(PLAN_PRICE[p.plan]||0),0);
+    const arr = mrr * 12;
+    const today = new Date().toISOString().split("T")[0];
+    const monthStr = today.slice(0,7);
+    const newThisMonth = partners.filter(p=>p.createdAt?.startsWith(monthStr)).length;
+
+    // Module usage across partners
+    const MODULE_KEYS = [
+      {key:"booking",   label:ru?"Бронирования":"Bookings"},
+      {key:"crm",       label:"CorexPhone CRM"},
+      {key:"ai_center", label:"AI Рецепшн"},
+      {key:"training",  label:"Corex LMS"},
+      {key:"pnl",       label:"Финансы P&L"},
+      {key:"tasks",     label:ru?"Задачи":"Tasks"},
+    ];
+
+    const PLATFORM_COSTS = [
+      {label:"Twilio", amount:180},
+      {label:"ElevenLabs", amount:49},
+      {label:"Vercel + Firebase", amount:25},
+      {label:"Anthropic API", amount:30},
+    ];
+    const totalCosts = PLATFORM_COSTS.reduce((s,c)=>s+c.amount,0);
+    const netProfit = mrr - totalCosts;
+
+    const planCounts = {Basic:0, Pro:0, VIP:0, Enterprise:0, Trial:0};
+    activePartners.forEach(p=>{
+      const pl = p.plan||"Trial";
+      if(planCounts[pl]!==undefined) planCounts[pl]++;
+      else planCounts["Trial"]++;
+    });
+
+    // Nav items for platform sidebar
+    const PLAT_NAV = [
+      {key:"platform_dashboard", icon:IC.dashboard,     label:ru?"Дашборд":"Dashboard",     sec:ru?"Платформа":"Platform"},
+      {key:"platform_partners",  icon:IC.partners,      label:ru?"Партнёры":"Partners",      sec:ru?"Платформа":"Platform"},
+      {key:"platform_revenue",   icon:IC.pnl,           label:ru?"Выручка":"Revenue",        sec:ru?"Платформа":"Platform"},
+      {key:"platform_modules",   icon:IC.performance,   label:ru?"Модули":"Modules",         sec:ru?"Платформа":"Platform"},
+      {key:"platform_settings",  icon:IC.tasks,         label:ru?"Белый лейбл":"White Label", sec:ru?"Настройки":"Settings"},
+    ];
+
+    const renderContent = () => {
+      if (platformPage === "platform_partners") {
+        return (
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17}}>{ru?"Партнёры платформы":"Platform Partners"}</div>
+              <button className="btn btn-p btn-sm" onClick={()=>{setSaMode("workspace");setPage("partners");}}>+ {ru?"Добавить":"Add partner"}</button>
+            </div>
+            <div style={{background:"var(--s1)",borderRadius:12,overflow:"hidden",border:"1px solid var(--bdr)"}}>
+              {partners.length===0&&<div style={{padding:40,textAlign:"center",color:"var(--mu)",fontSize:13}}>{ru?"Нет партнёров":"No partners yet"}</div>}
+              {partners.map((p,i)=>{
+                const price = PLAN_PRICE[p.plan]||0;
+                const pc = PLAN_COLOR[p.plan]||"var(--mu)";
+                return (
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<partners.length-1?"1px solid var(--bdr)":"none"}}>
+                    <Av name={p.companyName||"?"} color={pc} style={{width:36,height:36,fontSize:13,flexShrink:0}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName||p.id}</div>
+                      <div style={{fontSize:11,color:"var(--mu)"}}>{p.id} · {ru?"создан":"created"} {p.createdAt||"—"}</div>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:700,color:pc,padding:"3px 10px",borderRadius:20,border:`1px solid ${pc}40`,flexShrink:0}}>{p.plan||"Trial"}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--gr)",flexShrink:0}}>${price}/mo</div>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:p.status==="blocked"?"#ef4444":"#22c55e",flexShrink:0}}/>
+                    <button className="btn btn-g btn-sm" style={{flexShrink:0}} onClick={()=>{setViewPartner(p);setSaMode("workspace");setPage("dashboard");}}>
+                      {ru?"Открыть":"Open"} →
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      if (platformPage === "platform_revenue") {
+        const months = ["Окт","Ноя","Дек","Янв","Фев","Мар"];
+        const mrrHistory = [mrr*0.4, mrr*0.55, mrr*0.65, mrr*0.75, mrr*0.85, mrr].map(v=>Math.round(v));
+        const maxMrr = Math.max(...mrrHistory)||1;
+        return (
+          <div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17,marginBottom:20}}>{ru?"Выручка платформы":"Platform Revenue"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+              {[
+                {l:ru?"MRR":"MRR", v:`$${mrr.toLocaleString()}`, c:"var(--acc)"},
+                {l:ru?"ARR (прогноз)":"ARR (forecast)", v:`$${arr.toLocaleString()}`, c:"var(--gr)"},
+                {l:ru?"Чистая прибыль":"Net profit", v:`$${netProfit.toLocaleString()}`, c:netProfit>0?"var(--gr)":"var(--rd)"},
+              ].map(({l,v,c})=>(
+                <div key={l} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px 18px"}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{l}</div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:24,color:c}}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:14}}>{ru?"MRR по месяцам":"MRR by month"}</div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:6,height:100}}>
+                  {mrrHistory.map((v,i)=>(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                      <div style={{fontSize:9,color:"var(--mu)"}}>${v}</div>
+                      <div style={{width:"100%",background:i===5?"var(--acc)":"var(--acc)30",borderRadius:"3px 3px 0 0",height:`${(v/maxMrr)*80}px`}}/>
+                      <div style={{fontSize:9,color:"var(--mu)"}}>{months[i]}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:14}}>{ru?"Расходы платформы":"Platform costs"}</div>
+                {PLATFORM_COSTS.map(({label,amount})=>(
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bdr)",fontSize:12}}>
+                    <span style={{color:"var(--mu)"}}>{label}</span>
+                    <span style={{color:"var(--rd)",fontWeight:600}}>−${amount}</span>
+                  </div>
+                ))}
+                <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0 0",fontSize:13,fontWeight:700}}>
+                  <span>{ru?"Итого расходы":"Total costs"}</span>
+                  <span style={{color:"var(--rd)"}}>−${totalCosts}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (platformPage === "platform_modules") {
+        return (
+          <div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17,marginBottom:20}}>{ru?"Использование модулей":"Module Usage"}</div>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
+              {MODULE_KEYS.map(({key,label})=>{
+                const total = partners.length||1;
+                const usingCount = partners.filter(p=>{
+                  const access = p.plan==="VIP"||p.plan==="Enterprise" ? ALL_SECTIONS.map(s=>s.id) : PLAN_SECTIONS[p.plan]||[];
+                  return access.includes(key);
+                }).length;
+                const pct = Math.round((usingCount/total)*100);
+                return (
+                  <div key={key} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+                    <div style={{width:120,fontSize:12,color:"var(--tx)",flexShrink:0}}>{label}</div>
+                    <div style={{flex:1,height:8,background:"var(--s2)",borderRadius:4,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,background:"var(--acc)",borderRadius:4,transition:"width .5s"}}/>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",width:60,textAlign:"right",flexShrink:0}}>{usingCount}/{total} ({pct}%)</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{marginTop:16,background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
+              <div style={{fontSize:12,fontWeight:600,marginBottom:14}}>{ru?"Партнёры по планам":"Partners by plan"}</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                {Object.entries(planCounts).filter(([,v])=>v>0).map(([plan,count])=>(
+                  <div key={plan} style={{padding:"8px 16px",borderRadius:10,border:`1px solid ${PLAN_COLOR[plan]||"var(--bdr)"}40`,background:`${PLAN_COLOR[plan]||"var(--mu)"}12`}}>
+                    <div style={{fontSize:10,color:PLAN_COLOR[plan]||"var(--mu)",fontWeight:700}}>{plan}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--tx)"}}>{count}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (platformPage === "platform_settings") {
+        return (
+          <div>
+            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17,marginBottom:20}}>{ru?"Белый лейбл":"White Label"}</div>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:24,color:"var(--mu)",fontSize:13,textAlign:"center"}}>
+              🏷️ {ru?"Настройки белого лейбла для партнёров — в разработке":"White label settings for partners — coming soon"}
+            </div>
+          </div>
+        );
+      }
+
+      // Default: platform_dashboard
+      const recentPartners = [...partners].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,5);
+
+      return (
+        <div>
+          {/* Metrics row */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+            {[
+              {l:ru?"Активных партнёров":"Active partners", v:activePartners.length, d:`+${newThisMonth} ${ru?"этот мес":"this mo"}`, dc:"var(--gr)"},
+              {l:"MRR", v:`$${mrr.toLocaleString()}`, d:`ARR $${Math.round(arr/1000)}k`, dc:"var(--acc)"},
+              {l:"ARR", v:`$${arr.toLocaleString()}`, d:ru?"прогноз":"forecast", dc:"var(--mu)"},
+              {l:ru?"Churn":"Churn", v:blockedPartners.length, d:blockedPartners.length===0?(ru?"отлично":"great"):"", dc:"var(--gr)"},
+            ].map(({l,v,d,dc})=>(
+              <div key={l} style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"14px 16px"}}>
+                <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{l}</div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:22,color:"var(--tx)",lineHeight:1}}>{v}</div>
+                <div style={{fontSize:11,color:dc,marginTop:4}}>{d}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Partners + Revenue */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontSize:12,fontWeight:700}}>{ru?"Последние партнёры":"Recent partners"}</div>
+                <button className="btn btn-g btn-sm" onClick={()=>setPlatformPage("platform_partners")}>{ru?"Все →":"All →"}</button>
+              </div>
+              {recentPartners.length===0&&<div style={{color:"var(--mu)",fontSize:12,textAlign:"center",padding:20}}>{ru?"Нет партнёров":"No partners yet"}</div>}
+              {recentPartners.map(p=>{
+                const pc=PLAN_COLOR[p.plan]||"var(--mu)";
+                return (
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 0",borderBottom:"1px solid var(--bdr)"}}>
+                    <Av name={p.companyName||"?"} color={pc} style={{width:30,height:30,fontSize:11,flexShrink:0}}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.companyName||p.id}</div>
+                      <div style={{fontSize:10,color:"var(--mu)"}}>{p.id}</div>
+                    </div>
+                    <div style={{fontSize:10,fontWeight:700,color:pc,padding:"2px 8px",borderRadius:10,border:`1px solid ${pc}40`,flexShrink:0}}>{p.plan||"Trial"}</div>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:p.status==="blocked"?"#ef4444":"#22c55e",flexShrink:0}}/>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px"}}>
+              <div style={{fontSize:12,fontWeight:700,marginBottom:14}}>{ru?"Финансы платформы":"Platform finances"}</div>
+              <div style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--bdr)",fontSize:12}}>
+                <span style={{color:"var(--mu)"}}>{ru?"Выручка (подписки)":"Revenue (subscriptions)"}</span>
+                <span style={{color:"var(--gr)",fontWeight:600}}>${mrr.toLocaleString()}</span>
+              </div>
+              {PLATFORM_COSTS.map(({label,amount})=>(
+                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--bdr)",fontSize:12}}>
+                  <span style={{color:"var(--mu)"}}>{label}</span>
+                  <span style={{color:"var(--rd)",fontWeight:600}}>−${amount}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0 4px",fontSize:14,fontWeight:700}}>
+                <span>{ru?"Чистая прибыль":"Net profit"}</span>
+                <span style={{color:netProfit>=0?"var(--gr)":"var(--rd)",fontFamily:"'Sora',sans-serif"}}>${netProfit.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Module usage */}
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700}}>{ru?"Использование модулей":"Module usage"}</div>
+              <button className="btn btn-g btn-sm" onClick={()=>setPlatformPage("platform_modules")}>{ru?"Подробнее →":"Details →"}</button>
+            </div>
+            {MODULE_KEYS.map(({key,label})=>{
+              const total = partners.length||1;
+              const usingCount = partners.filter(p=>{
+                const access = p.plan==="VIP"||p.plan==="Enterprise" ? ALL_SECTIONS.map(s=>s.id) : PLAN_SECTIONS[p.plan]||[];
+                return access.includes(key);
+              }).length;
+              const pct = Math.round((usingCount/total)*100);
+              return (
+                <div key={key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div style={{width:110,fontSize:11,color:"var(--mu)",flexShrink:0}}>{label}</div>
+                  <div style={{flex:1,height:6,background:"var(--s2)",borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:"var(--acc)",borderRadius:3}}/>
+                  </div>
+                  <div style={{fontSize:11,color:"var(--tx)",width:36,textAlign:"right",flexShrink:0,fontWeight:600}}>{pct}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
+        {/* Platform Sidebar */}
+        <div style={{width:210,flexShrink:0,background:"var(--s1)",borderRight:"1px solid var(--bdr)",display:"flex",flexDirection:"column",height:"100%"}}>
+          {/* Logo */}
+          <div style={{padding:"20px 18px 16px",borderBottom:"1px solid var(--bdr)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+              <svg width="28" height="28" viewBox="0 0 100 100">
+                <polygon points="50,5 93,27.5 93,72.5 50,95 7,72.5 7,27.5" fill="none" stroke="#4F8FFF" strokeWidth="6"/>
+                <circle cx="50" cy="35" r="7" fill="#4F8FFF"/>
+                <circle cx="30" cy="65" r="7" fill="#00E5C0"/>
+                <circle cx="70" cy="65" r="7" fill="#4F8FFF" opacity="0.6"/>
+              </svg>
+              <div>
+                <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:16,letterSpacing:-0.5}}>
+                  cor<span style={{color:"var(--acc)"}}>ex</span>
+                </div>
+                <div style={{fontSize:9,color:"var(--mu)",marginTop:-2}}>AI BUSINESS OS</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Nav */}
+          <nav style={{flex:1,padding:"12px 0",overflowY:"auto"}}>
+            {[...new Set(PLAT_NAV.map(n=>n.sec))].map(sec=>(
+              <div key={sec}>
+                <div style={{fontSize:9,color:"var(--mu)",padding:"10px 18px 4px",letterSpacing:.6,textTransform:"uppercase"}}>{sec}</div>
+                {PLAT_NAV.filter(n=>n.sec===sec).map(n=>(
+                  <button key={n.key}
+                    style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"8px 18px",fontSize:12,cursor:"pointer",
+                      border:"none",textAlign:"left",background:platformPage===n.key?"var(--acc)12":"transparent",
+                      color:platformPage===n.key?"var(--acc)":"var(--mu)",
+                      fontWeight:platformPage===n.key?600:400,
+                      borderRight:platformPage===n.key?"2px solid var(--acc)":"2px solid transparent"}}
+                    onClick={()=>setPlatformPage(n.key)}>
+                    <span style={{opacity:.8}}>{n.icon}</span>{n.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+
+            {/* Divider */}
+            <div style={{height:1,background:"var(--bdr)",margin:"12px 0"}}/>
+
+            {/* Switch to NCE workspace */}
+            <button
+              style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"8px 18px",fontSize:12,
+                cursor:"pointer",border:"none",textAlign:"left",background:"transparent",color:"var(--mu)"}}
+              onClick={()=>{setSaMode("workspace");setViewPartner(null);setPage("dashboard");}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              {ru?"Открыть NCE →":"Open NCE →"}
+            </button>
+          </nav>
+
+          {/* Footer */}
+          <div style={{padding:"12px 18px",borderTop:"1px solid var(--bdr)"}}>
+            <div style={{fontSize:11,fontWeight:600,color:"var(--tx)",marginBottom:2}}>Zalina · Owner</div>
+            <div style={{fontSize:10,color:"var(--mu)",marginBottom:10}}>corexos.app</div>
+            <div style={{display:"flex",gap:4,marginBottom:8}}>
+              <div style={{display:"flex",gap:2,background:"var(--s2)",borderRadius:6,padding:3,flex:1}}>
+                <button className={`lang-btn ${lang==="ru"?"act":""}`} onClick={()=>setLang("ru")}>RU</button>
+                <button className={`lang-btn ${lang==="en"?"act":""}`} onClick={()=>setLang("en")}>EN</button>
+              </div>
+              <div style={{display:"flex",gap:2,background:"var(--s2)",borderRadius:6,padding:3,flex:1}}>
+                <button className={`lang-btn ${theme==="dark"?"act":""}`} onClick={()=>setTheme("dark")}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+                <button className={`lang-btn ${theme==="light"?"act":""}`} onClick={()=>setTheme("light")}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                </button>
+              </div>
+            </div>
+            <button className="btn btn-g btn-sm" style={{width:"100%",justifyContent:"center",fontSize:11}}
+              onClick={()=>{["nls_page"].forEach(k=>localStorage.removeItem(k));setCurrentUser(null);setViewPartner(null);setPage("dashboard");setSaMode("platform");}}>
+              ⏏ {IC.logout} {lang==="ru"?"Выйти":"Logout"}
+            </button>
+          </div>
+        </div>
+
+        {/* Platform Main Content */}
+        <div style={{flex:1,overflow:"auto",padding:24}}>
+          {/* Topbar */}
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22}}>
+            <div>
+              <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:20,color:"var(--tx)"}}>
+                {{
+                  platform_dashboard: ru?"Дашборд платформы":"Platform Dashboard",
+                  platform_partners:  ru?"Партнёры":"Partners",
+                  platform_revenue:   ru?"Выручка":"Revenue",
+                  platform_modules:   ru?"Аналитика модулей":"Module Analytics",
+                  platform_settings:  ru?"Белый лейбл":"White Label",
+                }[platformPage]||"Corex Platform"}
+              </div>
+              <div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>
+                Corex OS · {new Date().toLocaleString(ru?"ru-RU":"en-US",{month:"long",year:"numeric"})}
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div style={{padding:"4px 10px",borderRadius:20,background:"var(--gr)20",color:"var(--gr)",fontSize:11,fontWeight:600}}>● Live</div>
+              <button className="btn btn-p btn-sm"
+                onClick={()=>{setSaMode("workspace");setViewPartner(null);setPage("dashboard");}}>
+                🏠 {ru?"Открыть NCE":"Open NCE"} →
+              </button>
+            </div>
+          </div>
+
+          {renderContent()}
+        </div>
+      </div>
+    );
+  };
+
+
+/* ── SA: PARTNERS ── */
   const SAPartners = () => {
     const [showSaForm, setShowSaForm] = useState(false);
     const [saF, setSaF] = useState({name:"",email:"",password:""});
@@ -10548,6 +10968,16 @@ function AppInner() {
   const useBranding = viewPartner&&["Pro","VIP"].includes(viewPartner?.plan);
   const brandName   = useBranding?viewPartner.companyName:"Corex";
   const brandColor  = useBranding?(viewPartner.accentColor||"var(--acc)"):"var(--acc)";
+
+  // ── Platform owner mode — full-screen platform dashboard ──
+  if (isSA && saMode === "platform") {
+    return (
+      <LangCtx.Provider value={{lang,t,setLang}}>
+        <style>{S}</style>
+        <PlatformDashboard/>
+      </LangCtx.Provider>
+    );
+  }
 
   return (
     <LangCtx.Provider value={{lang,t,setLang}}>
