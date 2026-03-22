@@ -1484,7 +1484,8 @@ function AppInner() {
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
 
-  // ── Sync AI bookings from RTDB (only triggers re-render when new bookings found) ──
+  // ── Sync AI bookings from RTDB ──
+  // Run once on load + on window focus (not on interval to avoid re-render disrupting inputs)
   useEffect(()=>{
     if (fbLoading) return;
     async function syncAiBookings() {
@@ -1504,9 +1505,11 @@ function AppInner() {
         }
       } catch(e) { console.log('AI sync error:', e.message); }
     }
+    // Run once on load
     syncAiBookings();
-    const t = setInterval(syncAiBookings, 15000);
-    return () => clearInterval(t);
+    // Run when window gets focus (manager switches tabs)
+    window.addEventListener('focus', syncAiBookings);
+    return () => window.removeEventListener('focus', syncAiBookings);
   }, [fbLoading]);
 
   // ── Save chatMsgs to Firebase ──
@@ -6233,7 +6236,7 @@ function AppInner() {
                   ):<div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>No phone</div>}
                 </div>
               </div>
-              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length}/160 · Enter = SMS</div>
+              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length} chars · Enter = SMS</div>
             </div>
           </div>
         </div>
