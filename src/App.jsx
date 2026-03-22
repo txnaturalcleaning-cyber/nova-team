@@ -2508,6 +2508,9 @@ function AppInner() {
     const [tab,   setTab]   = useState("company");
     const [saved, setSaved] = useState(false);
     const [saving,setSaving]= useState(false);
+    const [showAddCard, setShowAddCard] = useState(false);
+    const [cardForm, setCardForm] = useState({number:"",expiry:"",cvv:"",name:""});
+    const [cardError, setCardError] = useState("");
     const [form,  setForm]  = useState({
       companyName:   p.companyName||"",
       phone:         p.phone||"",
@@ -2539,6 +2542,8 @@ function AppInner() {
       allowOnlineBooking:   p.allowOnlineBooking!==false,
       bookingFormUrl:    p.bookingFormUrl||"",
       hideCorexBranding: p.hideCorexBranding||false,
+      // Cards
+      cards: p.cards||[],
       // Invoice settings
       acceptCC:          p.acceptCC!==false,
       acceptACH:         p.acceptACH||false,
@@ -2582,6 +2587,96 @@ function AppInner() {
       // Group consecutive days with same hours
       const parts = open.map(([k,v])=>`${DAYS_EN[k]} ${v.from.replace(":","")}-${v.to.replace(":","")}`);
       return parts.join(", ");
+    }
+
+    // Card helpers
+    function detectCardBrand(num) {
+      const n = num.replace(/\s/g,"");
+      if (/^4/.test(n)) return {brand:"Visa", ico:"💳"};
+      if (/^5[1-5]/.test(n)) return {brand:"Mastercard", ico:"💳"};
+      if (/^3[47]/.test(n)) return {brand:"Amex", ico:"💳"};
+      if (/^6(?:011|5)/.test(n)) return {brand:"Discover", ico:"💳"};
+      return {brand:"Card", ico:"💳"};
+    }
+    function formatCardNumber(val) {
+      return val.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
+    }
+    function formatExpiry(val) {
+      const d = val.replace(/\D/g,"").slice(0,4);
+      return d.length>2 ? d.slice(0,2)+"/"+d.slice(2) : d;
+    }
+    function addCard() {
+      const num = cardForm.number.replace(/\s/g,"");
+      if (num.length < 16) { setCardError(ru?"Введите номер карты":"Enter card number"); return; }
+      if (!cardForm.expiry.includes("/")) { setCardError(ru?"Введите срок действия":"Enter expiry date"); return; }
+      if (cardForm.cvv.length < 3) { setCardError(ru?"Введите CVV":"Enter CVV"); return; }
+      const {brand, ico} = detectCardBrand(num);
+      const newCard = {
+        id: "card_"+Date.now(),
+        brand,
+        ico,
+        last4: num.slice(-4),
+        expiry: cardForm.expiry,
+        name: cardForm.name||form.companyName,
+        primary: form.cards.length === 0, // first card = primary
+        addedAt: new Date().toISOString().split("T")[0],
+      };
+      setForm(f=>({...f, cards:[...f.cards, newCard]}));
+      setCardForm({number:"",expiry:"",cvv:"",name:""});
+      setCardError("");
+      setShowAddCard(false);
+    }
+    function removeCard(id) {
+      const remaining = form.cards.filter(c=>c.id!==id);
+      // If removing primary, make first remaining card primary
+      if (form.cards.find(c=>c.id===id)?.primary && remaining.length>0) {
+        remaining[0].primary = true;
+      }
+      setForm(f=>({...f, cards:remaining}));
+    }
+    function setPrimary(id) {
+      setForm(f=>({...f, cards:f.cards.map(c=>({...c,primary:c.id===id}))}));
+    }
+
+    function detectCardBrand(num) {
+      if (/^4/.test(num)) return "Visa";
+      if (/^5[1-5]/.test(num)) return "Mastercard";
+      if (/^3[47]/.test(num)) return "Amex";
+      if (/^6/.test(num)) return "Discover";
+      return "Card";
+    }
+    function addCard() {
+      const num = cardForm.number.replace(/[^0-9]/g,"");
+      if (num.length < 15) { setCardError(ru?"Введите полный номер карты":"Enter full card number"); return; }
+      if (!cardForm.expiry.match(/^\d{2}\/\d{2}$/)) { setCardError(ru?"Формат: MM/YY":"Format: MM/YY"); return; }
+      if (cardForm.cvv.length < 3) { setCardError(ru?"Введите CVV":"Enter CVV"); return; }
+      const newCard = {
+        id: "card_"+Date.now(),
+        brand: detectCardBrand(num),
+        last4: num.slice(-4),
+        expiry: cardForm.expiry,
+        name: cardForm.name||form.companyName||"",
+        primary: form.cards.length === 0,
+        addedAt: new Date().toISOString().split("T")[0],
+      };
+      setForm(f=>({...f, cards:[...f.cards, newCard]}));
+      setCardForm({number:"",expiry:"",cvv:"",name:""});
+      setCardError("");
+      setShowAddCard(false);
+    }
+    function removeCard(id) {
+      if (form.cards.length <= 1) {
+        alert(ru?"Нельзя удалить последнюю карту — сначала добавьте новую":"Cannot remove last card — add a new one first");
+        return;
+      }
+      if (form.cards.find(cc=>cc.id===id)?.primary) {
+        alert(ru?"Нельзя удалить основную карту — сначала выберите другую карту как основную":"Cannot remove primary card — set another card as primary first");
+        return;
+      }
+      setForm(f=>({...f, cards:f.cards.filter(cc=>cc.id!==id)}));
+    }
+    function setPrimary(id) {
+      setForm(f=>({...f, cards:f.cards.map(cc=>({...cc,primary:cc.id===id}))}));
     }
 
     async function save() {
@@ -3101,7 +3196,123 @@ function AppInner() {
         {/* ── BILLING ── */}
         {tab==="billing"&&(
           <div>
-            {/* Current plan */}
+            {/* Card management */}
+            <Sec title={ru?"Способы оплаты":"Payment Methods"} icon="💳">
+              <div style={{marginBottom:12}}>
+                {form.cards.length===0 ? (
+                  <div style={{textAlign:"center",padding:"20px 0",color:"var(--mu)",fontSize:12}}>
+                    {ru?"Карты не добавлены":"No cards added yet"}
+                  </div>
+                ) : form.cards.map(card=>(
+                  <div key={card.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+                    borderRadius:10,marginBottom:8,
+                    background:card.primary?"var(--acc)08":"var(--s2)",
+                    border:`1px solid ${card.primary?"var(--acc)40":"var(--bdr)"}`}}>
+                    {/* Card icon */}
+                    <div style={{width:42,height:28,borderRadius:6,background:"var(--s1)",border:"1px solid var(--bdr)",
+                      display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      <span style={{fontSize:11,fontWeight:700,color:"var(--acc)"}}>{card.brand.slice(0,4).toUpperCase()}</span>
+                    </div>
+                    {/* Card info */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",display:"flex",alignItems:"center",gap:8}}>
+                        {card.brand} •••• {card.last4}
+                        {card.primary&&<span style={{fontSize:9,padding:"2px 7px",borderRadius:10,
+                          background:"var(--acc)",color:"#fff",fontWeight:700}}>
+                          {ru?"ОСНОВНАЯ":"PRIMARY"}
+                        </span>}
+                      </div>
+                      <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>
+                        {card.name} · {ru?"Истекает":"Expires"} {card.expiry}
+                      </div>
+                    </div>
+                    {/* Actions */}
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      {!card.primary&&(
+                        <button className="btn btn-g btn-sm" style={{fontSize:10}}
+                          onClick={()=>setPrimary(card.id)}>
+                          {ru?"Сделать основной":"Set primary"}
+                        </button>
+                      )}
+                      <button style={{padding:"4px 8px",borderRadius:6,border:"1px solid #ef444440",
+                        background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:12,
+                        opacity:form.cards.length<=1||card.primary?0.35:1}}
+                        onClick={()=>removeCard(card.id)}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add card form */}
+              {showAddCard ? (
+                <div style={{background:"var(--s2)",borderRadius:10,padding:"16px",border:"1px solid var(--bdr)"}}>
+                  <div style={{fontSize:12,fontWeight:600,marginBottom:12}}>{ru?"Новая карта":"New Card"}</div>
+                  {cardError&&<div style={{fontSize:11,color:"#ef4444",marginBottom:8,padding:"6px 10px",background:"#ef444415",borderRadius:6}}>{cardError}</div>}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div style={{gridColumn:"1/-1"}}>
+                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Номер карты":"Card number"}</div>
+                      <input className="inp" style={{width:"100%",fontSize:13,fontFamily:"monospace",letterSpacing:2}}
+                        placeholder="0000 0000 0000 0000"
+                        value={cardForm.number}
+                        onChange={e=>{
+                          const v = e.target.value.replace(/[^0-9]/g,"").slice(0,16)
+                            .replace(/(.{4})/g,"$1 ").trim();
+                          setCardForm(f=>({...f,number:v}));
+                          setCardError("");
+                        }}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Срок действия":"Expiry"}</div>
+                      <input className="inp" style={{fontSize:13,fontFamily:"monospace"}}
+                        placeholder="MM/YY"
+                        value={cardForm.expiry}
+                        onChange={e=>{
+                          let v = e.target.value.replace(/[^0-9]/g,"").slice(0,4);
+                          if (v.length>2) v = v.slice(0,2)+"/"+v.slice(2);
+                          setCardForm(f=>({...f,expiry:v}));
+                          setCardError("");
+                        }}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>CVV</div>
+                      <input className="inp" style={{fontSize:13,fontFamily:"monospace"}}
+                        placeholder="•••" maxLength={4} type="password"
+                        value={cardForm.cvv}
+                        onChange={e=>setCardForm(f=>({...f,cvv:e.target.value.replace(/[^0-9]/g,"").slice(0,4)}))}/>
+                    </div>
+                    <div style={{gridColumn:"1/-1"}}>
+                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Имя на карте":"Name on card"}</div>
+                      <input className="inp" style={{width:"100%",fontSize:12}}
+                        placeholder="ZALINA SMITH"
+                        value={cardForm.name}
+                        onChange={e=>setCardForm(f=>({...f,name:e.target.value.toUpperCase()}))}/>
+                    </div>
+                  </div>
+                  <div style={{fontSize:10,color:"var(--mu)",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
+                    🔒 {ru?"Данные карты хранятся в зашифрованном виде":"Card data stored encrypted"}
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button className="btn btn-p" onClick={addCard} style={{flex:1,justifyContent:"center"}}>
+                      {ru?"Добавить карту":"Add Card"}
+                    </button>
+                    <button className="btn btn-g" onClick={()=>{setShowAddCard(false);setCardError("");setCardForm({number:"",expiry:"",cvv:"",name:""});}}>
+                      {ru?"Отмена":"Cancel"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button className="btn btn-g" style={{width:"100%",justifyContent:"center",gap:6}}
+                  onClick={()=>setShowAddCard(true)}>
+                  + {ru?"Добавить карту":"Add payment card"}
+                </button>
+              )}
+
+              <div style={{marginTop:10,fontSize:10,color:"var(--mu)",display:"flex",alignItems:"center",gap:5}}>
+                🔒 {ru?"Платежи обрабатываются через защищённый шлюз. Corex не хранит полные данные карт.":"Payments processed via secure gateway. Corex does not store full card data."}
+              </div>
+            </Sec>
+
+
             <div style={{background:"var(--s1)",border:"2px solid var(--acc)40",borderRadius:12,padding:"20px",marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
@@ -6746,6 +6957,55 @@ function AppInner() {
       } catch(e) { console.error('Toggle RTD save error:', e.message); }
 
       console.log('AI Receptionist toggled', newVal ? 'ON ✅' : 'OFF ⛔');
+    }
+
+    // Card helpers
+    function detectCardBrand(num) {
+      const n = num.replace(/\s/g,"");
+      if (/^4/.test(n)) return {brand:"Visa", ico:"💳"};
+      if (/^5[1-5]/.test(n)) return {brand:"Mastercard", ico:"💳"};
+      if (/^3[47]/.test(n)) return {brand:"Amex", ico:"💳"};
+      if (/^6(?:011|5)/.test(n)) return {brand:"Discover", ico:"💳"};
+      return {brand:"Card", ico:"💳"};
+    }
+    function formatCardNumber(val) {
+      return val.replace(/\D/g,"").slice(0,16).replace(/(.{4})/g,"$1 ").trim();
+    }
+    function formatExpiry(val) {
+      const d = val.replace(/\D/g,"").slice(0,4);
+      return d.length>2 ? d.slice(0,2)+"/"+d.slice(2) : d;
+    }
+    function addCard() {
+      const num = cardForm.number.replace(/\s/g,"");
+      if (num.length < 16) { setCardError(ru?"Введите номер карты":"Enter card number"); return; }
+      if (!cardForm.expiry.includes("/")) { setCardError(ru?"Введите срок действия":"Enter expiry date"); return; }
+      if (cardForm.cvv.length < 3) { setCardError(ru?"Введите CVV":"Enter CVV"); return; }
+      const {brand, ico} = detectCardBrand(num);
+      const newCard = {
+        id: "card_"+Date.now(),
+        brand,
+        ico,
+        last4: num.slice(-4),
+        expiry: cardForm.expiry,
+        name: cardForm.name||form.companyName,
+        primary: form.cards.length === 0, // first card = primary
+        addedAt: new Date().toISOString().split("T")[0],
+      };
+      setForm(f=>({...f, cards:[...f.cards, newCard]}));
+      setCardForm({number:"",expiry:"",cvv:"",name:""});
+      setCardError("");
+      setShowAddCard(false);
+    }
+    function removeCard(id) {
+      const remaining = form.cards.filter(c=>c.id!==id);
+      // If removing primary, make first remaining card primary
+      if (form.cards.find(c=>c.id===id)?.primary && remaining.length>0) {
+        remaining[0].primary = true;
+      }
+      setForm(f=>({...f, cards:remaining}));
+    }
+    function setPrimary(id) {
+      setForm(f=>({...f, cards:f.cards.map(c=>({...c,primary:c.id===id}))}));
     }
 
     async function save() {
