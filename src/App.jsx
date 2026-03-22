@@ -2181,9 +2181,51 @@ function AppInner() {
       if (platformPage === "platform_settings") {
         return (
           <div>
-            <div style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:17,marginBottom:20}}>{ru?"Белый лейбл":"White Label"}</div>
-            <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:24,color:"var(--mu)",fontSize:13,textAlign:"center"}}>
-              🏷️ {ru?"Настройки белого лейбла для партнёров — в разработке":"White label settings for partners — coming soon"}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:16}}>{ru?"Брендинг платформы":"Platform Branding"}</div>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{ru?"Название":"Name"}</div>
+                  <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13,fontWeight:600}}>Corex</div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{ru?"Домен":"Domain"}</div>
+                  <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13}}>corexos.app</div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:8}}>{ru?"Основной цвет":"Primary Color"}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:32,height:32,borderRadius:8,background:"#4F8FFF",border:"1px solid var(--bdr)",flexShrink:0}}/>
+                    <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13,fontFamily:"monospace"}}>#4F8FFF — Corex Blue</div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:8}}>{ru?"Акцентный цвет":"Accent Color"}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:32,height:32,borderRadius:8,background:"#00E5C0",border:"1px solid var(--bdr)",flexShrink:0}}/>
+                    <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13,fontFamily:"monospace"}}>#00E5C0 — Core Teal</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:16}}>{ru?"Настройки партнёров":"Partner Settings"}</div>
+                {[
+                  {label:ru?"Партнёры могут загрузить логотип":"Partners can upload logo", enabled:true},
+                  {label:ru?"Партнёры могут менять акцентный цвет":"Partners can change accent", enabled:false},
+                  {label:ru?"Скрыть логотип Corex":"Hide Corex logo", enabled:false},
+                  {label:ru?"Кастомный домен партнёра":"Partner custom domain", enabled:false},
+                ].map(({label,enabled},i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid var(--bdr)"}}>
+                    <span style={{fontSize:12,color:"var(--tx)"}}>{label}</span>
+                    <div style={{width:36,height:20,borderRadius:10,background:enabled?"var(--acc)":"var(--s2)",position:"relative",flexShrink:0,cursor:"not-allowed",opacity:.8}}>
+                      <div style={{position:"absolute",top:2,left:enabled?18:2,width:16,height:16,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 3px #0003"}}/>
+                    </div>
+                  </div>
+                ))}
+                <div style={{marginTop:14,padding:"10px 14px",background:"var(--acc)10",border:"1px solid var(--acc)30",borderRadius:8,fontSize:11,color:"var(--mu)",lineHeight:1.6}}>
+                  💡 {ru?"Кастомный домен и полное скрытие брендинга Corex — доступно в Enterprise плане ($497/mo)":"Custom domain and full branding removal available on Enterprise plan ($497/mo)"}
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -2253,30 +2295,7 @@ function AppInner() {
             </div>
           </div>
 
-          {/* Module usage */}
-          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"16px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{fontSize:12,fontWeight:700}}>{ru?"Использование модулей":"Module usage"}</div>
-              <button className="btn btn-g btn-sm" onClick={()=>setPlatformPage("platform_modules")}>{ru?"Подробнее →":"Details →"}</button>
-            </div>
-            {MODULE_KEYS.map(({key,label})=>{
-              const total = partners.length||1;
-              const usingCount = partners.filter(p=>{
-                const access = p.plan==="VIP"||p.plan==="Enterprise" ? ALL_SECTIONS.map(s=>s.id) : PLAN_SECTIONS[p.plan]||[];
-                return access.includes(key);
-              }).length;
-              const pct = Math.round((usingCount/total)*100);
-              return (
-                <div key={key} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                  <div style={{width:110,fontSize:11,color:"var(--mu)",flexShrink:0}}>{label}</div>
-                  <div style={{flex:1,height:6,background:"var(--s2)",borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:`${pct}%`,background:"var(--acc)",borderRadius:3}}/>
-                  </div>
-                  <div style={{fontSize:11,color:"var(--tx)",width:36,textAlign:"right",flexShrink:0,fontWeight:600}}>{pct}%</div>
-                </div>
-              );
-            })}
-          </div>
+
         </div>
       );
     };
