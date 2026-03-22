@@ -3243,7 +3243,7 @@ function AppInner() {
                 ))}
               </div>
 
-              {/* Add card form */}
+              {/* Add card form — uncontrolled inputs, read via DOM on submit */}
               {showAddCard ? (
                 <div style={{background:"var(--s2)",borderRadius:10,padding:"16px",border:"1px solid var(--bdr)"}}>
                   <div style={{fontSize:12,fontWeight:600,marginBottom:12}}>{ru?"Новая карта":"New Card"}</div>
@@ -3251,51 +3251,68 @@ function AppInner() {
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                     <div style={{gridColumn:"1/-1"}}>
                       <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Номер карты":"Card number"}</div>
-                      <input className="inp" style={{width:"100%",fontSize:13,fontFamily:"monospace",letterSpacing:2}}
-                        placeholder="0000 0000 0000 0000"
-                        value={cardForm.number}
-                        onChange={e=>{
-                          const v = e.target.value.replace(/[^0-9]/g,"").slice(0,16)
-                            .replace(/(.{4})/g,"$1 ").trim();
-                          setCardForm(f=>({...f,number:v}));
-                          setCardError("");
+                      <input id="ci-num" className="inp"
+                        style={{width:"100%",fontSize:13,fontFamily:"monospace",letterSpacing:1.5}}
+                        placeholder="0000 0000 0000 0000" maxLength={19}
+                        onInput={e=>{
+                          const raw=e.target.value.replace(/[^0-9]/g,"").slice(0,16);
+                          const fmt=raw.replace(/(.{4})/g,"$1 ").trim();
+                          const pos=e.target.selectionStart;
+                          e.target.value=fmt;
                         }}/>
                     </div>
                     <div>
                       <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Срок действия":"Expiry"}</div>
-                      <input className="inp" style={{fontSize:13,fontFamily:"monospace"}}
-                        placeholder="MM/YY"
-                        value={cardForm.expiry}
-                        onChange={e=>{
-                          let v = e.target.value.replace(/[^0-9]/g,"").slice(0,4);
-                          if (v.length>2) v = v.slice(0,2)+"/"+v.slice(2);
-                          setCardForm(f=>({...f,expiry:v}));
-                          setCardError("");
+                      <input id="ci-exp" className="inp"
+                        style={{width:"100%",fontSize:13,fontFamily:"monospace"}}
+                        placeholder="MM/YY" maxLength={5}
+                        onInput={e=>{
+                          const raw=e.target.value.replace(/[^0-9]/g,"").slice(0,4);
+                          e.target.value=raw.length>2?raw.slice(0,2)+"/"+raw.slice(2):raw;
                         }}/>
                     </div>
                     <div>
                       <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>CVV</div>
-                      <input className="inp" style={{fontSize:13,fontFamily:"monospace"}}
+                      <input id="ci-cvv" className="inp"
+                        style={{width:"100%",fontSize:13,fontFamily:"monospace"}}
                         placeholder="•••" maxLength={4} type="password"
-                        value={cardForm.cvv}
-                        onChange={e=>setCardForm(f=>({...f,cvv:e.target.value.replace(/[^0-9]/g,"").slice(0,4)}))}/>
+                        onInput={e=>{e.target.value=e.target.value.replace(/[^0-9]/g,"").slice(0,4);}}/>
                     </div>
                     <div style={{gridColumn:"1/-1"}}>
-                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Имя на карте":"Name on card"}</div>
-                      <input className="inp" style={{width:"100%",fontSize:12}}
-                        placeholder="ZALINA SMITH"
-                        value={cardForm.name}
-                        onChange={e=>setCardForm(f=>({...f,name:e.target.value.toUpperCase()}))}/>
+                      <div style={{fontSize:10,color:"var(--mu)",marginBottom:4}}>{ru?"Имя на карте":"Cardholder name"}</div>
+                      <input id="ci-name" className="inp"
+                        style={{width:"100%",fontSize:12}}
+                        placeholder={ru?"ИВАН ИВАНОВ":"JOHN SMITH"}
+                        onInput={e=>{e.target.value=e.target.value.toUpperCase();}}/>
                     </div>
                   </div>
                   <div style={{fontSize:10,color:"var(--mu)",marginBottom:12,display:"flex",alignItems:"center",gap:5}}>
-                    🔒 {ru?"Данные карты хранятся в зашифрованном виде":"Card data stored encrypted"}
+                    🔒 {ru?"CVV не сохраняется — только последние 4 цифры карты":"CVV is never stored — only last 4 digits kept"}
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button className="btn btn-p" onClick={addCard} style={{flex:1,justifyContent:"center"}}>
+                    <button className="btn btn-p" style={{flex:1,justifyContent:"center"}}
+                      onClick={()=>{
+                        const num=(document.getElementById("ci-num")?.value||"").replace(/[^0-9]/g,"");
+                        const exp=document.getElementById("ci-exp")?.value||"";
+                        const cvv=document.getElementById("ci-cvv")?.value||"";
+                        const name=document.getElementById("ci-name")?.value||"";
+                        if(num.length<15){setCardError(ru?"Введите номер карты (15-16 цифр)":"Enter card number (15-16 digits)");return;}
+                        if(!exp.match(/^\d{2}\/\d{2}$/)){setCardError(ru?"Срок: MM/YY":"Expiry: MM/YY");return;}
+                        const mm=+exp.split("/")[0];
+                        if(mm<1||mm>12){setCardError(ru?"Неверный месяц":"Invalid month");return;}
+                        if(cvv.length<3){setCardError("CVV: 3-4 "+( ru?"цифры":"digits"));return;}
+                        const brand=detectCardBrand(num);
+                        const card={id:"card_"+Date.now(),brand,last4:num.slice(-4),expiry:exp,
+                          name:name||"",primary:form.cards.length===0,
+                          addedAt:new Date().toISOString().split("T")[0]};
+                        setForm(f=>({...f,cards:[...f.cards,card]}));
+                        setCardError("");setShowAddCard(false);
+                        ["ci-num","ci-exp","ci-cvv","ci-name"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+                      }}>
                       {ru?"Добавить карту":"Add Card"}
                     </button>
-                    <button className="btn btn-g" onClick={()=>{setShowAddCard(false);setCardError("");setCardForm({number:"",expiry:"",cvv:"",name:""});}}>
+                    <button className="btn btn-g"
+                      onClick={()=>{setShowAddCard(false);setCardError("");}}>
                       {ru?"Отмена":"Cancel"}
                     </button>
                   </div>
