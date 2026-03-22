@@ -1319,6 +1319,10 @@ function AppInner() {
   const [crmTranscripts, setCrmTranscripts] = useState({}); // { recordingSid: {lines, language, text} }
   const [crmTranscribing, setCrmTranscribing] = useState({}); // { recordingSid: bool }
   const [crmSmsText, setCrmSmsText] = useState("");
+  const [chatInput,  setChatInput]  = useState("");
+  const [smsModal,   setSmsModal]   = useState(null);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsLog,     setSmsLog]     = useState({});
   // CRM contact modal — lifted to survive re-renders
   const [crmCModal, setCrmCModal] = useState(false); // false | true (new) | contactId (edit)
   const [crmCF, setCrmCF] = useState({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
@@ -1345,6 +1349,17 @@ function AppInner() {
   const [dashCalMonth,   setDashCalMonth]   = useState(new Date());
   const [dashLogoInput,  setDashLogoInput]  = useState("");
   const [dashLogoEdit,   setDashLogoEdit]   = useState(false);
+  // ── Booking popup states — lifted to App level to survive re-renders ──
+  const [popupBk,     setPopupBk]   = useState(null);
+  const [showBkForm,  setBkForm]    = useState(false);
+  const [showClForm,  setClForm]    = useState(false);
+  const [showCrForm,  setCrForm]    = useState(false);
+  const [viewDate,    setViewDate]  = useState(new Date());
+  const [editClId,    setEditClId]  = useState(null);
+  const [editCrId,    setEditCrId]  = useState(null);
+  const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0,priceOverride:null,durOverride:null,cleanerCount:1};
+  const [bkF,  setBkF]  = useState(defBkF);
+  const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
   // Dept / workspace state — persisted so page refresh keeps position
   const [selDeptId,      setSelDeptId]      = useState(()=>localStorage.getItem("nls_selDept")||null);
   // HR Workspace lifted state
@@ -1469,7 +1484,7 @@ function AppInner() {
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
 
-  // ── Sync AI bookings from RTDB (via secure API, no re-render if nothing new) ──
+  // ── Sync AI bookings from RTDB (only triggers re-render when new bookings found) ──
   useEffect(()=>{
     if (fbLoading) return;
     async function syncAiBookings() {
@@ -4507,7 +4522,6 @@ function AppInner() {
 
     const curCh = channels.find(c=>c.id===chatChannel)||channels[0];
     const [showChSb, setShowChSb] = useState(false);
-    const [chatInput, setChatInput] = useState("");
 
     function sendChat() {
       if (!chatInput.trim()) return;
@@ -5692,9 +5706,7 @@ function AppInner() {
     const [stageFilter,setStageFilter]= useState("all");
     const [tagMgr,     setTagMgr]     = useState(false);
     const [newTag,     setNewTag]     = useState({name:"",color:"#f0a500"});
-    const [smsModal,   setSmsModal]   = useState(null);
-    const [smsSending, setSmsSending] = useState(false);
-    const [smsLog,     setSmsLog]     = useState({});
+    // smsModal, smsSending, smsLog lifted to App level
     const [aiSorting,  setAiSorting]  = useState(false);
     // Campaigns
     const [campF,      setCampF]      = useState({name:"",audienceType:"stage",audienceValue:"lost",msgTemplate:"",delayDays:"0"});
@@ -7060,21 +7072,11 @@ function AppInner() {
     // ── State ──
     const tab    = bookingTab;
     const setTab = setBookingTab;
-    const [calView,     setCalView]   = useState("week"); // "month" | "week"
-    const [viewDate,    setViewDate]  = useState(new Date());
-    const [popupBk,     setPopupBk]   = useState(null);  // quick-view popup
-    const [showBkForm,  setBkForm]    = useState(false);
-    const [showClForm,  setClForm]    = useState(false); // client form
-    // CSV import state lifted to AppInner
-    const [editClId,    setEditClId]  = useState(null);
-    const [showCrForm,  setCrForm]    = useState(false); // cleaner form
-    const [editCrId,    setEditCrId]  = useState(null);
+    const [calView,     setCalView]   = useState("month"); // always month view
     const [cleanerFilter, setCleanerFilter] = useState(""); // "" = all
     const [clientSearch,  setClientSearch]  = useState("");
     const [settingsTab,   setSettTab]       = useState("smart");
-    const defBkF = {id:null,clientId:"",cleanerId:"",date:"",time:"09:00",cleanType:"standard",beds:2,baths:1,addons:[],notes:"",status:"pending",price:0,frequency:"once",tip:0,tipType:"$",parking:0,paymentMethod:"cc",salesTax:0,priceOverride:null,durOverride:null,cleanerCount:1};
-    const [bkF,  setBkF]  = useState(defBkF);
-    const [clF,  setClF]  = useState({name:"",phone:"",email:"",address:"",city:"",notes:""});
+    // bkF, clF, popupBk etc. lifted to App level
 
     // ── SettingsPanel state — lifted here to survive re-renders ──
     const SETT_SIZE = 10;
@@ -7676,7 +7678,7 @@ function AppInner() {
               </div>
               {bk.notes&&<div style={{fontSize:11,color:"var(--mu)",marginTop:10,padding:"6px 10px",background:"var(--s2)",borderRadius:7}}>📝 {bk.notes}</div>}
               {isAiBooking&&<div style={{marginTop:10,padding:"8px 12px",background:"#ec489912",border:"1px solid #ec489930",borderRadius:8,fontSize:11,color:"#ec4899"}}>
-                🤖 {lang==="ru"?"Заявка создана AI-рецепционистом. Свяжитесь с клиентом для подтверждения деталей.":"Created by AI Receptionist. Contact the client to confirm details."}
+                🤖 {lang==="ru"?"Заявка создана AI-рецепционистом. Свяжитесь с клиентом для подтверждения.":"Created by AI Receptionist. Contact client to confirm details."}
               </div>}
             </div>
 
@@ -9121,19 +9123,11 @@ function AppInner() {
             <div style={{flex:1,minWidth:0}}>
               {/* Calendar controls */}
               <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
-                <button className="btn btn-g btn-sm" onClick={()=>{
-                  const d=new Date(viewDate);
-                  d.setMonth(d.getMonth()-1);
-                  setViewDate(d);
-                }}>‹</button>
+                <button className="btn btn-g btn-sm" onClick={()=>{const d=new Date(viewDate);d.setMonth(d.getMonth()-1);setViewDate(d);}}>‹</button>
                 <span style={{fontFamily:"'Sora',sans-serif",fontWeight:700,fontSize:15,minWidth:160,textAlign:"center"}}>
                   {`${MONTH_NAMES[mo]} ${yr}`}
                 </span>
-                <button className="btn btn-g btn-sm" onClick={()=>{
-                  const d=new Date(viewDate);
-                  d.setMonth(d.getMonth()+1);
-                  setViewDate(d);
-                }}>›</button>
+                <button className="btn btn-g btn-sm" onClick={()=>{const d=new Date(viewDate);d.setMonth(d.getMonth()+1);setViewDate(d);}}>›</button>
                 <button className="btn btn-g btn-sm" onClick={()=>setViewDate(new Date())}>{lang==="ru"?"Сегодня":"Today"}</button>
                 <button className="btn btn-p" style={{marginLeft:"auto"}} onClick={()=>{setBkF(defBkF);setBkForm(true);}}>+ {lang==="ru"?"Заявка":"Booking"}</button>
               </div>
