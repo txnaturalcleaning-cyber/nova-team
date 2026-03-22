@@ -2179,52 +2179,121 @@ function AppInner() {
       }
 
       if (platformPage === "platform_settings") {
-        return (
-          <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
-                <div style={{fontSize:12,fontWeight:700,marginBottom:16}}>{ru?"Брендинг платформы":"Platform Branding"}</div>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{ru?"Название":"Name"}</div>
-                  <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13,fontWeight:600}}>Corex</div>
-                </div>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:6}}>{ru?"Домен":"Domain"}</div>
-                  <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13}}>corexos.app</div>
-                </div>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:8}}>{ru?"Основной цвет":"Primary Color"}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{width:32,height:32,borderRadius:8,background:"#4F8FFF",border:"1px solid var(--bdr)",flexShrink:0}}/>
-                    <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13,fontFamily:"monospace"}}>#4F8FFF — Corex Blue</div>
-                  </div>
-                </div>
-                <div>
-                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:8}}>{ru?"Акцентный цвет":"Accent Color"}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{width:32,height:32,borderRadius:8,background:"#00E5C0",border:"1px solid var(--bdr)",flexShrink:0}}/>
-                    <div style={{padding:"8px 12px",background:"var(--s2)",borderRadius:8,fontSize:13,fontFamily:"monospace"}}>#00E5C0 — Core Teal</div>
-                  </div>
-                </div>
+        const WL_SECTION = ({title, children}) => (
+          <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"18px 20px",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.8,marginBottom:14}}>{title}</div>
+            {children}
+          </div>
+        );
+        const WL_ROW = ({label, desc, value, plan, tag}) => (
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--bdr)"}}>
+            <div style={{flex:1,minWidth:0,paddingRight:12}}>
+              <div style={{fontSize:12,color:"var(--tx)",fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
+                {label}
+                {plan&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:"var(--acc)18",color:"var(--acc)",fontWeight:700,flexShrink:0}}>{plan}</span>}
+                {tag&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:"var(--gr)18",color:"var(--gr)",fontWeight:700,flexShrink:0}}>{tag}</span>}
               </div>
-              <div style={{background:"var(--s1)",border:"1px solid var(--bdr)",borderRadius:12,padding:"20px"}}>
-                <div style={{fontSize:12,fontWeight:700,marginBottom:16}}>{ru?"Настройки партнёров":"Partner Settings"}</div>
-                {[
-                  {label:ru?"Партнёры могут загрузить логотип":"Partners can upload logo", enabled:true},
-                  {label:ru?"Партнёры могут менять акцентный цвет":"Partners can change accent", enabled:false},
-                  {label:ru?"Скрыть логотип Corex":"Hide Corex logo", enabled:false},
-                  {label:ru?"Кастомный домен партнёра":"Partner custom domain", enabled:false},
-                ].map(({label,enabled},i)=>(
-                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",borderBottom:"1px solid var(--bdr)"}}>
-                    <span style={{fontSize:12,color:"var(--tx)"}}>{label}</span>
-                    <div style={{width:36,height:20,borderRadius:10,background:enabled?"var(--acc)":"var(--s2)",position:"relative",flexShrink:0,cursor:"not-allowed",opacity:.8}}>
-                      <div style={{position:"absolute",top:2,left:enabled?18:2,width:16,height:16,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 3px #0003"}}/>
-                    </div>
-                  </div>
-                ))}
-                <div style={{marginTop:14,padding:"10px 14px",background:"var(--acc)10",border:"1px solid var(--acc)30",borderRadius:8,fontSize:11,color:"var(--mu)",lineHeight:1.6}}>
-                  💡 {ru?"Кастомный домен и полное скрытие брендинга Corex — доступно в Enterprise плане ($497/mo)":"Custom domain and full branding removal available on Enterprise plan ($497/mo)"}
+              {desc&&<div style={{fontSize:11,color:"var(--mu)",marginTop:2,lineHeight:1.4}}>{desc}</div>}
+            </div>
+            <div style={{flexShrink:0,fontSize:12,color:"var(--mu)",textAlign:"right"}}>{value}</div>
+          </div>
+        );
+        const WL_TOGGLE = ({label, desc, enabled, plan}) => (
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--bdr)"}}>
+            <div style={{flex:1,minWidth:0,paddingRight:16}}>
+              <div style={{fontSize:12,color:"var(--tx)",fontWeight:500,display:"flex",alignItems:"center",gap:6}}>
+                {label}
+                {plan&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:10,background:"var(--acc)18",color:"var(--acc)",fontWeight:700,flexShrink:0}}>{plan}</span>}
+              </div>
+              {desc&&<div style={{fontSize:11,color:"var(--mu)",marginTop:2,lineHeight:1.4}}>{desc}</div>}
+            </div>
+            <div style={{width:34,height:19,borderRadius:10,background:enabled?"var(--acc)":"var(--s2)",position:"relative",flexShrink:0,marginTop:2,
+              cursor:plan?"not-allowed":"pointer",opacity:plan?0.5:1}}>
+              <div style={{position:"absolute",top:2,left:enabled?16:2,width:15,height:15,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 3px #0003",transition:"left .15s"}}/>
+            </div>
+          </div>
+        );
+
+        return (
+          <div style={{maxWidth:860}}>
+            {/* 1. Identity */}
+            <WL_SECTION title={ru?"Идентичность платформы":"Platform Identity"}>
+              <WL_ROW label={ru?"Название платформы":"Platform name"} desc={ru?"Отображается в сайдбаре и письмах":"Shown in sidebar and emails"} value="Corex"/>
+              <WL_ROW label={ru?"Основной домен":"Main domain"} desc={ru?"Адрес куда заходят партнёры":"Address where partners log in"} value="corexos.app"/>
+              <WL_ROW label={ru?"Логотип":"Logo"} desc={ru?"SVG hex-логотип Corex":"Corex hex SVG logo"} value={
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+                    <polygon points="24,7 38,15.5 38,32.5 24,41 10,32.5 10,15.5" fill="none" stroke="#4f8fff" strokeWidth="1.5"/>
+                    <circle cx="24" cy="24" r="6" fill="#4f8fff"/>
+                    <circle cx="24" cy="7" r="2" fill="#00e5c0"/>
+                  </svg>
+                  <span style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:13}}>cor<span style={{color:"#4F8FFF"}}>ex</span></span>
                 </div>
+              }/>
+              <WL_ROW label={ru?"Основной цвет":"Primary color"} value={
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:18,height:18,borderRadius:4,background:"#4F8FFF",border:"1px solid var(--bdr)"}}/>
+                  <span style={{fontFamily:"monospace",fontSize:11}}>#4F8FFF</span>
+                </div>
+              }/>
+              <WL_ROW label={ru?"Акцентный цвет":"Accent color"} value={
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:18,height:18,borderRadius:4,background:"#00E5C0",border:"1px solid var(--bdr)"}}/>
+                  <span style={{fontFamily:"monospace",fontSize:11}}>#00E5C0</span>
+                </div>
+              }/>
+              <WL_ROW label={ru?"Шрифт":"Font"} value="Sora / DM Mono"/>
+            </WL_SECTION>
+
+            {/* 2. What partners can customize */}
+            <WL_SECTION title={ru?"Что могут настраивать партнёры":"What partners can customize"}>
+              <WL_TOGGLE label={ru?"Свой логотип":"Own logo"} desc={ru?"Партнёр загружает логотип компании — отображается в сайдбаре":"Partner uploads company logo — shown in sidebar"} enabled={true} tag="VIP+"/>
+              <WL_TOGGLE label={ru?"Свой акцентный цвет":"Own accent color"} desc={ru?"Партнёр выбирает цвет кнопок и акцентов":"Partner picks button and accent color"} enabled={true} tag="VIP+"/>
+              <WL_TOGGLE label={ru?"Своё название компании":"Own company name"} desc={ru?"Отображается вместо 'Corex' в шапке кабинета":"Shown instead of 'Corex' in cabinet header"} enabled={true}/>
+              <WL_TOGGLE label={ru?"Скрыть 'Powered by Corex'":"Hide 'Powered by Corex'"} desc={ru?"Убрать упоминание Corex из интерфейса партнёра":"Remove Corex mention from partner UI"} enabled={false} plan="Enterprise"/>
+              <WL_TOGGLE label={ru?"Кастомный домен":"Custom domain"} desc={ru?"Партнёр заходит по своему домену (app.myclean.com)":"Partner accesses via own domain (app.myclean.com)"} enabled={false} plan="Enterprise"/>
+            </WL_SECTION>
+
+            {/* 3. Communications */}
+            <WL_SECTION title={ru?"Коммуникации с клиентами":"Client Communications"}>
+              <WL_ROW label={ru?"Отправитель SMS":"SMS sender name"} desc={ru?"Имя отправителя в SMS клиентам партнёра":"Sender name in SMS to partner's clients"} value={ru?"Имя компании партнёра":"Partner company name"}/>
+              <WL_TOGGLE label={ru?"SMS-подтверждения бронирований":"Booking confirmation SMS"} desc={ru?"Автоматическая отправка SMS после создания брони":"Auto SMS after booking creation"} enabled={true}/>
+              <WL_TOGGLE label={ru?"SMS-напоминания о визите":"Visit reminder SMS"} desc={ru?"За 24 часа до уборки":"24 hours before the cleaning"} enabled={true}/>
+              <WL_TOGGLE label={ru?"SMS после завершения уборки":"Post-cleaning SMS"} desc={ru?"Запрос отзыва после визита клинера":"Review request after cleaner visit"} enabled={true}/>
+              <WL_ROW label={ru?"AI рецепционист":"AI Receptionist"} desc={ru?"Имя AI-агента настраивается каждым партнёром в разделе AI Ресепшн":"AI agent name set per partner in AI Receptionist section"} value={ru?"Настраивается":"Configurable"}/>
+            </WL_SECTION>
+
+            {/* 4. Booking page */}
+            <WL_SECTION title={ru?"Страница бронирования":"Booking Page"}>
+              <WL_TOGGLE label={ru?"Онлайн-форма бронирования":"Online booking form"} desc={ru?"Публичная ссылка на форму бронирования партнёра":"Public booking form link for partner's clients"} enabled={true}/>
+              <WL_ROW label={ru?"URL формы":"Form URL"} desc={ru?"Пример для Natural Cleaning Experts":"Example for Natural Cleaning Experts"} value="naturalcleaning4u.com/booking-form-texas"/>
+              <WL_TOGGLE label={ru?"Чекбокс согласия на SMS (A2P)":"SMS consent checkbox (A2P)"} desc={ru?"Обязательный чекбокс для регуляторного соответствия Twilio":"Required checkbox for Twilio A2P compliance"} enabled={true} tag={ru?"Обязательно":"Required"}/>
+              <WL_TOGGLE label={ru?"Логотип на странице бронирования":"Logo on booking page"} desc={ru?"Логотип компании партнёра на форме":"Partner company logo on the booking form"} enabled={true}/>
+            </WL_SECTION>
+
+            {/* 5. Plans */}
+            <div style={{background:"var(--acc)08",border:"1px solid var(--acc)25",borderRadius:12,padding:"16px 20px"}}>
+              <div style={{fontSize:12,fontWeight:700,marginBottom:10,color:"var(--acc)"}}>{ru?"Возможности по планам":"Features by Plan"}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                {[
+                  {plan:"Basic", price:"$97", features:[ru?"Логотип":"Logo",ru?"Название":"Name","SMS"]},
+                  {plan:"Pro",   price:"$197", features:[ru?"Всё в Basic":"All Basic",ru?"Цвет акцента":"Accent color","AI рецепшн"]},
+                  {plan:"VIP",   price:"$297", features:[ru?"Всё в Pro":"All Pro","SOPs","White Label брендинг"]},
+                  {plan:"Enterprise", price:"$497", features:[ru?"Всё в VIP":"All VIP",ru?"Кастомный домен":"Custom domain",ru?"Скрыть Corex":"Hide Corex"]},
+                ].map(({plan,price,features})=>{
+                  const pc = {Basic:"var(--mu)",Pro:"var(--gr)",VIP:"var(--acc)",Enterprise:"#00E5C0"}[plan];
+                  return (
+                    <div key={plan} style={{background:"var(--s1)",borderRadius:10,padding:"12px 14px",borderTop:`2px solid ${pc}`}}>
+                      <div style={{fontSize:10,fontWeight:700,color:pc,marginBottom:2}}>{plan}</div>
+                      <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:15,color:"var(--tx)",marginBottom:8}}>{price}<span style={{fontSize:10,fontWeight:400,color:"var(--mu)"}}>/mo</span></div>
+                      {features.map(f=>(
+                        <div key={f} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4,fontSize:11,color:"var(--mu)"}}>
+                          <span style={{color:pc,fontSize:10}}>✓</span>{f}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
