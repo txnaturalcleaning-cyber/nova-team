@@ -1324,10 +1324,6 @@ function AppInner() {
   const [smsModal,   setSmsModal]   = useState(null);
   const [smsSending, setSmsSending] = useState(false);
   const [smsLog,     setSmsLog]     = useState({});
-  const [chatInput,  setChatInput]  = useState("");
-  const [smsModal,   setSmsModal]   = useState(null);
-  const [smsSending, setSmsSending] = useState(false);
-  const [smsLog,     setSmsLog]     = useState({});
   // CRM contact modal — lifted to survive re-renders
   const [crmCModal, setCrmCModal] = useState(false); // false | true (new) | contactId (edit)
   const [crmCF, setCrmCF] = useState({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
