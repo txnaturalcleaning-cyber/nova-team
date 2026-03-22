@@ -4533,8 +4533,10 @@ function AppInner() {
     const [showChSb, setShowChSb] = useState(false);
 
     function sendChat() {
-      if (!chatInput.trim()) return;
-      pushMsg({ type:"text", text:chatInput.trim() });
+      const val = window._chatRef?.value || chatInput;
+      if (!val.trim()) return;
+      pushMsg({ type:"text", text:val.trim() });
+      if (window._chatRef) window._chatRef.value = "";
       setChatInput("");
     }
 
@@ -4672,8 +4674,8 @@ function AppInner() {
               {/* Text input */}
               <input className="chat-inp"
                 placeholder={t.typeMessage}
-                value={chatInput}
-                onChange={e=>setChatInput(e.target.value)}
+                ref={el=>{if(el)window._chatRef=el;}}
+                defaultValue=""
                 onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat();}}}
                 style={{flex:1}}/>
               <button className="btn btn-p" style={{flexShrink:0,padding:"8px 13px"}} onClick={sendChat}>{IC.send}</button>
@@ -6220,29 +6222,31 @@ function AppInner() {
             {/* Quick templates */}
             <div style={{padding:"8px 16px 0",display:"flex",gap:5,overflowX:"auto",flexShrink:0}}>
               {["Thanks for your interest!","Cleaning scheduled ✓","Can we help you?","We will be in touch soon!"].map((tmpl,i)=>(
-                <button key={i} onClick={()=>setSmsText(tmpl)} style={{fontSize:10,padding:"3px 10px",borderRadius:20,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",whiteSpace:"nowrap",cursor:"pointer",flexShrink:0}}>{tmpl}</button>
+                <button key={i} onClick={()=>{if(window._smsRef)window._smsRef.value=tmpl;}} style={{fontSize:10,padding:"3px 10px",borderRadius:20,border:"1px solid var(--bdr)",background:"var(--s1)",color:"var(--mu)",whiteSpace:"nowrap",cursor:"pointer",flexShrink:0}}>{tmpl}</button>
               ))}
             </div>
 
             {/* Input area */}
             <div style={{padding:12,borderTop:"1px solid var(--bdr)",flexShrink:0,background:"var(--s1)"}}>
               <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-                <textarea value={smsText} onChange={e=>setSmsText(e.target.value)}
+                <textarea ref={el=>{if(el&&el!==window._smsRef)window._smsRef=el;}}
+                  defaultValue=""
                   style={{flex:1,minHeight:44,maxHeight:120,resize:"none",padding:"10px 14px",borderRadius:12,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",fontSize:13,lineHeight:1.5,fontFamily:"inherit"}}
                   placeholder={openContact.phone?(lang==="ru"?"Написать SMS...":"Write SMS..."):(lang==="ru"?"Нет номера телефона":"No phone number")}
                   disabled={!openContact.phone}
-                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&openContact.phone){e.preventDefault();if(smsText.trim())sendSMS(openContact.id,openContact.phone,smsText);}}}/>
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&openContact.phone){e.preventDefault();const v=window._smsRef?.value||"";if(v.trim()){sendSMS(openContact.id,openContact.phone,v);if(window._smsRef)window._smsRef.value="";}}}
+                  }/>
                 <div style={{display:"flex",flexDirection:"column",gap:5}}>
                   {openContact.phone?(
-                    <button onClick={()=>sendSMS(openContact.id,openContact.phone,smsText)}
-                      disabled={smsSending||!smsText.trim()}
-                      style={{padding:"10px 16px",borderRadius:10,border:"none",background:(!smsSending&&smsText.trim())?"var(--acc)":"var(--s2)",color:(!smsSending&&smsText.trim())?"#fff":"var(--mu)",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>
+                    <button onClick={()=>{const v=window._smsRef?.value||"";if(v.trim()){sendSMS(openContact.id,openContact.phone,v);if(window._smsRef)window._smsRef.value="";}}}
+                      disabled={smsSending}
+                      style={{padding:"10px 16px",borderRadius:10,border:"none",background:!smsSending?"var(--acc)":"var(--s2)",color:!smsSending?"#fff":"var(--mu)",cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>
                       {smsSending?"⏳":<>{IC.sms} SMS</>}
                     </button>
                   ):<div style={{fontSize:10,color:"var(--mu)",padding:"4px 8px"}}>No phone</div>}
                 </div>
               </div>
-              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>{smsText.length} chars · Enter = SMS</div>
+              <div style={{fontSize:10,color:"var(--mu2)",marginTop:4}}>Enter = отправить SMS</div>
             </div>
           </div>
         </div>
