@@ -2049,7 +2049,10 @@ function AppInner() {
                       <div style={{fontSize:11,color:"var(--mu)"}}>{p.id} · {ru?"создан":"created"} {p.createdAt||"—"}</div>
                     </div>
                     <div style={{fontSize:11,fontWeight:700,color:pc,padding:"3px 10px",borderRadius:20,border:`1px solid ${pc}40`,flexShrink:0}}>{p.plan||"Trial"}</div>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--gr)",flexShrink:0}}>${price}/mo</div>
+                    {p.id==="nce_main"||p.isOwner
+                      ? <div style={{fontSize:10,fontWeight:700,color:"#00E5C0",padding:"3px 10px",borderRadius:20,border:"1px solid #00E5C040",flexShrink:0}}>OWNER</div>
+                      : <div style={{fontSize:12,fontWeight:600,color:"var(--gr)",flexShrink:0}}>${price}/mo</div>
+                    }
                     <div style={{width:8,height:8,borderRadius:"50%",background:p.status==="blocked"?"#ef4444":"#22c55e",flexShrink:0}}/>
                     <button className="btn btn-g btn-sm" style={{flexShrink:0}} onClick={()=>{setViewPartner(p);setSaMode("workspace");setPage("dashboard");}}>
                       {ru?"Открыть":"Open"} →
