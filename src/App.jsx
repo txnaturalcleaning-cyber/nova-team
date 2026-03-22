@@ -2539,6 +2539,29 @@ function AppInner() {
       allowOnlineBooking:   p.allowOnlineBooking!==false,
       bookingFormUrl:    p.bookingFormUrl||"",
       hideCorexBranding: p.hideCorexBranding||false,
+      // Invoice settings
+      acceptCC:          p.acceptCC!==false,
+      acceptACH:         p.acceptACH||false,
+      acceptZelle:       p.acceptZelle||false,
+      acceptCash:        p.acceptCash!==false,
+      acceptVenmo:       p.acceptVenmo||false,
+      tippingEnabled:    p.tippingEnabled!==false,
+      tippingPercents:   p.tippingPercents||[10,15,20],
+      invoiceReminders:  p.invoiceReminders!==false,
+      invoiceReminderDays: p.invoiceReminderDays||7,
+      invoiceFooter:     p.invoiceFooter||"",
+      termsUrl:          p.termsUrl||"",
+      // Notifications matrix
+      notifs: p.notifs||{
+        new_booking:    {email:true, sms:true,  push:true,  recipients:"owner"},
+        booking_cancel: {email:true, sms:false, push:true,  recipients:"owner"},
+        missed_call:    {email:false,sms:true,  push:true,  recipients:"owner"},
+        new_lead:       {email:true, sms:true,  push:true,  recipients:"owner"},
+        payment_recv:   {email:true, sms:false, push:true,  recipients:"owner"},
+        cleaner_arrive: {email:false,sms:true,  push:false, recipients:"client"},
+        job_complete:   {email:true, sms:true,  push:false, recipients:"client"},
+        review_request: {email:false,sms:true,  push:false, recipients:"client"},
+      },
     });
 
     // Logo file upload → base64
@@ -2634,11 +2657,14 @@ function AppInner() {
     );
 
     const TABS = [
-      {k:"company",  l:ru?"Компания":"Company",       ico:"🏢"},
-      {k:"hours",    l:ru?"Часы работы":"Hours",       ico:"🕐"},
-      {k:"booking",  l:ru?"Бронирование":"Booking",   ico:"📅"},
-      {k:"comms",    l:ru?"Уведомления":"Notifications",ico:"🔔"},
-      {k:"branding", l:ru?"Брендинг":"Branding",      ico:"🎨"},
+      {k:"company",  l:ru?"Компания":"Company",          ico:"🏢"},
+      {k:"hours",    l:ru?"Часы работы":"Hours",          ico:"🕐"},
+      {k:"booking",  l:ru?"Бронирование":"Booking",      ico:"📅"},
+      {k:"invoices", l:ru?"Счета":"Invoices",             ico:"🧾"},
+      {k:"comms",    l:ru?"Уведомления":"Notifications",  ico:"🔔"},
+      {k:"team",     l:ru?"Команда":"Team",               ico:"👥"},
+      {k:"billing",  l:ru?"Подписка":"Billing",           ico:"💳"},
+      {k:"branding", l:ru?"Брендинг":"Branding",          ico:"🎨"},
     ];
 
     const DAYS = ru
@@ -2841,37 +2867,330 @@ function AppInner() {
         {/* ── NOTIFICATIONS ── */}
         {tab==="comms"&&(
           <div>
-            <Sec title={ru?"SMS клиентам (Twilio)":"Client SMS (Twilio)"} icon="📱">
+            {/* Granular notification matrix */}
+            <Sec title={ru?"Матрица уведомлений":"Notification Matrix"} icon="🔔">
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:14,lineHeight:1.5}}>
+                {ru?"Настройте каждое событие — какой канал и кому отправлять":"Configure each event — which channel and who receives it"}
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{borderBottom:"2px solid var(--bdr)"}}>
+                      <th style={{textAlign:"left",padding:"6px 8px",fontSize:10,fontWeight:700,color:"var(--mu)",width:180}}>{ru?"Событие":"Event"}</th>
+                      <th style={{textAlign:"center",padding:"6px 8px",fontSize:10,fontWeight:700,color:"var(--mu)"}}>Email</th>
+                      <th style={{textAlign:"center",padding:"6px 8px",fontSize:10,fontWeight:700,color:"var(--mu)"}}>SMS</th>
+                      <th style={{textAlign:"center",padding:"6px 8px",fontSize:10,fontWeight:700,color:"var(--mu)"}}>Push</th>
+                      <th style={{textAlign:"left",padding:"6px 8px",fontSize:10,fontWeight:700,color:"var(--mu)"}}>{ru?"Кому":"To"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      {k:"new_booking",    l:ru?"Новая бронь":"New booking",        badge:"🏠"},
+                      {k:"booking_cancel", l:ru?"Отмена брони":"Booking cancelled", badge:"❌"},
+                      {k:"missed_call",    l:ru?"Пропущенный звонок":"Missed call", badge:"📞"},
+                      {k:"new_lead",       l:ru?"Новый лид (AI)":"New AI lead",     badge:"🤖"},
+                      {k:"payment_recv",   l:ru?"Оплата получена":"Payment received",badge:"💰"},
+                      {k:"cleaner_arrive", l:ru?"Клинер выехал":"Cleaner en route", badge:"🚗"},
+                      {k:"job_complete",   l:ru?"Уборка завершена":"Job complete",   badge:"✅"},
+                      {k:"review_request", l:ru?"Запрос отзыва":"Review request",    badge:"⭐"},
+                    ].map(({k,l,badge})=>{
+                      const n = form.notifs[k]||{email:false,sms:false,push:false,recipients:"owner"};
+                      const upd = patch => setForm(f=>({...f,notifs:{...f.notifs,[k]:{...n,...patch}}}));
+                      return (
+                        <tr key={k} style={{borderBottom:"1px solid var(--bdr)"}}>
+                          <td style={{padding:"10px 8px"}}>
+                            <span style={{marginRight:6}}>{badge}</span>
+                            <span style={{fontWeight:500}}>{l}</span>
+                          </td>
+                          {["email","sms","push"].map(ch=>(
+                            <td key={ch} style={{textAlign:"center",padding:"10px 8px"}}>
+                              <div onClick={()=>upd({[ch]:!n[ch]})}
+                                style={{width:20,height:20,borderRadius:5,cursor:"pointer",margin:"0 auto",
+                                  background:n[ch]?"var(--acc)":"transparent",
+                                  border:`2px solid ${n[ch]?"var(--acc)":"var(--bdr)"}`,
+                                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                {n[ch]&&<span style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</span>}
+                              </div>
+                            </td>
+                          ))}
+                          <td style={{padding:"10px 8px"}}>
+                            <select value={n.recipients} onChange={e=>upd({recipients:e.target.value})}
+                              style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid var(--bdr)",
+                                background:"var(--bg)",color:"var(--tx)",cursor:"pointer"}}>
+                              <option value="owner">{ru?"Владелец":"Owner"}</option>
+                              <option value="manager">{ru?"Менеджер":"Manager"}</option>
+                              <option value="client">{ru?"Клиент":"Client"}</option>
+                              <option value="cleaner">{ru?"Клинер":"Cleaner"}</option>
+                              <option value="all">{ru?"Все":"All"}</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Sec>
+
+            {/* SMS settings */}
+            <Sec title={ru?"SMS клиентам":"Client SMS"} icon="📱">
               {!p?.purchasedPhone?.phoneNumber&&(
                 <div style={{marginBottom:12,padding:"8px 12px",background:"#f0a50015",border:"1px solid #f0a50040",borderRadius:8,fontSize:11,color:"#854F0B"}}>
-                  ⚠️ {ru?"Для SMS нужно купить номер в разделе CorexPhone":"To send SMS you need to buy a number in CorexPhone"}
+                  ⚠️ {ru?"Для SMS купите номер в CorexPhone":"To send SMS buy a number in CorexPhone"}
                 </div>
               )}
-              <Row label={ru?"SMS-подтверждение брони":"Booking confirmation SMS"} desc={ru?"Клиент получает SMS сразу после бронирования":"Client gets SMS right after booking"}>
+              <Row label={ru?"Подтверждение брони":"Booking confirmation"} desc={ru?"Сразу после создания брони":"Right after booking is created"}>
                 <Toggle val={form.smsNewBooking} onChange={v=>setForm(f=>({...f,smsNewBooking:v}))}/>
               </Row>
-              <Row label={ru?"Напоминание за 24 часа":"24h reminder SMS"} desc={ru?"Автоматически накануне уборки":"Auto sent the day before cleaning"}>
+              <Row label={ru?"Напоминание за 24ч":"24h reminder"}>
                 <Toggle val={form.smsReminder24h} onChange={v=>setForm(f=>({...f,smsReminder24h:v}))}/>
               </Row>
-              <Row label={ru?"Напоминание за 2 часа":"2h reminder SMS"} desc={ru?"За 2 часа до начала уборки":"2 hours before cleaning starts"}>
+              <Row label={ru?"Напоминание за 2ч":"2h reminder"}>
                 <Toggle val={form.smsReminder2h} onChange={v=>setForm(f=>({...f,smsReminder2h:v}))}/>
               </Row>
-              <Row label={ru?"SMS после уборки":"Post-cleaning SMS"} desc={ru?"Благодарность + ссылка на Google отзыв":"Thank you + Google review link"} last>
+              <Row label={ru?"SMS после уборки + запрос отзыва":"Post-cleaning + review request"} last>
                 <Toggle val={form.smsAfterCleaning} onChange={v=>setForm(f=>({...f,smsAfterCleaning:v}))}/>
-              </Row>
-            </Sec>
-            <Sec title={ru?"Уведомления команде":"Team Notifications"} icon="🔔">
-              <Row label={ru?"Email при новой брони":"Email on new booking"} desc={ru?"Письмо на email компании при каждой новой заявке":"Email to company address for each new booking"}>
-                <Toggle val={form.emailDigest} onChange={v=>setForm(f=>({...f,emailDigest:v}))}/>
-              </Row>
-              <Row label={ru?"Push-уведомления":"Push notifications"} desc={ru?"Браузерные уведомления о звонках и лидах":"Browser alerts for calls and new leads"} last>
-                <Toggle val={form.pushNotifications} onChange={v=>setForm(f=>({...f,pushNotifications:v}))} />
               </Row>
             </Sec>
           </div>
         )}
 
         {/* ── BRANDING ── */}
+        {/* ── INVOICES ── */}
+        {tab==="invoices"&&(
+          <div>
+            <Sec title={ru?"Способы оплаты":"Payment Methods"} icon="💳">
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:12,padding:"8px 12px",background:"var(--acc)10",borderRadius:8}}>
+                ⚡ {ru?"Способы оплаты отображаются в форме бронирования и в квитанциях для клиентов":"Payment methods appear in booking form and client receipts"}
+              </div>
+              {[
+                {k:"acceptCC",    l:"Credit / Debit Card", ico:"💳"},
+                {k:"acceptACH",   l:"ACH Bank Transfer",   ico:"🏦"},
+                {k:"acceptZelle", l:"Zelle",                ico:"⚡"},
+                {k:"acceptCash",  l:"Cash",                 ico:"💵"},
+                {k:"acceptVenmo", l:"Venmo",                ico:"📱"},
+              ].map(({k,l,ico})=>(
+                <Row key={k} label={<span>{ico} {l}</span>}>
+                  <Toggle val={form[k]} onChange={v=>setForm(f=>({...f,[k]:v}))}/>
+                </Row>
+              ))}
+              <Row label={ru?"Чаевые при оплате":"Tipping at checkout"} desc={ru?"Клиент может оставить чаевые при онлайн оплате":"Client can add tip during online payment"} last>
+                <Toggle val={form.tippingEnabled} onChange={v=>setForm(f=>({...f,tippingEnabled:v}))}/>
+              </Row>
+              {form.tippingEnabled&&(
+                <div style={{marginTop:8,padding:"10px 12px",background:"var(--s2)",borderRadius:8}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:8}}>{ru?"Варианты %":"Tip options"}</div>
+                  <div style={{display:"flex",gap:8}}>
+                    {[10,15,18,20,25].map(pct=>(
+                      <div key={pct} onClick={()=>{
+                        const cur=form.tippingPercents;
+                        setForm(f=>({...f,tippingPercents:cur.includes(pct)?cur.filter(x=>x!==pct):[...cur,pct].sort((a,b)=>a-b)}));
+                      }} style={{padding:"5px 12px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,
+                        background:form.tippingPercents.includes(pct)?"var(--acc)":"var(--s1)",
+                        color:form.tippingPercents.includes(pct)?"#fff":"var(--mu)",
+                        border:`1px solid ${form.tippingPercents.includes(pct)?"var(--acc)":"var(--bdr)"}`}}>
+                        {pct}%
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Sec>
+            <Sec title={ru?"Автоматические напоминания":"Invoice Automations"} icon="🤖">
+              <Row label={ru?"Напоминания о неоплаченных счетах":"Unpaid invoice reminders"} desc={ru?"Автоматически отправлять напоминания если счёт не оплачен":"Automatically send reminders for unpaid invoices"}>
+                <Toggle val={form.invoiceReminders} onChange={v=>setForm(f=>({...f,invoiceReminders:v}))}/>
+              </Row>
+              {form.invoiceReminders&&(
+                <Row label={ru?"Напоминать каждые":"Remind every"} last>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <input type="number" min="1" max="30" value={form.invoiceReminderDays}
+                      onChange={e=>setForm(f=>({...f,invoiceReminderDays:+e.target.value}))}
+                      style={{width:60,fontSize:12,padding:"4px 8px",borderRadius:6,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",textAlign:"center"}}/>
+                    <span style={{fontSize:12,color:"var(--mu)"}}>{ru?"дней":"days"}</span>
+                  </div>
+                </Row>
+              )}
+            </Sec>
+            <Sec title={ru?"Текст на квитанции":"Invoice Footer"} icon="📄">
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:10}}>{ru?"Отображается внизу каждого счёта для клиента":"Shown at the bottom of every client invoice"}</div>
+              <textarea style={{width:"100%",fontSize:12,height:64,resize:"none",padding:"8px 12px",
+                borderRadius:8,border:"1px solid var(--bdr)",background:"var(--bg)",color:"var(--tx)",fontFamily:"inherit"}}
+                value={form.invoiceFooter}
+                onChange={e=>setForm(f=>({...f,invoiceFooter:e.target.value}))}
+                placeholder={ru?"Спасибо за выбор нашей компании! Вопросы: (737) 418-1886":"Thank you for choosing us! Questions: (737) 418-1886"}/>
+              <Row label={ru?"URL Условий и политики":"Terms & Conditions URL"} desc={ru?"Ссылка отображается в счёте":"Link shown in invoice"} last>
+                <input className="inp" style={{width:240,fontSize:12}} value={form.termsUrl}
+                  onChange={e=>setForm(f=>({...f,termsUrl:e.target.value}))}
+                  placeholder="https://yoursite.com/terms"/>
+              </Row>
+            </Sec>
+          </div>
+        )}
+
+        {/* ── TEAM ── */}
+        {tab==="team"&&(
+          <div>
+            <Sec title={ru?"Сотрудники":"Team Members"} icon="👥">
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:11,color:"var(--mu)"}}>{(p.employees||[]).length} {ru?"сотрудников":"members"}</div>
+                <button className="btn btn-p btn-sm" onClick={()=>{setPage("departments");}}>{ru?"Управление →":"Manage →"}</button>
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead>
+                    <tr style={{borderBottom:"2px solid var(--bdr)"}}>
+                      {[ru?"Имя":"Name",ru?"Роль":"Role",ru?"Доступ":"Access",ru?"Статус":"Status"].map(h=>(
+                        <th key={h} style={{textAlign:"left",padding:"6px 8px",fontSize:10,fontWeight:700,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(p.employees||[]).length===0?(
+                      <tr><td colSpan={4} style={{textAlign:"center",padding:24,color:"var(--mu)",fontSize:12}}>
+                        {ru?"Нет сотрудников — добавьте в разделе «Отделы»":"No employees — add in the Departments section"}
+                      </td></tr>
+                    ):(p.employees||[]).map(emp=>(
+                      <tr key={emp.id} style={{borderBottom:"1px solid var(--bdr)"}}>
+                        <td style={{padding:"10px 8px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <Av name={emp.name||"?"} color="var(--acc)" style={{width:28,height:28,fontSize:10,flexShrink:0}}/>
+                            <div>
+                              <div style={{fontWeight:600}}>{emp.name}</div>
+                              <div style={{fontSize:10,color:"var(--mu)"}}>{emp.email||"—"}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{padding:"10px 8px",color:"var(--mu)"}}>{emp.role||"—"}</td>
+                        <td style={{padding:"10px 8px"}}>
+                          <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                            {(emp.sections||[]).slice(0,3).map(s=>(
+                              <span key={s} style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:"var(--acc)15",color:"var(--acc)",fontWeight:600}}>
+                                {s}
+                              </span>
+                            ))}
+                            {(emp.sections||[]).length>3&&<span style={{fontSize:9,color:"var(--mu)"}}>+{(emp.sections||[]).length-3}</span>}
+                          </div>
+                        </td>
+                        <td style={{padding:"10px 8px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:7,height:7,borderRadius:"50%",background:emp.status==="active"?"#22c55e":"var(--mu)"}}/>
+                            <span style={{color:"var(--mu)",fontSize:11}}>{emp.status||"active"}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Sec>
+            <Sec title={ru?"Права по умолчанию":"Default Permissions"} icon="🔐">
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:10,lineHeight:1.5}}>
+                {ru?"Новые сотрудники получают доступ к этим разделам по умолчанию":"New employees get access to these sections by default"}
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {["dashboard","booking","chat","kb"].map(s=>(
+                  <div key={s} style={{padding:"5px 12px",borderRadius:20,background:"var(--acc)15",color:"var(--acc)",fontSize:11,fontWeight:600}}>{s}</div>
+                ))}
+                <div style={{padding:"5px 12px",borderRadius:20,background:"var(--s2)",color:"var(--mu)",fontSize:11,cursor:"pointer"}}
+                  onClick={()=>setPage("departments")}>+ {ru?"Настроить":"Configure"}</div>
+              </div>
+            </Sec>
+          </div>
+        )}
+
+        {/* ── BILLING ── */}
+        {tab==="billing"&&(
+          <div>
+            {/* Current plan */}
+            <div style={{background:"var(--s1)",border:"2px solid var(--acc)40",borderRadius:12,padding:"20px",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{fontSize:10,color:"var(--mu)",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,marginBottom:6}}>
+                    {ru?"Текущий план":"Current Plan"}
+                  </div>
+                  <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:26,color:"var(--acc)",lineHeight:1}}>
+                    {plan}
+                  </div>
+                  <div style={{fontSize:13,color:"var(--mu)",marginTop:4}}>
+                    ${PLAN_LIMITS[plan]?.price||0}/mo · {ru?"следующее списание":"next billing"} {ru?"при продлении":"on renewal"}
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:11,color:"var(--mu)",marginBottom:4}}>{ru?"Лимиты плана":"Plan limits"}</div>
+                  <div style={{fontSize:12,color:"var(--tx)"}}>👥 {ru?"до":"up to"} {PLAN_LIMITS[plan]?.employees||10} {ru?"сотр.":"staff"}</div>
+                  <div style={{fontSize:12,color:"var(--tx)"}}>📍 {PLAN_LIMITS[plan]?.branches||1} {ru?"город(ов)":"city(ies)"}</div>
+                </div>
+              </div>
+              <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid var(--bdr)",display:"flex",gap:8,flexWrap:"wrap"}}>
+                {Object.entries({
+                  Basic:  {price:97,  label:"Basic",  color:"var(--mu)"},
+                  Pro:    {price:197, label:"Pro",    color:"var(--gr)"},
+                  VIP:    {price:297, label:"VIP",    color:"var(--acc)"},
+                }).map(([k,v])=>(
+                  <div key={k} style={{flex:1,minWidth:120,padding:"12px 14px",borderRadius:10,
+                    border:plan===k?"2px solid var(--acc)":"1px solid var(--bdr)",
+                    background:plan===k?"var(--acc)08":"var(--s2)"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:v.color}}>{v.label}</div>
+                    <div style={{fontFamily:"'Sora',sans-serif",fontWeight:800,fontSize:18,color:"var(--tx)"}}>${v.price}<span style={{fontSize:11,fontWeight:400,color:"var(--mu)"}}>/mo</span></div>
+                    {plan===k
+                      ? <div style={{fontSize:10,color:"var(--acc)",marginTop:4,fontWeight:600}}>✓ {ru?"Текущий":"Current"}</div>
+                      : <button className="btn btn-g btn-sm" style={{marginTop:6,fontSize:10,width:"100%",justifyContent:"center"}}
+                          onClick={()=>alert(ru?"Свяжитесь с поддержкой для смены плана: support@corexos.app":"Contact support to change plan: support@corexos.app")}>
+                          {plan==="VIP"&&k!=="VIP" ? (ru?"Понизить":"Downgrade") : (ru?"Перейти":"Upgrade")} →
+                        </button>
+                    }
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Plan features comparison */}
+            <Sec title={ru?"Что включено в ваш план":"What's included"} icon="✅">
+              {[
+                {f:ru?"Все модули (бронирование, CRM, AI, P&L)":"All modules (booking, CRM, AI, P&L)", plans:["Basic","Pro","VIP"]},
+                {f:ru?"Несколько филиалов / городов":"Multiple branches / cities", plans:["Pro","VIP"]},
+                {f:ru?"Расписание и зарплаты":"Schedule & salary", plans:["Pro","VIP"]},
+                {f:ru?"Свой логотип в кабинете":"Own logo in cabinet", plans:["Pro","VIP"]},
+                {f:ru?"Свой акцентный цвет":"Custom accent color", plans:["VIP"]},
+                {f:ru?"Безлимит сотрудников":"Unlimited employees", plans:["VIP"]},
+                {f:ru?"Приоритетная поддержка":"Priority support", plans:["VIP"]},
+              ].map(({f,plans})=>{
+                const has = plans.includes(plan);
+                return (
+                  <div key={f} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--bdr)"}}>
+                    <span style={{fontSize:14,flexShrink:0}}>{has?"✅":"❌"}</span>
+                    <span style={{fontSize:12,color:has?"var(--tx)":"var(--mu)",flex:1}}>{f}</span>
+                    {!has&&<span style={{fontSize:10,color:"var(--acc)",fontWeight:600}}>{plans[0]}+</span>}
+                  </div>
+                );
+              })}
+            </Sec>
+
+            {/* Usage this month */}
+            <Sec title={ru?"Использование в этом месяце":"Usage this month"} icon="📊">
+              {[
+                {l:ru?"Сотрудников":"Employees", v:(p.employees||[]).length, max:PLAN_LIMITS[plan]?.employees||10},
+                {l:ru?"Городов":"Cities", v:(p.branches||[]).length||1, max:PLAN_LIMITS[plan]?.branches||1},
+                {l:ru?"Бронирований":"Bookings", v:(p.bookings||[]).filter(b=>b.createdAt?.startsWith(new Date().toISOString().slice(0,7))).length, max:null},
+              ].map(({l,v,max})=>{
+                const pct = max ? Math.min(100,Math.round((v/max)*100)) : 0;
+                const warn = max && pct >= 80;
+                return (
+                  <div key={l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                    <div style={{width:100,fontSize:11,color:"var(--mu)",flexShrink:0}}>{l}</div>
+                    <div style={{flex:1,height:6,background:"var(--s2)",borderRadius:3,overflow:"hidden"}}>
+                      {max&&<div style={{height:"100%",width:`${pct}%`,background:warn?"#ef4444":"var(--acc)",borderRadius:3}}/>}
+                    </div>
+                    <div style={{fontSize:11,fontWeight:600,color:warn?"#ef4444":"var(--tx)",flexShrink:0,width:60,textAlign:"right"}}>
+                      {v}{max?`/${max}`:` ${ru?"шт":"jobs"}`}
+                    </div>
+                  </div>
+                );
+              })}
+            </Sec>
+          </div>
+        )}
+
         {tab==="branding"&&(
           <div>
             {/* Logo */}
