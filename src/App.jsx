@@ -1323,6 +1323,10 @@ function AppInner() {
   const [smsModal,   setSmsModal]   = useState(null);
   const [smsSending, setSmsSending] = useState(false);
   const [smsLog,     setSmsLog]     = useState({});
+  const [chatInput,  setChatInput]  = useState("");
+  const [smsModal,   setSmsModal]   = useState(null);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsLog,     setSmsLog]     = useState({});
   // CRM contact modal — lifted to survive re-renders
   const [crmCModal, setCrmCModal] = useState(false); // false | true (new) | contactId (edit)
   const [crmCF, setCrmCF] = useState({name:"",phone:"",email:"",stage:"new_lead",tags:[],source:"",notes:""});
@@ -1489,6 +1493,29 @@ function AppInner() {
     const serialized = partners.map(serializePartner);
     setDoc(ref, { partners: serialized }, { merge: true }).catch(console.error);
   }, [partners]);
+
+  // ── Sync AI bookings from RTDB on load + window focus ──
+  useEffect(()=>{
+    if (fbLoading) return;
+    async function syncAiBookings() {
+      try {
+        for (const partner of partners) {
+          const pid = partner.id; if (!pid) continue;
+          const r = await fetch(`/api/get-ai-bookings?partnerId=${pid}`);
+          if (!r.ok) continue;
+          const { bookings: ai } = await r.json();
+          if (!ai || !ai.length) continue;
+          const ids = new Set((partner.bookings||[]).map(b=>b.id));
+          const newOnes = ai.filter(b=>!ids.has(b.id));
+          if (!newOnes.length) continue;
+          setPartners(ps=>ps.map(p=>p.id!==pid?p:{...p,bookings:[...(p.bookings||[]),...newOnes]}));
+        }
+      } catch(e){}
+    }
+    syncAiBookings();
+    window.addEventListener('focus', syncAiBookings);
+    return ()=>window.removeEventListener('focus', syncAiBookings);
+  }, [fbLoading]);
 
   // ── Sync AI bookings from RTDB ──
   // Run once on load + on window focus (not on interval to avoid re-render disrupting inputs)
@@ -9871,11 +9898,12 @@ function AppInner() {
       {key:"notes", label:ru?"Заметки":"Notes"},
     ];
     const CRM_FIELDS = [
-      {key:"name",  label:ru?"Имя контакта *":"Contact Name *", required:true},
-      {key:"phone", label:ru?"Телефон":"Phone"},
-      {key:"email", label:"Email"},
-      {key:"city",  label:ru?"Город":"City"},
-      {key:"notes", label:ru?"Заметки / описание":"Notes"},
+      {key:"name",     label:ru?"Имя *":"First Name *", required:true},
+      {key:"lastName", label:ru?"Фамилия":"Last Name"},
+      {key:"phone",    label:ru?"Телефон":"Phone"},
+      {key:"email",    label:"Email"},
+      {key:"city",     label:ru?"Город":"City"},
+      {key:"notes",    label:ru?"Заметки":"Notes"},
     ];
     const fields = importTarget==="booking" ? BOOKING_FIELDS : CRM_FIELDS;
 
@@ -9884,7 +9912,8 @@ function AppInner() {
       const map = {};
       const normalize = s => s.toLowerCase().replace(/[^a-zа-яё]/gi,"");
       const ALIASES = {
-        name:    ["name","fullname","clientname","contactname","customer","firstname","имя","клиент","контакт","название"],
+        name:     ["firstname","first","имя","имя контакта"],
+        lastName: ["lastname","last","surname","фамилия"],
         phone:   ["phone","mobile","cell","telephone","телефон","моб"],
         email:   ["email","mail","e-mail","почта"],
         address: ["address","addr","location","адрес"],
@@ -9969,13 +9998,15 @@ function AppInner() {
         // CRM contacts
         const existing = getPartner(pid)?.contacts||[];
         const newContacts = importRows.map(row => {
-          const name = row[importMap.name||""]||"";
-          if (!name.trim()) { skipped++; return null; }
+          const firstName=(row[importMap.name||""]||"").trim();
+          const lastName=(row[importMap.lastName||""]||"").trim();
+          const name=[firstName,lastName].filter(Boolean).join(" ");
+          if (!firstName) { skipped++; return null; }
           if (existing.some(c => c.name===name && c.phone===(row[importMap.phone||""]||""))) { skipped++; return null; }
           added++;
           return {
             id: "c_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),
-            name:    name.trim(),
+            name,
             phone:   row[importMap.phone||""]||"",
             email:   row[importMap.email||""]||"",
             city:    row[importMap.city||""]||"",
